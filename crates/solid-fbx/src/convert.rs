@@ -467,24 +467,29 @@ impl<'d> Converter<'d> {
 
                     created_nodes.insert(id, node_id);
                 }
+                // After processing the queue, allow the next iteration to pick up
+                // children from `remaining` whose parents were just created.
+                // Only break on no-progress when the queue was also empty this round.
+                continue;
             } else if !remaining.is_empty() {
-                // Break cycle: add remaining as roots
-                for id in remaining.drain(..) {
-                    let raw_idx = self.model_fbx[&id];
-                    let raw = &self.models[raw_idx];
-                    let node_id = b.add_root_node(&raw.name);
-                    b.set_transform(node_id, solid_rs::geometry::Transform {
-                        translation: raw.translation,
-                        rotation:    raw.rotation,
-                        scale:       raw.scale,
-                    });
-                    created_nodes.insert(id, node_id);
+                if !progress {
+                    // No parents were created and nothing moved — break cycle
+                    for id in remaining.drain(..) {
+                        let raw_idx = self.model_fbx[&id];
+                        let raw = &self.models[raw_idx];
+                        let node_id = b.add_root_node(&raw.name);
+                        b.set_transform(node_id, solid_rs::geometry::Transform {
+                            translation: raw.translation,
+                            rotation:    raw.rotation,
+                            scale:       raw.scale,
+                        });
+                        created_nodes.insert(id, node_id);
+                    }
+                    break;
                 }
-                break;
             } else {
                 break;
             }
-            if !progress { break; }
         }
 
         // ── Push skins ────────────────────────────────────────────────────────
@@ -1015,11 +1020,9 @@ impl<'d> Converter<'d> {
                 let indexes: Vec<i32> = node.child("Indexes")
                     .and_then(|n| n.as_i32_slice()).map(|s| s.to_vec()).unwrap_or_default();
                 let weights: Vec<f64> = node.child("Weights")
-                    .and_then(|n| n.as_f64_slice()).map(|s| s.to_vec()).unwrap_or_default();
-                let transform_link: Mat4 = node.child("TransformLink")
-                    .and_then(|n| n.as_f64_slice())
-                    .map(mat4_from_cols)
-                    .unwrap_or(Mat4::IDENTITY);
+                    .map(|n| n.as_f64_vec()).unwrap_or_default();
+                let tl_vec = node.child("TransformLink").map(|n| n.as_f64_vec()).unwrap_or_default();
+                let transform_link: Mat4 = if tl_vec.is_empty() { Mat4::IDENTITY } else { mat4_from_cols(&tl_vec) };
 
                 let idx = self.clusters.len();
                 self.cluster_fbx.insert(id, idx);

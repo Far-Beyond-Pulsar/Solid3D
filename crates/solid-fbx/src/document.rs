@@ -80,6 +80,23 @@ impl FbxNode {
     pub fn as_i32_slice(&self) -> Option<&[i32]> {
         self.properties.first().and_then(FbxProperty::as_i32_slice)
     }
+
+    /// Coerce the first property to a `Vec<f64>`, accepting any numeric array type.
+    /// This handles ASCII FBX where integer-looking values (0, 1, -1) are stored
+    /// as `ArrInt32` rather than `ArrFloat64`.
+    pub fn as_f64_vec(&self) -> Vec<f64> {
+        self.properties.first().and_then(FbxProperty::to_f64_vec).unwrap_or_default()
+    }
+
+    /// Coerce the first property to a `Vec<i64>`, accepting `ArrInt32` and `ArrInt64`.
+    pub fn as_i64_vec(&self) -> Vec<i64> {
+        self.properties.first().and_then(FbxProperty::to_i64_vec).unwrap_or_default()
+    }
+
+    /// Coerce the first property to a `Vec<f32>`, accepting any numeric array type.
+    pub fn as_f32_vec(&self) -> Vec<f32> {
+        self.properties.first().and_then(FbxProperty::to_f32_vec).unwrap_or_default()
+    }
 }
 
 // ── Property ──────────────────────────────────────────────────────────────────

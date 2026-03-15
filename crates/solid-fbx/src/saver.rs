@@ -529,6 +529,35 @@ impl<'w> FbxWriter<'w> {
             self.line("}")?;
         }
 
+        // Per-polygon material layer
+        let has_multi_mat = mesh.primitives.len() > 1
+            || mesh.primitives.first().and_then(|p| p.material_index).is_some();
+        if has_multi_mat {
+            // Compute triangle count per primitive
+            let (mapping, mat_indices): (&str, Vec<i32>) = if mesh.primitives.len() <= 1 {
+                ("AllSame", vec![mesh.primitives.first()
+                    .and_then(|p| p.material_index)
+                    .map(|_| 0_i32)
+                    .unwrap_or(0)])
+            } else {
+                let mut poly_mats: Vec<i32> = Vec::new();
+                for (local_idx, prim) in mesh.primitives.iter().enumerate() {
+                    let tri_count = prim.indices.len() / 3;
+                    for _ in 0..tri_count {
+                        poly_mats.push(local_idx as i32);
+                    }
+                }
+                ("ByPolygon", poly_mats)
+            };
+            self.line("LayerElementMaterial: 0 {")?;
+            self.indent += 1;
+            self.line(&format!("MappingInformationType: \"{mapping}\""))?;
+            self.line("ReferenceInformationType: \"IndexToDirect\"")?;
+            self.write_i32_array("Materials", &mat_indices)?;
+            self.indent -= 1;
+            self.line("}")?;
+        }
+
         self.indent -= 1;
         self.line("}")?;
         self.blank()

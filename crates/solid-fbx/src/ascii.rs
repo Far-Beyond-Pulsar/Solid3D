@@ -314,9 +314,15 @@ impl AsciiParser {
         if is_float {
             Ok(Some(FbxProperty::ArrFloat64(floats)))
         } else {
-            Ok(Some(FbxProperty::ArrInt32(
-                ints.into_iter().map(|v| v as i32).collect(),
-            )))
+            // Use i64 when any value exceeds i32 range (e.g. FBX animation timestamps).
+            let needs_i64 = ints.iter().any(|&v| v > i32::MAX as i64 || v < i32::MIN as i64);
+            if needs_i64 {
+                Ok(Some(FbxProperty::ArrInt64(ints)))
+            } else {
+                Ok(Some(FbxProperty::ArrInt32(
+                    ints.into_iter().map(|v| v as i32).collect(),
+                )))
+            }
         }
     }
 
