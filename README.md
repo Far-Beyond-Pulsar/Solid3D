@@ -356,8 +356,9 @@ Extensions: `.stl` · MIME: `model/stl`, `application/sla`
 | Positions | ✅ | ✅ | |
 | Face normals | ✅ | ✅ | Stored per-triangle; recomputed on save |
 | Vertex deduplication | ✅ | — | `HashMap<[u32;3], u32>` bit-cast dedup |
-| Vertex normals | ⚠️ | — | Face normal assigned to all 3 vertices |
-| UV / vertex colours / tangents | — | — | Not supported by format |
+| Vertex normals | ✅ | ✅ | Area-weighted smooth normals computed per smoothing group on load; recomputed on save |
+| Vertex colours (VisCAM RGB555) | ✅ | ✅ | Bit 15 colour-valid flag; 5-bit R/G/B channels |
+| UV / tangents | — | — | Not supported by format |
 | **Scene graph** | | | |
 | Scene name (from `solid <name>`) | ✅ | ✅ | ASCII only |
 | Node hierarchy / transforms | — | — | Not supported by format |
