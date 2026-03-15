@@ -24,8 +24,8 @@
 //! use solid_fbx::{FbxLoader, FbxSaver};
 //!
 //! let mut registry = Registry::new();
-//! registry.register_loader(std::sync::Arc::new(FbxLoader));
-//! registry.register_saver(std::sync::Arc::new(FbxSaver));
+//! registry.register_loader(FbxLoader);
+//! registry.register_saver(FbxSaver);
 //!
 //! let scene = registry.load_file("model.fbx").unwrap();
 //! println!("Loaded {} meshes", scene.meshes.len());
