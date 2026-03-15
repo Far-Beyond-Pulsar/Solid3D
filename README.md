@@ -188,8 +188,8 @@ cargo run -p fbx-to-obj -- input.fbx output.obj
 
 | Format | Load | Save | Notes |
 |---|---|---|---|
-| FBX (binary) | ✅ | — | 6.1–7.4, 32 + 64-bit offsets |
-| FBX (ASCII) | ✅ | ✅ | 7.4; cameras, lights, vertex colours, skinning, animation |
+| FBX (binary) | ✅ | ✅ | 6.1–7.4 load; 7.4 binary save via `FbxSaver::save_binary()` |
+| FBX (ASCII) | ✅ | ✅ | 7.4; cameras, lights, vertex colours, tangents, skinning, animation |
 | OBJ / MTL | ✅ | ✅ | N-gon fan triangulation; smoothing groups; PBR MTL |
 | glTF 2.0 JSON | ✅ | ✅ | Skinning, animation, KHR_lights_punctual, sparse accessors |
 | GLB | ✅ | ✅ | Binary glTF; `GltfSaver::save_glb()` |
