@@ -189,15 +189,15 @@ cargo run -p fbx-to-obj -- input.fbx output.obj
 | Format | Load | Save | Notes |
 |---|---|---|---|
 | FBX (binary) | ✅ | — | 6.1–7.4, 32 + 64-bit offsets |
-| FBX (ASCII) | ✅ | ✅ | 7.4; cameras, lights, vertex colours |
-| OBJ / MTL | ✅ | ✅ | N-gon fan triangulation; separate MTL save |
-| glTF 2.0 JSON | ✅ | ✅ | Embedded base64 buffers; skinning |
+| FBX (ASCII) | ✅ | ✅ | 7.4; cameras, lights, vertex colours, skinning, animation |
+| OBJ / MTL | ✅ | ✅ | N-gon fan triangulation; smoothing groups; PBR MTL |
+| glTF 2.0 JSON | ✅ | ✅ | Skinning, animation, KHR_lights_punctual, sparse accessors |
 | GLB | ✅ | ✅ | Binary glTF; `GltfSaver::save_glb()` |
-| STL binary | ✅ | ✅ | Vertex deduplication on load |
-| STL ASCII | ✅ | ✅ | `StlSaver::save_ascii()` helper |
-| PLY ASCII | ✅ | ✅ | N-gon fan triangulation; point clouds |
-| PLY binary LE | ✅ | ✅ | `PlySaver::save_binary_le()` helper |
-| PLY binary BE | ✅ | — | Read-only |
+| STL binary | ✅ | ✅ | Vertex dedup; smooth normals; VisCAM vertex colours |
+| STL ASCII | ✅ | ✅ | `StlSaver::save_ascii()` |
+| PLY ASCII | ✅ | ✅ | N-gon fan triangulation; point clouds; multi-UV; tangents |
+| PLY binary LE | ✅ | ✅ | `PlySaver::save_binary_le()` / `save_with_precision()` |
+| PLY binary BE | ✅ | ✅ | `PlySaver::save_binary_be()` |
 
 ---
 
