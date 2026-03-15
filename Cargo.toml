@@ -1,5 +1,5 @@
 [workspace]
-members  = ["crates/solid-rs", "crates/solid-fbx"]
+members  = ["crates/solid-rs", "crates/solid-fbx", "crates/solid-obj"]
 resolver = "2"
 
 [workspace.package]

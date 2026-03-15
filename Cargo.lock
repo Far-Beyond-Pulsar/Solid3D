@@ -84,6 +84,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "solid-obj"
+version = "0.1.0"
+dependencies = [
+ "glam",
+ "solid-rs",
+]
+
+[[package]]
 name = "solid-rs"
 version = "0.1.0"
 dependencies = [
