@@ -51,10 +51,10 @@ pub struct SaveOptions {
 /// };
 ///
 /// impl Saver for MyFmtSaver {
-///     fn save<W: Write>(
+///     fn save(
 ///         &self,
 ///         scene: &Scene,
-///         writer: W,
+///         writer: &mut dyn Write,
 ///         options: &SaveOptions,
 ///     ) -> Result<()> {
 ///         // … serialise `scene` to `writer` …
@@ -66,10 +66,10 @@ pub struct SaveOptions {
 /// ```
 pub trait Saver: Send + Sync + 'static {
     /// Serialises `scene` and writes the result to `writer`.
-    fn save<W: Write>(
+    fn save(
         &self,
         scene: &Scene,
-        writer: W,
+        writer: &mut dyn Write,
         options: &SaveOptions,
     ) -> Result<()>;
 

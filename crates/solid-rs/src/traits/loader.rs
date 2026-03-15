@@ -7,6 +7,13 @@ use crate::error::Result;
 use crate::scene::scene::Scene;
 use crate::traits::FormatInfo;
 
+/// Combined `Read + Seek` supertrait — blanket-implemented for all `T: Read + Seek`.
+///
+/// This exists solely so that `Loader::load` can accept a `&mut dyn ReadSeek`
+/// without making the `Loader` trait non-dyn-compatible.
+pub trait ReadSeek: Read + Seek {}
+impl<T: Read + Seek> ReadSeek for T {}
+
 /// Options that control how a scene is parsed.
 ///
 /// All fields have sensible defaults via [`Default`]; loaders should honour
@@ -57,9 +64,9 @@ pub struct LoadOptions {
 /// };
 ///
 /// impl Loader for MyFmtLoader {
-///     fn load<R: Read + Seek>(
+///     fn load(
 ///         &self,
-///         reader: R,
+///         reader: &mut dyn ReadSeek,
 ///         options: &LoadOptions,
 ///     ) -> Result<Scene> {
 ///         let mut builder = SceneBuilder::new();
@@ -73,11 +80,11 @@ pub struct LoadOptions {
 pub trait Loader: Send + Sync + 'static {
     /// Parses data from `reader` and returns a fully populated [`Scene`].
     ///
-    /// `reader` must implement both [`Read`] and [`Seek`] so that loaders
-    /// can inspect magic bytes, rewind, or jump to offsets within the stream.
-    fn load<R: Read + Seek>(
+    /// `reader` implements both [`Read`] and [`Seek`] via [`ReadSeek`] so
+    /// loaders can inspect magic bytes, rewind, or jump to offsets.
+    fn load(
         &self,
-        reader: R,
+        reader: &mut dyn ReadSeek,
         options: &LoadOptions,
     ) -> Result<Scene>;
 
@@ -92,7 +99,7 @@ pub trait Loader: Send + Sync + 'static {
     ///
     /// Returns a confidence score in `[0.0, 1.0]`; `0.0` means "cannot
     /// determine" and `1.0` means "definitely this format".
-    fn detect<R: Read>(&self, _reader: &mut R) -> f32 {
+    fn detect(&self, _reader: &mut dyn Read) -> f32 {
         0.0
     }
 }

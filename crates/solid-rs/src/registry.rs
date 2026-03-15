@@ -25,7 +25,7 @@ use std::sync::Arc;
 
 use crate::error::{Result, SolidError};
 use crate::scene::scene::Scene;
-use crate::traits::{FormatInfo, LoadOptions, Loader, SaveOptions, Saver};
+use crate::traits::{FormatInfo, LoadOptions, Loader, ReadSeek, SaveOptions, Saver};
 
 /// Dynamic registry of [`Loader`] and [`Saver`] implementations.
 ///
@@ -123,8 +123,8 @@ impl Registry {
             .ok_or_else(|| SolidError::UnsupportedFormat(format!("no loader for .{ext}")))?;
 
         let file   = std::fs::File::open(path).map_err(SolidError::Io)?;
-        let reader = std::io::BufReader::new(file);
-        loader.load(reader, options)
+        let mut reader = std::io::BufReader::new(file);
+        loader.load(&mut reader, options)
     }
 
     /// Saves `scene` to the file at `path`, selecting a saver by extension.
@@ -150,21 +150,21 @@ impl Registry {
             .ok_or_else(|| SolidError::UnsupportedFormat(format!("no saver for .{ext}")))?;
 
         let file   = std::fs::File::create(path).map_err(SolidError::Io)?;
-        let writer = std::io::BufWriter::new(file);
-        saver.save(scene, writer, options)
+        let mut writer = std::io::BufWriter::new(file);
+        saver.save(scene, &mut writer, options)
     }
 
     /// Loads a scene from an already-open reader using the loader for `format_id`.
-    pub fn load_from<R: Read + Seek>(
+    pub fn load_from<R: ReadSeek>(
         &self,
-        reader: R,
+        mut reader: R,
         format_id: &str,
         options: &LoadOptions,
     ) -> Result<Scene> {
         let loader = self
             .loader_by_id(format_id)
             .ok_or_else(|| SolidError::UnsupportedFormat(format!("no loader for '{format_id}'")))?;
-        loader.load(reader, options)
+        loader.load(&mut reader, options)
     }
 
     // ── Introspection ────────────────────────────────────────────────────────
