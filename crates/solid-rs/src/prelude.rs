@@ -19,7 +19,7 @@ pub use crate::scene::{
     Texture, TextureRef, TextureTransform, WrapMode,
 };
 pub use crate::traits::{
-    FormatInfo, LoadOptions, Loader, SaveOptions, Saver, SceneVisitor,
+    FormatInfo, LoadOptions, Loader, ReadSeek, SaveOptions, Saver, SceneVisitor,
 };
 pub use crate::value::Value;
 

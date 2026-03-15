@@ -5,9 +5,10 @@
 //! This is the pattern followed by real format crates such as `solid-obj`,
 //! `solid-gltf`, and `solid-fbx`.
 
-use std::io::{BufRead, BufReader, Read, Seek, Write};
+use std::io::{BufRead, BufReader, Read, Write};
 
 use solid_rs::prelude::*;
+use solid_rs::traits::ReadSeek;
 use glam::Vec3;
 
 // ── Format metadata ───────────────────────────────────────────────────────────
@@ -35,9 +36,9 @@ static XYZ_FORMAT: FormatInfo = FormatInfo {
 pub struct XyzLoader;
 
 impl Loader for XyzLoader {
-    fn load<R: Read + Seek>(
+    fn load(
         &self,
-        reader: R,
+        reader: &mut dyn ReadSeek,
         _options: &LoadOptions,
     ) -> Result<Scene> {
         let mut builder = SceneBuilder::named("XYZ Scene");
@@ -86,7 +87,7 @@ impl Loader for XyzLoader {
         &XYZ_FORMAT
     }
 
-    fn detect<R: Read>(&self, reader: &mut R) -> f32 {
+    fn detect(&self, reader: &mut dyn Read) -> f32 {
         let mut buf = [0u8; 32];
         let n = reader.read(&mut buf).unwrap_or(0);
         let s = std::str::from_utf8(&buf[..n]).unwrap_or("");
@@ -105,10 +106,10 @@ impl Loader for XyzLoader {
 pub struct XyzSaver;
 
 impl Saver for XyzSaver {
-    fn save<W: Write>(
+    fn save(
         &self,
         scene: &Scene,
-        mut writer: W,
+        writer: &mut dyn Write,
         _options: &SaveOptions,
     ) -> Result<()> {
         writeln!(writer, "# Exported by solid-rs XyzSaver")
@@ -172,7 +173,7 @@ fn main() -> Result<()> {
 
     // Reload from that buffer.
     let loaded = XyzLoader.load(
-        std::io::Cursor::new(buf),
+        &mut std::io::Cursor::new(buf),
         &LoadOptions::default(),
     )?;
     println!(
