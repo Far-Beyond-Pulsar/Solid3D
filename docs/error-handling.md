@@ -61,7 +61,7 @@ Use `?` to propagate `std::io::Error` directly — it converts automatically:
 
 ```rust
 impl Loader for MyLoader {
-    fn load<R: Read + Seek>(&self, mut reader: R, _opts: &LoadOptions) -> Result<Scene> {
+    fn load(&self, reader: &mut dyn ReadSeek, _opts: &LoadOptions) -> Result<Scene> {
         let mut buf = [0u8; 4];
         reader.read_exact(&mut buf)?;  // io::Error → SolidError::Io
 

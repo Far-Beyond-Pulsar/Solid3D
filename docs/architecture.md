@@ -104,7 +104,7 @@ solid-rs = "0.1"
 ```rust
 // src/lib.rs
 use solid_rs::prelude::*;
-use std::io::{Read, Seek};
+use solid_rs::traits::ReadSeek;
 
 pub struct MyLoader;
 
@@ -115,7 +115,7 @@ static INFO: FormatInfo = FormatInfo {
 };
 
 impl Loader for MyLoader {
-    fn load<R: Read + Seek>(&self, reader: R, opts: &LoadOptions) -> Result<Scene> {
+    fn load(&self, reader: &mut dyn ReadSeek, opts: &LoadOptions) -> Result<Scene> {
         let mut b = SceneBuilder::new();
         // … parse reader, call b.push_mesh() etc. …
         Ok(b.build())
@@ -139,8 +139,21 @@ They also eliminate reference-count overhead during batch processing.
 animation) that map to a common interchange model.  The `Extensions` bag
 handles anything that falls outside the standard model.
 
-### Why `Read + Seek` for loaders?
+### Why `ReadSeek` for loaders?
 
 Many binary formats (FBX, GLB, USDZ) require random access to read headers
-and index tables.  Requiring `Seek` as well as `Read` makes this possible
+and index tables.  Requiring both `Read` and `Seek` makes this possible
 without buffering the entire file in memory.
+
+Because generic methods (`fn load<R: Read + Seek>`) make a trait non-dyn-compatible
+— preventing `Arc<dyn Loader>` and dynamic dispatch in the registry —
+SolidRS instead declares a `ReadSeek` supertrait:
+
+```rust
+pub trait ReadSeek: Read + Seek {}
+impl<T: Read + Seek> ReadSeek for T {}
+```
+
+Loaders then accept `&mut dyn ReadSeek`, which is a single fat pointer and fully
+object-safe.  Callers pass any `T: Read + Seek` (files, cursors, memory-mapped
+regions) without wrapping.
