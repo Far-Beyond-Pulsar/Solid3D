@@ -1,5 +1,5 @@
 [workspace]
-members  = ["crates/solid-rs"]
+members  = ["crates/solid-rs", "crates/solid-fbx"]
 resolver = "2"
 
 [workspace.package]
@@ -14,3 +14,4 @@ homepage      = "https://github.com/Far-Beyond-Pulsar/solid-rs"
 solid-rs  = { path = "crates/solid-rs", version = "0.1.0" }
 glam      = "0.27"
 thiserror = "2"
+flate2    = "1"
