@@ -6,8 +6,10 @@ use glam::{Mat4, Quat, Vec2, Vec3, Vec4};
 use solid_rs::builder::SceneBuilder;
 use solid_rs::geometry::{Primitive, SkinWeights, Transform, Vertex};
 use solid_rs::scene::{
-    AlphaMode, Camera, Image, ImageSource, Material, Mesh, NodeId,
-    OrthographicCamera, PerspectiveCamera, Projection, Texture, TextureRef,
+    AlphaMode, Animation, AnimationChannel, AnimationTarget, Camera,
+    DirectionalLight, Image, ImageSource, Interpolation, Light, LightBase,
+    Material, Mesh, NodeId, OrthographicCamera, PerspectiveCamera,
+    PointLight, Projection, Skin, SpotLight, Texture, TextureRef,
 };
 use solid_rs::{Result, SolidError};
 use std::path::Path;
@@ -266,6 +268,9 @@ pub fn gltf_to_scene(
     let mut queue: std::collections::VecDeque<(usize, Option<NodeId>)> =
         root_node_indices.iter().map(|&i| (i, None)).collect();
 
+    let mut gltf_to_node_map: std::collections::HashMap<usize, NodeId> =
+        std::collections::HashMap::new();
+
     while let Some((gi, parent)) = queue.pop_front() {
         if gi >= root.nodes.len() {
             continue;
@@ -277,6 +282,7 @@ pub fn gltf_to_scene(
         } else {
             b.add_root_node(name)
         };
+        gltf_to_node_map.insert(gi, node_id);
         b.set_transform(node_id, node_transform(gn));
         if let Some(mi) = gn.mesh   { b.attach_mesh(node_id, mi); }
         if let Some(ci) = gn.camera { b.attach_camera(node_id, ci); }
@@ -285,7 +291,139 @@ pub fn gltf_to_scene(
         }
     }
 
+    // --- Skins ---
+    for gskin in &root.skins {
+        let mut skin = Skin::new(gskin.name.clone().unwrap_or_default());
+        skin.skeleton_root = gskin.skeleton.and_then(|si| gltf_to_node_map.get(&si).copied());
+        for &ji in &gskin.joints {
+            if let Some(&nid) = gltf_to_node_map.get(&ji) {
+                skin.joints.push(nid);
+            }
+        }
+        if let Some(ibm_idx) = gskin.inverse_bind_matrices {
+            let flat = buffer::read_f32(root, &buffers, ibm_idx)?;
+            skin.inverse_bind_matrices = flat
+                .chunks_exact(16)
+                .map(|c| {
+                    let mut arr = [0f32; 16];
+                    arr.copy_from_slice(c);
+                    Mat4::from_cols_array(&arr)
+                })
+                .collect();
+        }
+        b.push_skin(skin);
+    }
+    // Attach skins to the nodes that reference them.
+    for (gi, gn) in root.nodes.iter().enumerate() {
+        if let Some(skin_idx) = gn.skin {
+            if let Some(&nid) = gltf_to_node_map.get(&gi) {
+                b.attach_skin(nid, skin_idx);
+            }
+        }
+    }
+
+    // --- Animations ---
+    for ganim in &root.animations {
+        let mut anim = Animation::new(ganim.name.clone().unwrap_or_default());
+        for gch in &ganim.channels {
+            if gch.sampler >= ganim.samplers.len() {
+                continue;
+            }
+            let sampler = &ganim.samplers[gch.sampler];
+            let times  = buffer::read_f32(root, &buffers, sampler.input)?;
+            let values = buffer::read_f32(root, &buffers, sampler.output)?;
+            let interpolation = match sampler.interpolation.as_deref() {
+                Some("STEP")        => Interpolation::Step,
+                Some("CUBICSPLINE") => Interpolation::CubicSpline,
+                _                   => Interpolation::Linear,
+            };
+            let target_gi = match gch.target.node {
+                Some(ni) => ni,
+                None => continue,
+            };
+            let node_id = match gltf_to_node_map.get(&target_gi) {
+                Some(&nid) => nid,
+                None => continue,
+            };
+            let target = match gch.target.path.as_str() {
+                "translation" => AnimationTarget::Translation(node_id),
+                "rotation"    => AnimationTarget::Rotation(node_id),
+                "scale"       => AnimationTarget::Scale(node_id),
+                "weights"     => AnimationTarget::MorphWeight { node_id, target_index: 0 },
+                _ => continue,
+            };
+            anim.channels.push(AnimationChannel { target, interpolation, times, values });
+        }
+        b.push_animation(anim);
+    }
+
+    // --- KHR_lights_punctual (load) ---
+    if let Some(root_ext) = &root.extensions {
+        if let Some(khr) = root_ext.get("KHR_lights_punctual") {
+            if let Some(lights) = khr.get("lights").and_then(|v| v.as_array()) {
+                for light_val in lights {
+                    b.push_light(parse_khr_light(light_val));
+                }
+            }
+        }
+    }
+    for (gi, gn) in root.nodes.iter().enumerate() {
+        if let Some(ext) = &gn.extensions {
+            if let Some(khr) = ext.get("KHR_lights_punctual") {
+                if let Some(light_idx) = khr.get("light").and_then(|v| v.as_u64()) {
+                    if let Some(&nid) = gltf_to_node_map.get(&gi) {
+                        b.attach_light(nid, light_idx as usize);
+                    }
+                }
+            }
+        }
+    }
+
     Ok(b.build())
+}
+
+fn parse_khr_light(v: &serde_json::Value) -> Light {
+    let name = v.get("name").and_then(|n| n.as_str()).unwrap_or("").to_string();
+    let color = v
+        .get("color")
+        .and_then(|c| c.as_array())
+        .and_then(|arr| {
+            if arr.len() >= 3 {
+                Some(Vec3::new(
+                    arr[0].as_f64().unwrap_or(1.0) as f32,
+                    arr[1].as_f64().unwrap_or(1.0) as f32,
+                    arr[2].as_f64().unwrap_or(1.0) as f32,
+                ))
+            } else {
+                None
+            }
+        })
+        .unwrap_or(Vec3::ONE);
+    let intensity = v.get("intensity").and_then(|i| i.as_f64()).unwrap_or(1.0) as f32;
+    let range     = v.get("range").and_then(|r| r.as_f64()).map(|r| r as f32);
+    let base      = LightBase { name, color, intensity };
+    let ext       = solid_rs::extensions::Extensions::new();
+
+    match v.get("type").and_then(|t| t.as_str()).unwrap_or("point") {
+        "directional" => Light::Directional(DirectionalLight { base, extensions: ext }),
+        "spot" => {
+            let inner = v
+                .get("spot").and_then(|s| s.get("innerConeAngle"))
+                .and_then(|a| a.as_f64()).unwrap_or(0.0) as f32;
+            let outer = v
+                .get("spot").and_then(|s| s.get("outerConeAngle"))
+                .and_then(|a| a.as_f64())
+                .unwrap_or(std::f64::consts::FRAC_PI_4) as f32;
+            Light::Spot(SpotLight {
+                base,
+                range,
+                inner_cone_angle: inner,
+                outer_cone_angle: outer,
+                extensions: ext,
+            })
+        }
+        _ => Light::Point(PointLight { base, range, extensions: ext }),
+    }
 }
 
 fn node_transform(gn: &GltfNode) -> Transform {
@@ -499,6 +637,34 @@ pub fn scene_to_gltf(
                 let bv  = push_bv(&mut gltf, 0, off, n * 16, None, Some(34962));
                 let acc = push_acc(&mut gltf, bv, 5126, n, "VEC4", 0);
                 attributes.insert("COLOR_0".into(), acc);
+            }
+
+            // JOINTS_0 + WEIGHTS_0
+            let has_skin = mesh.vertices.iter().any(|v| v.skin_weights.is_some());
+            if has_skin {
+                // JOINTS_0: VEC4 UNSIGNED_SHORT
+                let off = bin.len();
+                for v in &mesh.vertices {
+                    let j = v.skin_weights.as_ref().map(|s| s.joints).unwrap_or([0; 4]);
+                    for ji in j {
+                        bin.extend_from_slice(&ji.to_le_bytes());
+                    }
+                }
+                let bv  = push_bv(&mut gltf, 0, off, n * 8, None, Some(34962));
+                let acc = push_acc(&mut gltf, bv, 5123, n, "VEC4", 0);
+                attributes.insert("JOINTS_0".into(), acc);
+
+                // WEIGHTS_0: VEC4 FLOAT
+                let off = bin.len();
+                for v in &mesh.vertices {
+                    let w = v.skin_weights.as_ref().map(|s| s.weights).unwrap_or([0.0; 4]);
+                    for wi in w {
+                        bin.extend_from_slice(&wi.to_le_bytes());
+                    }
+                }
+                let bv  = push_bv(&mut gltf, 0, off, n * 16, None, Some(34962));
+                let acc = push_acc(&mut gltf, bv, 5126, n, "VEC4", 0);
+                attributes.insert("WEIGHTS_0".into(), acc);
             }
 
             // Indices (u32)

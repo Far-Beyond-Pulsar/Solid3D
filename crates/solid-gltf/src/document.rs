@@ -23,6 +23,7 @@ pub struct GltfRoot {
     pub animations: Vec<GltfAnimation>,
     pub extensions_used: Vec<String>,
     pub extensions_required: Vec<String>,
+    pub extensions: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]

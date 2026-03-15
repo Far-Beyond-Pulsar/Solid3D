@@ -19,7 +19,8 @@
 //! | Textures (diffuse + normal map) | ✅ | ✅ |
 //! | Cameras (perspective — FOV, near/far) | ✅ | ✅ |
 //! | Lights (point, directional, spot — colour, intensity, cone) | ✅ | ✅ |
-//! | Skinning / Animations | ❌ | ❌ |
+//! | Skeletal skinning (vertex weights, IBP matrices) | ✅ | ✅ |
+//! | Animation clips (translation, rotation, scale) | ✅ | ✅ |
 //!
 //! ## Quick start
 //!

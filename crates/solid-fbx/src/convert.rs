@@ -13,13 +13,14 @@
 
 use std::collections::HashMap;
 
-use glam::{EulerRot, Quat, Vec2, Vec3, Vec4};
+use glam::{EulerRot, Mat4, Quat, Vec2, Vec3, Vec4};
 
 use solid_rs::builder::SceneBuilder;
 use solid_rs::extensions::Extensions;
-use solid_rs::geometry::{Primitive, Vertex};
+use solid_rs::geometry::{Primitive, SkinWeights, Vertex};
 use solid_rs::scene::{
-    AlphaMode, Camera, Image, ImageSource, Light, Material, Mesh, NodeId, TextureRef, Texture,
+    AlphaMode, Animation, AnimationChannel, AnimationTarget, Camera, Image, ImageSource,
+    Interpolation, Light, Material, Mesh, NodeId, Skin, TextureRef, Texture,
 };
 use solid_rs::scene::camera::{Projection, PerspectiveCamera};
 use solid_rs::scene::light::{LightBase, DirectionalLight, PointLight, SpotLight};
@@ -49,6 +50,8 @@ struct RawGeom {
     /// Per-polygon local material indices (empty ⟹ `AllSame`).
     poly_mat_indices:    Vec<i32>,
     mat_mapping_all_same: bool,
+    orig_vert_indices:   Vec<usize>,
+    num_unique_verts:    usize,
 }
 
 /// Extracted material — built in pass 1, pushed to scene in pass 2.
