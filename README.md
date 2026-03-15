@@ -375,23 +375,24 @@ Extensions: `.ply` · MIME: `model/ply`
 |---|---|---|---|
 | **Encoding** | | | |
 | ASCII PLY | ✅ | ✅ | |
-| Binary little-endian | ✅ | ✅ | `PlySaver::save_binary_le()` |
-| Binary big-endian | ✅ | — | Read-only |
+| Binary little-endian | ✅ | ✅ | `PlySaver::save_binary_le()` / `save_with_precision()` |
+| Binary big-endian | ✅ | ✅ | `PlySaver::save_binary_be()` |
 | **Property types** | | | |
 | `char` / `uchar` (int8 / uint8) | ✅ | ✅ | |
 | `short` / `ushort` (int16 / uint16) | ✅ | — | |
 | `int` / `uint` (int32 / uint32) | ✅ | ✅ | |
 | `float` (float32) | ✅ | ✅ | |
-| `double` (float64) | ✅ | — | |
+| `double` (float64) | ✅ | ✅ | `save_with_precision(scene, w, true)` |
 | List properties | ✅ | ✅ | `property list uchar uint vertex_indices` |
 | **Geometry** | | | |
 | Positions (`x`, `y`, `z`) | ✅ | ✅ | |
 | Normals (`nx`, `ny`, `nz`) | ✅ | ✅ | Written only if present |
-| UV coordinates (`s`/`u`, `t`/`v`, `texture_u/v`) | ✅ | ✅ | |
+| Tangents (`tx`, `ty`, `tz`, `tw`) | ✅ | ✅ | Written only if present |
+| UV channels 0–7 (`s`/`t` … `s7`/`t7`) | ✅ | ✅ | Per-channel presence detection |
 | Vertex colours (`red`, `green`, `blue`, `alpha`) | ✅ | ✅ | `uchar` 0–255 ↔ float 0–1 |
 | Triangles | ✅ | ✅ | |
 | N-gon fan triangulation | ✅ | — | |
-| Point clouds (no faces) | ✅ | — | Loaded as mesh with no primitives |
+| Point clouds (no faces) | ✅ | ✅ | No `element face` section emitted |
 | **Scene graph** | | | |
 | Node hierarchy / transforms | — | — | Not supported by format |
 | Materials / textures | — | — | Not supported by format |
