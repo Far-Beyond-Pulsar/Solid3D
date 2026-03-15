@@ -3,6 +3,9 @@ members  = [
     "crates/solid-rs",
     "crates/solid-fbx",
     "crates/solid-obj",
+    "crates/solid-stl",
+    "crates/solid-gltf",
+    "crates/solid-ply",
     "examples/fbx-to-obj",
 ]
 resolver = "2"
@@ -16,7 +19,10 @@ repository    = "https://github.com/Far-Beyond-Pulsar/solid-rs"
 homepage      = "https://github.com/Far-Beyond-Pulsar/solid-rs"
 
 [workspace.dependencies]
-solid-rs  = { path = "crates/solid-rs", version = "0.1.0" }
-glam      = "0.27"
-thiserror = "2"
-flate2    = "1"
+solid-rs   = { path = "crates/solid-rs", version = "0.1.0" }
+glam       = "0.27"
+thiserror  = "2"
+flate2     = "1"
+serde      = { version = "1", features = ["derive"] }
+serde_json = "1"
+base64     = "0.22"

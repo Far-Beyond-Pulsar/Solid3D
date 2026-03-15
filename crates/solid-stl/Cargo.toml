@@ -1,0 +1,13 @@
+[package]
+name        = "solid-stl"
+description = "STL (Stereolithography) binary and ASCII loader and saver for SolidRS"
+version.workspace     = true
+edition.workspace     = true
+authors.workspace     = true
+license.workspace     = true
+repository.workspace  = true
+homepage.workspace    = true
+
+[dependencies]
+solid-rs  = { workspace = true }
+glam      = { workspace = true }

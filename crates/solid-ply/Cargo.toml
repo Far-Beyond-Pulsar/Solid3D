@@ -1,0 +1,13 @@
+[package]
+name        = "solid-ply"
+description = "Stanford PLY format loader and saver for SolidRS"
+version.workspace     = true
+edition.workspace     = true
+authors.workspace     = true
+license.workspace     = true
+repository.workspace  = true
+homepage.workspace    = true
+
+[dependencies]
+solid-rs  = { workspace = true }
+glam      = { workspace = true }
