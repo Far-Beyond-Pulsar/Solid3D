@@ -19,12 +19,12 @@ are pulled in à-la-carte.
 | Crate | Status | Description |
 |---|---|---|
 | [`solid-rs`](crates/solid-rs) | ✅ stable | Core scene types, traits, registry |
-| [`solid-fbx`](crates/solid-fbx) | ✅ stable | Autodesk FBX loader + ASCII saver |
+| [`solid-fbx`](crates/solid-fbx) | ✅ stable | Autodesk FBX binary + ASCII loader; ASCII 7.4 saver; cameras, lights, vertex colours |
 | [`solid-obj`](crates/solid-obj) | ✅ stable | Wavefront OBJ / MTL loader + saver |
-| `solid-gltf` | 🔜 planned | glTF 2.0 / GLB loader + saver |
+| [`solid-gltf`](crates/solid-gltf) | ✅ stable | glTF 2.0 JSON loader + saver; GLB binary load + save |
+| [`solid-stl`](crates/solid-stl) | ✅ stable | STL binary + ASCII loader; binary saver (ASCII helper) |
+| [`solid-ply`](crates/solid-ply) | ✅ stable | Stanford PLY ASCII + binary LE/BE loader; ASCII + binary LE saver |
 | `solid-usd` | 🔜 planned | OpenUSD / USDA / USDC loader + saver |
-| `solid-stl` | 🔜 planned | STL loader + saver |
-| `solid-ply` | 🔜 planned | Stanford PLY loader + saver |
 
 ---
 
