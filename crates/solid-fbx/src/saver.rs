@@ -171,6 +171,146 @@ impl<'w> FbxWriter<'w> {
             self.write_light_attribute(light_ids[i], light)?;
         }
 
+        // Write skin deformers
+        for entry in &skin_entries {
+            let skin = &scene.skins[entry.skin_idx];
+            self.line(&format!("Deformer: {}, \"{}\", \"Skin\"  {{", entry.skin_id, escape(&skin.name)))?;
+            self.indent += 1;
+            self.line("Version: 101")?;
+            self.indent -= 1;
+            self.line("}")?;
+            self.blank()?;
+
+            let mesh = &scene.meshes[scene.nodes[entry.node_idx].mesh.unwrap()];
+            for (ji, cluster_entry) in entry.clusters.iter().enumerate() {
+                let joint_name = &scene.nodes[cluster_entry.joint_node_idx].name;
+                let ibp = skin.inverse_bind_matrices.get(ji).copied().unwrap_or(Mat4::IDENTITY);
+                let tl = ibp.inverse();
+                let tl_cols: Vec<f64> = tl.to_cols_array().iter().map(|&x| x as f64).collect();
+
+                let mut indexes: Vec<i32> = Vec::new();
+                let mut weights: Vec<f64> = Vec::new();
+                for (vi, v) in mesh.vertices.iter().enumerate() {
+                    if let Some(sw) = &v.skin_weights {
+                        for k in 0..4 {
+                            if sw.joints[k] as usize == ji && sw.weights[k] > 0.0 {
+                                indexes.push(vi as i32);
+                                weights.push(sw.weights[k] as f64);
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                self.line(&format!("Deformer: {}, \"{}\", \"Cluster\"  {{", cluster_entry.cluster_id, escape(joint_name)))?;
+                self.indent += 1;
+                self.line("Version: 100")?;
+                self.write_i32_array("Indexes", &indexes)?;
+                self.write_f64_array("Weights", &weights)?;
+                self.write_f64_array("Transform", &[1.0,0.0,0.0,0.0, 0.0,1.0,0.0,0.0, 0.0,0.0,1.0,0.0, 0.0,0.0,0.0,1.0])?;
+                self.write_f64_array("TransformLink", &tl_cols)?;
+                self.indent -= 1;
+                self.line("}")?;
+                self.blank()?;
+            }
+        }
+
+        // Write animations
+        const FBX_TIME_UNIT: f64 = 46186158000.0;
+        for (ae_idx, ae) in anim_entries.iter().enumerate() {
+            let anim = &scene.animations[ae_idx];
+
+            self.line(&format!("AnimationStack: {}, \"{}\", \"\"  {{", ae.stack_id, escape(&anim.name)))?;
+            self.indent += 1;
+            self.line("Properties70:  {")?;
+            self.indent += 1;
+            self.line(&format!("P: \"LocalStop\", \"KTime\", \"Time\", \"\",{}", (anim.duration() as f64 * FBX_TIME_UNIT) as i64))?;
+            self.indent -= 1;
+            self.line("}")?;
+            self.indent -= 1;
+            self.line("}")?;
+            self.blank()?;
+
+            self.line(&format!("AnimationLayer: {}, \"BaseLayer\", \"\"  {{", ae.layer_id))?;
+            self.line("}")?;
+            self.blank()?;
+
+            for ce in &ae.channels {
+                let chan = &scene.animations[ce.anim_idx].channels[ce.chan_idx];
+                let prop_name = match &chan.target {
+                    AnimationTarget::Translation(_) => "T",
+                    AnimationTarget::Rotation(_)    => "R",
+                    AnimationTarget::Scale(_)        => "S",
+                    _                                => "T",
+                };
+
+                self.line(&format!("AnimationCurveNode: {}, \"AnimCurveNode::{prop_name}\", \"\"  {{", ce.curve_node_id))?;
+                self.indent += 1;
+                self.line("Properties70:  {")?;
+                self.indent += 1;
+                self.line("P: \"d|X\", \"Number\", \"\", \"A\",0")?;
+                self.line("P: \"d|Y\", \"Number\", \"\", \"A\",0")?;
+                self.line("P: \"d|Z\", \"Number\", \"\", \"A\",0")?;
+                self.indent -= 1;
+                self.line("}")?;
+                self.indent -= 1;
+                self.line("}")?;
+                self.blank()?;
+
+                let (x_vals, y_vals, z_vals) = match &chan.target {
+                    AnimationTarget::Translation(_) | AnimationTarget::Scale(_) => {
+                        let x: Vec<f64> = chan.values.iter().step_by(3).map(|&v| v as f64).collect();
+                        let y: Vec<f64> = chan.values.iter().skip(1).step_by(3).map(|&v| v as f64).collect();
+                        let z: Vec<f64> = chan.values.iter().skip(2).step_by(3).map(|&v| v as f64).collect();
+                        (x, y, z)
+                    },
+                    AnimationTarget::Rotation(_) => {
+                        let mut x = Vec::new(); let mut y = Vec::new(); let mut z = Vec::new();
+                        for i in 0..chan.times.len() {
+                            let qx = chan.values.get(i*4).copied().unwrap_or(0.0);
+                            let qy = chan.values.get(i*4+1).copied().unwrap_or(0.0);
+                            let qz = chan.values.get(i*4+2).copied().unwrap_or(0.0);
+                            let qw = chan.values.get(i*4+3).copied().unwrap_or(1.0);
+                            let q = Quat::from_xyzw(qx, qy, qz, qw);
+                            let (rx, ry, rz) = q.to_euler(EulerRot::XYZ);
+                            x.push(rx.to_degrees() as f64);
+                            y.push(ry.to_degrees() as f64);
+                            z.push(rz.to_degrees() as f64);
+                        }
+                        (x, y, z)
+                    },
+                    _ => (Vec::new(), Vec::new(), Vec::new()),
+                };
+
+                let key_times_fbx: Vec<i64> = chan.times.iter().map(|&t| (t as f64 * FBX_TIME_UNIT) as i64).collect();
+
+                for (axis_id, _axis_name, axis_vals) in [
+                    (ce.cx_id, "X", &x_vals),
+                    (ce.cy_id, "Y", &y_vals),
+                    (ce.cz_id, "Z", &z_vals),
+                ] {
+                    self.line(&format!("AnimationCurve: {axis_id}, \"AnimCurve::\", \"\"  {{"))?;
+                    self.indent += 1;
+                    self.line("Default: 0")?;
+                    self.line(&format!("KeyTime: *{} {{", key_times_fbx.len()))?;
+                    self.indent += 1;
+                    let kt_str: Vec<String> = key_times_fbx.iter().map(|v| v.to_string()).collect();
+                    self.line(&format!("a: {}", kt_str.join(",")))?;
+                    self.indent -= 1;
+                    self.line("}")?;
+                    let kv_str: Vec<String> = axis_vals.iter().map(|v| format!("{v}")).collect();
+                    self.line(&format!("KeyValueFloat: *{} {{", axis_vals.len()))?;
+                    self.indent += 1;
+                    self.line(&format!("a: {}", kv_str.join(",")))?;
+                    self.indent -= 1;
+                    self.line("}")?;
+                    self.indent -= 1;
+                    self.line("}")?;
+                    self.blank()?;
+                }
+            }
+        }
+
         self.indent -= 1;
         self.line("}")?;
         self.blank()?;
@@ -236,6 +376,39 @@ impl<'w> FbxWriter<'w> {
                 self.line(&format!(
                     "C: \"OP\",{},{},\"NormalMap\"", tex_ids[tr.texture_index], mid
                 ))?;
+            }
+        }
+
+        // Skin connections
+        for entry in &skin_entries {
+            self.line(&format!("C: \"OO\",{},{}", entry.skin_id, entry.geom_id))?;
+            for cluster_entry in &entry.clusters {
+                let cluster_id = cluster_entry.cluster_id;
+                self.line(&format!("C: \"OO\",{},{}", cluster_id, entry.skin_id))?;
+                let joint_nid = node_ids[cluster_entry.joint_node_idx];
+                self.line(&format!("C: \"OO\",{},{}", joint_nid, cluster_id))?;
+            }
+        }
+
+        // Animation connections
+        for (ae_idx, ae) in anim_entries.iter().enumerate() {
+            self.line(&format!("C: \"OO\",{},{}", ae.layer_id, ae.stack_id))?;
+            self.line(&format!("C: \"OO\",{},0", ae.stack_id))?;
+            for ce in &ae.channels {
+                let chan = &scene.animations[ce.anim_idx].channels[ce.chan_idx];
+                self.line(&format!("C: \"OO\",{},{}", ce.curve_node_id, ae.layer_id))?;
+                let (target_node_id, prop_name_full) = match &chan.target {
+                    AnimationTarget::Translation(nid) => (*nid, "Lcl Translation"),
+                    AnimationTarget::Rotation(nid)    => (*nid, "Lcl Rotation"),
+                    AnimationTarget::Scale(nid)        => (*nid, "Lcl Scaling"),
+                    _ => continue,
+                };
+                if let Some(mi) = scene.nodes.iter().position(|n| n.id == target_node_id) {
+                    self.line(&format!("C: \"OP\",{},{},\"{}\"", ce.curve_node_id, node_ids[mi], prop_name_full))?;
+                }
+                self.line(&format!("C: \"OP\",{},{},\"d|X\"", ce.cx_id, ce.curve_node_id))?;
+                self.line(&format!("C: \"OP\",{},{},\"d|Y\"", ce.cy_id, ce.curve_node_id))?;
+                self.line(&format!("C: \"OP\",{},{},\"d|Z\"", ce.cz_id, ce.curve_node_id))?;
             }
         }
 
