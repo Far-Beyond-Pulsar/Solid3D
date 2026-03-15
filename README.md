@@ -272,7 +272,7 @@ Extensions: `.obj`, `.mtl` · MIME: `model/obj`
 | **Groups** | | | |
 | Object groups (`o`) | ✅ | ✅ | One mesh per object |
 | Named groups (`g`) | ✅ | ✅ | One primitive per group |
-| Smoothing groups (`s`) | ⚠️ | — | Parsed but not used |
+| Smoothing groups (`s`) | ✅ | ✅ | Smooth normals computed per-group on load; `s` directives emitted on save |
 | **Materials (MTL)** | | | |
 | External `.mtl` file | ✅ | ✅ | Resolved from `LoadOptions::base_dir` |
 | Embedded MTL block | — | ✅ | Written inline in `.obj` |
@@ -283,7 +283,11 @@ Extensions: `.obj`, `.mtl` · MIME: `model/obj`
 | Opacity (`d` / `Tr`) | ✅ | ✅ | |
 | Diffuse texture (`map_Kd`) | ✅ | ✅ | |
 | Normal map (`map_Bump` / `bump`) | ✅ | ✅ | |
-| PBR extensions (`map_Pr`, `map_Pm`) | ⚠️ | — | Parsed, not mapped |
+| PBR roughness (`Pr` / `map_Pr`) | ✅ | ✅ | PBR MTL extension |
+| PBR metallic (`Pm` / `map_Pm`) | ✅ | ✅ | PBR MTL extension |
+| Emissive texture (`map_Ke`) | ✅ | ✅ | |
+| Normal map PBR (`norm`) | ✅ | ✅ | PBR MTL extension |
+| Alpha mode save | ✅ | ✅ | OPAQUE/MASK/BLEND → `d` value |
 | **Scene graph** | | | |
 | Node hierarchy | — | — | OBJ has no hierarchy |
 | Transforms | — | — | |
@@ -309,7 +313,7 @@ Extensions: `.gltf`, `.glb` · MIME: `model/gltf+json`, `model/gltf-binary`
 | UV channels (`TEXCOORD_0`–`7`) | ✅ | ✅ | Up to 8 channels |
 | Vertex colours (`COLOR_0`) | ✅ | ✅ | |
 | Accessor types: FLOAT / U8 / U16 / U32 | ✅ | ✅ | Normalised reads |
-| Sparse accessors | ❌ | — | |
+| Sparse accessors | ✅ | — | Index + value override on load |
 | **Scene graph** | | | |
 | Node hierarchy | ✅ | ✅ | |
 | TRS transforms | ✅ | ✅ | |
@@ -326,15 +330,15 @@ Extensions: `.gltf`, `.glb` · MIME: `model/gltf+json`, `model/gltf-binary`
 | Perspective | ✅ | ✅ | |
 | Orthographic | ✅ | ✅ | |
 | **Skinning** | | | |
-| Joints + weights (`JOINTS_0`, `WEIGHTS_0`) | ✅ | — | Loaded into `SkinWeights` |
-| Inverse bind matrices | ✅ | — | |
+| Joints + weights (`JOINTS_0`, `WEIGHTS_0`) | ✅ | ✅ | |
+| Inverse bind matrices | ✅ | ✅ | |
 | **Animation** | | | |
-| Translation / rotation / scale samplers | ✅ | — | |
-| LINEAR / STEP / CUBICSPLINE | ✅ | — | |
-| Morph target weights | ❌ | — | |
+| Translation / rotation / scale samplers | ✅ | ✅ | |
+| LINEAR / STEP / CUBICSPLINE | ✅ | ✅ | |
+| Morph target weights | ❌ | ❌ | |
 | **Lighting** | | | |
 | Cameras attached to nodes | ✅ | ✅ | |
-| `KHR_lights_punctual` extension | ❌ | ❌ | |
+| `KHR_lights_punctual` (point / spot / directional) | ✅ | ✅ | |
 
 ---
 
