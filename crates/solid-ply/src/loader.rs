@@ -122,12 +122,32 @@ fn parse_ascii_body(elements: &[Element], body: &[u8]) -> Result<(Vec<Vertex>, V
                 let nxi = find_prop(elem, &["nx"]);
                 let nyi = find_prop(elem, &["ny"]);
                 let nzi = find_prop(elem, &["nz"]);
-                let si  = find_prop(elem, &["s", "u", "texture_u"]);
-                let ti  = find_prop(elem, &["t", "v", "texture_v"]);
                 let ri  = find_prop(elem, &["red", "r"]);
                 let gi  = find_prop(elem, &["green", "g"]);
                 let bi  = find_prop(elem, &["blue", "b"]);
                 let ai  = find_prop(elem, &["alpha", "a"]);
+
+                // UV channels 0–7: channel 0 uses the classic "s"/"t" names.
+                let uv_s: [Option<usize>; 8] = [
+                    find_prop(elem, &["s", "u", "texture_u"]),
+                    find_prop(elem, &["s1", "texture_u1"]),
+                    find_prop(elem, &["s2", "texture_u2"]),
+                    find_prop(elem, &["s3", "texture_u3"]),
+                    find_prop(elem, &["s4", "texture_u4"]),
+                    find_prop(elem, &["s5", "texture_u5"]),
+                    find_prop(elem, &["s6", "texture_u6"]),
+                    find_prop(elem, &["s7", "texture_u7"]),
+                ];
+                let uv_t: [Option<usize>; 8] = [
+                    find_prop(elem, &["t", "v", "texture_v"]),
+                    find_prop(elem, &["t1", "texture_v1"]),
+                    find_prop(elem, &["t2", "texture_v2"]),
+                    find_prop(elem, &["t3", "texture_v3"]),
+                    find_prop(elem, &["t4", "texture_v4"]),
+                    find_prop(elem, &["t5", "texture_v5"]),
+                    find_prop(elem, &["t6", "texture_v6"]),
+                    find_prop(elem, &["t7", "texture_v7"]),
+                ];
 
                 let color_is_byte = ri.map_or(false, |i| {
                     matches!(elem.properties[i].prop_type, PropType::Scalar(ScalarType::U8))
@@ -151,8 +171,13 @@ fn parse_ascii_body(elements: &[Element], body: &[u8]) -> Result<(Vec<Vertex>, V
                             get(nxi) as f32, get(nyi) as f32, get(nzi) as f32,
                         ));
                     }
-                    if si.is_some() && ti.is_some() {
-                        v = v.with_uv(Vec2::new(get(si) as f32, get(ti) as f32));
+                    for ch in 0..8usize {
+                        if uv_s[ch].is_some() && uv_t[ch].is_some() {
+                            v.uvs[ch] = Some(Vec2::new(
+                                get(uv_s[ch]) as f32,
+                                get(uv_t[ch]) as f32,
+                            ));
+                        }
                     }
                     if ri.is_some() {
                         let scale = if color_is_byte { 1.0_f64 / 255.0 } else { 1.0 };
@@ -218,12 +243,31 @@ fn parse_binary_body(
                 let nxi = find_prop(elem, &["nx"]);
                 let nyi = find_prop(elem, &["ny"]);
                 let nzi = find_prop(elem, &["nz"]);
-                let si  = find_prop(elem, &["s", "u", "texture_u"]);
-                let ti  = find_prop(elem, &["t", "v", "texture_v"]);
                 let ri  = find_prop(elem, &["red", "r"]);
                 let gi  = find_prop(elem, &["green", "g"]);
                 let bi  = find_prop(elem, &["blue", "b"]);
                 let ai  = find_prop(elem, &["alpha", "a"]);
+
+                let uv_s: [Option<usize>; 8] = [
+                    find_prop(elem, &["s", "u", "texture_u"]),
+                    find_prop(elem, &["s1", "texture_u1"]),
+                    find_prop(elem, &["s2", "texture_u2"]),
+                    find_prop(elem, &["s3", "texture_u3"]),
+                    find_prop(elem, &["s4", "texture_u4"]),
+                    find_prop(elem, &["s5", "texture_u5"]),
+                    find_prop(elem, &["s6", "texture_u6"]),
+                    find_prop(elem, &["s7", "texture_u7"]),
+                ];
+                let uv_t: [Option<usize>; 8] = [
+                    find_prop(elem, &["t", "v", "texture_v"]),
+                    find_prop(elem, &["t1", "texture_v1"]),
+                    find_prop(elem, &["t2", "texture_v2"]),
+                    find_prop(elem, &["t3", "texture_v3"]),
+                    find_prop(elem, &["t4", "texture_v4"]),
+                    find_prop(elem, &["t5", "texture_v5"]),
+                    find_prop(elem, &["t6", "texture_v6"]),
+                    find_prop(elem, &["t7", "texture_v7"]),
+                ];
 
                 let color_is_byte = ri.map_or(false, |i| {
                     matches!(elem.properties[i].prop_type, PropType::Scalar(ScalarType::U8))
@@ -253,6 +297,11 @@ fn parse_binary_body(
                                 let cnt = read_scalar(body, cursor, count_type, big_endian)
                                     as usize;
                                 cursor += count_type.byte_size();
+                                if cursor + cnt * value_type.byte_size() > body.len() {
+                                    return Err(SolidError::parse(
+                                        "PLY: unexpected end of binary vertex list data",
+                                    ));
+                                }
                                 cursor += cnt * value_type.byte_size();
                                 prop_vals.push(0.0); // placeholder to keep index alignment
                             }
@@ -271,8 +320,13 @@ fn parse_binary_body(
                             get(nxi) as f32, get(nyi) as f32, get(nzi) as f32,
                         ));
                     }
-                    if si.is_some() && ti.is_some() {
-                        v = v.with_uv(Vec2::new(get(si) as f32, get(ti) as f32));
+                    for ch in 0..8usize {
+                        if uv_s[ch].is_some() && uv_t[ch].is_some() {
+                            v.uvs[ch] = Some(Vec2::new(
+                                get(uv_s[ch]) as f32,
+                                get(uv_t[ch]) as f32,
+                            ));
+                        }
                     }
                     if ri.is_some() {
                         let scale = if color_is_byte { 1.0_f64 / 255.0 } else { 1.0 };

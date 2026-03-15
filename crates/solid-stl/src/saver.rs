@@ -101,8 +101,16 @@ impl Saver for StlSaver {
                     write_f32_3(writer, v0.position)?;
                     write_f32_3(writer, v1.position)?;
                     write_f32_3(writer, v2.position)?;
-                    // Attribute byte count = 0
-                    writer.write_all(&0u16.to_le_bytes()).map_err(SolidError::Io)?;
+                    // Encode VisCAM RGB555 color from the first vertex if available.
+                    let attr: u16 = if let Some(c) = v0.colors[0] {
+                        let r = (c.x * 31.0).round() as u16 & 0x1F;
+                        let g = (c.y * 31.0).round() as u16 & 0x1F;
+                        let b = (c.z * 31.0).round() as u16 & 0x1F;
+                        0x8000 | (r << 10) | (g << 5) | b
+                    } else {
+                        0u16
+                    };
+                    writer.write_all(&attr.to_le_bytes()).map_err(SolidError::Io)?;
                 }
             }
         }

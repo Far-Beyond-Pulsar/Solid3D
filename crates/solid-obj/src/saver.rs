@@ -7,10 +7,10 @@
 
 use std::io::Write;
 
-use glam::{EulerRot, Vec3};
+use glam::Vec3;
 
 use solid_rs::prelude::*;
-use solid_rs::scene::Scene;
+use solid_rs::scene::{AlphaMode, Scene};
 use solid_rs::{Result, SolidError};
 
 use crate::OBJ_FORMAT;
@@ -180,7 +180,7 @@ fn write_mtl(scene: &Scene, w: &mut dyn Write) -> Result<()> {
     writeln!(w, "# Wavefront MTL material library").map_err(SolidError::Io)?;
     writeln!(w).map_err(SolidError::Io)?;
 
-    for (mi, mat) in scene.materials.iter().enumerate() {
+    for mat in scene.materials.iter() {
         writeln!(w, "newmtl {}", mat.name).map_err(SolidError::Io)?;
 
         let c = mat.base_color_factor;
@@ -193,14 +193,31 @@ fn write_mtl(scene: &Scene, w: &mut dyn Write) -> Result<()> {
             writeln!(w, "Ke {:.4} {:.4} {:.4}", e.x, e.y, e.z).map_err(SolidError::Io)?;
         }
 
-        let alpha = c.w;
-        if alpha < 1.0 {
-            writeln!(w, "d {:.4}", alpha).map_err(SolidError::Io)?;
+        // Alpha / dissolve — interpretation depends on alpha mode
+        match mat.alpha_mode {
+            AlphaMode::Opaque => {} // d 1.0 is the default; omit
+            AlphaMode::Mask => {
+                writeln!(w, "d {:.4}", 1.0 - mat.alpha_cutoff).map_err(SolidError::Io)?;
+            }
+            AlphaMode::Blend => {
+                let alpha = c.w;
+                if alpha < 1.0 {
+                    writeln!(w, "d {:.4}", alpha).map_err(SolidError::Io)?;
+                }
+            }
         }
 
         // Convert roughness back to Ns (Ns = (1 - roughness)^2 * 1000)
         let ns = (1.0 - mat.roughness_factor).powi(2) * 1000.0;
         writeln!(w, "Ns {:.2}", ns).map_err(SolidError::Io)?;
+
+        // PBR scalars
+        if mat.roughness_factor != 1.0 {
+            writeln!(w, "Pr {:.4}", mat.roughness_factor).map_err(SolidError::Io)?;
+        }
+        if mat.metallic_factor != 0.0 {
+            writeln!(w, "Pm {:.4}", mat.metallic_factor).map_err(SolidError::Io)?;
+        }
 
         // Texture maps
         if let Some(tr) = &mat.base_color_texture {
@@ -211,11 +228,18 @@ fn write_mtl(scene: &Scene, w: &mut dyn Write) -> Result<()> {
         if let Some(tr) = &mat.metallic_roughness_texture {
             if let Some(uri) = tex_uri(scene, tr.texture_index) {
                 writeln!(w, "map_Ks {uri}").map_err(SolidError::Io)?;
+                writeln!(w, "map_Pr {uri}").map_err(SolidError::Io)?;
+            }
+        }
+        if let Some(tr) = &mat.emissive_texture {
+            if let Some(uri) = tex_uri(scene, tr.texture_index) {
+                writeln!(w, "map_Ke {uri}").map_err(SolidError::Io)?;
             }
         }
         if let Some(tr) = &mat.normal_texture {
             if let Some(uri) = tex_uri(scene, tr.texture_index) {
                 writeln!(w, "map_bump {uri}").map_err(SolidError::Io)?;
+                writeln!(w, "norm {uri}").map_err(SolidError::Io)?;
             }
         }
 

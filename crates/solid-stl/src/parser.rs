@@ -1,4 +1,4 @@
-use glam::Vec3;
+use glam::{Vec3, Vec4};
 use solid_rs::prelude::SolidError;
 
 pub type Result<T> = std::result::Result<T, SolidError>;
@@ -7,6 +7,8 @@ pub type Result<T> = std::result::Result<T, SolidError>;
 pub struct StlTriangle {
     pub normal: Vec3,
     pub vertices: [Vec3; 3],
+    /// VisCAM/SolidView per-triangle color decoded from attribute bytes (bit 15 set).
+    pub color: Option<Vec4>,
 }
 
 /// Returns true if `data` looks like a binary STL file.
@@ -43,7 +45,18 @@ pub fn parse_binary(data: &[u8]) -> Result<(String, Vec<StlTriangle>)> {
         let v0 = read_vec3(data, base + 12);
         let v1 = read_vec3(data, base + 24);
         let v2 = read_vec3(data, base + 36);
-        triangles.push(StlTriangle { normal, vertices: [v0, v1, v2] });
+        let off = base + 48;
+        let attr = u16::from_le_bytes([data[off], data[off + 1]]);
+        let color = if attr & 0x8000 != 0 {
+            // VisCAM RGB555: bits 14-10=R, 9-5=G, 4-0=B
+            let r = ((attr >> 10) & 0x1F) as f32 / 31.0;
+            let g = ((attr >>  5) & 0x1F) as f32 / 31.0;
+            let b = ( attr        & 0x1F) as f32 / 31.0;
+            Some(Vec4::new(r, g, b, 1.0))
+        } else {
+            None
+        };
+        triangles.push(StlTriangle { normal, vertices: [v0, v1, v2], color });
     }
     Ok((name, triangles))
 }
@@ -88,6 +101,7 @@ pub fn parse_ascii(data: &[u8]) -> Result<(String, Vec<StlTriangle>)> {
                 triangles.push(StlTriangle {
                     normal: current_normal,
                     vertices: [verts[0], verts[1], verts[2]],
+                    color: None,
                 });
             }
             verts.clear();

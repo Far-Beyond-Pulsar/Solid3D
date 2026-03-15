@@ -45,6 +45,8 @@ pub(crate) struct ObjFace {
     /// Indices are already 0-based and are `None` where the attribute was
     /// omitted in the face definition.
     pub refs: Vec<(usize, Option<usize>, Option<usize>)>,
+    /// Smoothing group at the time this face was defined. 0 = off.
+    pub smoothing_group: u32,
 }
 
 // ── MTL document ─────────────────────────────────────────────────────────────
@@ -70,6 +72,10 @@ pub(crate) struct MtlMaterial {
     pub dissolve:    f32,
     /// Specular exponent (`Ns`) — 0 … 1000
     pub ns:          f32,
+    /// PBR roughness scalar (`Pr`)
+    pub pr:          Option<f32>,
+    /// PBR metallic scalar (`Pm`)
+    pub pm:          Option<f32>,
     /// Diffuse texture (`map_Kd`)
     pub map_kd:      Option<String>,
     /// Specular texture (`map_Ks`)
@@ -78,6 +84,10 @@ pub(crate) struct MtlMaterial {
     pub map_bump:    Option<String>,
     /// Roughness map (`map_Ns` or `map_Pr`)
     pub map_roughness: Option<String>,
+    /// Metallic texture (`map_Pm`)
+    pub map_pm:      Option<String>,
+    /// Emissive texture (`map_Ke`)
+    pub map_ke:      Option<String>,
 }
 
 impl Default for MtlMaterial {
@@ -90,10 +100,14 @@ impl Default for MtlMaterial {
             ke:            [0.0; 3],
             dissolve:      1.0,
             ns:            32.0,
+            pr:            None,
+            pm:            None,
             map_kd:        None,
             map_ks:        None,
             map_bump:      None,
             map_roughness: None,
+            map_pm:        None,
+            map_ke:        None,
         }
     }
 }
@@ -106,6 +120,7 @@ pub(crate) fn parse_obj(src: &str) -> ObjData {
     let mut current_group = ObjGroup { name: String::from("default"), face_runs: Vec::new() };
     let mut current_material = String::new();
     let mut current_faces: Vec<ObjFace> = Vec::new();
+    let mut current_smoothing_group: u32 = 0;
 
     for raw_line in src.lines() {
         let line = raw_line.trim();
@@ -126,9 +141,16 @@ pub(crate) fn parse_obj(src: &str) -> ObjData {
                 if let Some(uv) = parse_vec2(rest) { data.uvs.push(uv); }
             }
             "f" => {
-                if let Some(face) = parse_face(rest, &data) {
+                if let Some(face) = parse_face(rest, &data, current_smoothing_group) {
                     current_faces.push(face);
                 }
+            }
+            "s" => {
+                current_smoothing_group = if rest == "off" || rest == "0" {
+                    0
+                } else {
+                    rest.parse().unwrap_or(0)
+                };
             }
             "usemtl" => {
                 if !current_faces.is_empty() {
@@ -227,8 +249,14 @@ pub(crate) fn parse_mtl(src: &str) -> MtlData {
             "map_ks" => {
                 cur.as_mut().unwrap().map_ks = Some(tex_path(rest));
             }
-            "map_bump" | "bump" | "norm" => {
+            "map_bump" | "bump" => {
                 // Skip `-bm` and other option flags
+                let path = strip_options(rest);
+                if !path.is_empty() {
+                    cur.as_mut().unwrap().map_bump = Some(path.to_owned());
+                }
+            }
+            "norm" => {
                 let path = strip_options(rest);
                 if !path.is_empty() {
                     cur.as_mut().unwrap().map_bump = Some(path.to_owned());
@@ -236,6 +264,18 @@ pub(crate) fn parse_mtl(src: &str) -> MtlData {
             }
             "map_ns" | "map_pr" => {
                 cur.as_mut().unwrap().map_roughness = Some(tex_path(rest));
+            }
+            "pr" => {
+                if let Ok(v) = rest.parse::<f32>() { cur.as_mut().unwrap().pr = Some(v); }
+            }
+            "pm" => {
+                if let Ok(v) = rest.parse::<f32>() { cur.as_mut().unwrap().pm = Some(v); }
+            }
+            "map_pm" => {
+                cur.as_mut().unwrap().map_pm = Some(tex_path(rest));
+            }
+            "map_ke" => {
+                cur.as_mut().unwrap().map_ke = Some(tex_path(rest));
             }
             _ => {}
         }
@@ -273,7 +313,7 @@ fn resolve_idx(raw: i64, len: usize) -> Option<usize> {
 }
 
 /// Parse an OBJ face line like `1/2/3 4//5 6`.
-fn parse_face(rest: &str, data: &ObjData) -> Option<ObjFace> {
+fn parse_face(rest: &str, data: &ObjData, smoothing_group: u32) -> Option<ObjFace> {
     let mut refs = Vec::new();
     for token in rest.split_whitespace() {
         let mut parts = token.splitn(3, '/');
@@ -287,7 +327,7 @@ fn parse_face(rest: &str, data: &ObjData) -> Option<ObjFace> {
 
         refs.push((vi, vt, vn));
     }
-    if refs.len() >= 3 { Some(ObjFace { refs }) } else { None }
+    if refs.len() >= 3 { Some(ObjFace { refs, smoothing_group }) } else { None }
 }
 
 /// Strip leading option flags (`-bm 1.0`, `-s 1 1`, etc.) from a texture path.

@@ -1,4 +1,18 @@
 //! STL (Stereolithography) binary and ASCII loader and saver for SolidRS.
+//!
+//! ## Supported features
+//!
+//! | Feature                   | Supported |
+//! |---------------------------|-----------|
+//! | Binary load               | ✅        |
+//! | ASCII load                | ✅        |
+//! | Binary save               | ✅        |
+//! | ASCII save                | ✅        |
+//! | Vertex deduplication      | ✅        |
+//! | Smooth vertex normals     | ✅        |
+//! | Vertex colors (VisCAM)    | ✅        |
+//! | Multiple meshes (binary)  | ✅        |
+//! | Multiple meshes (ASCII)   | ✅        |
 use solid_rs::traits::format::FormatInfo;
 mod loader;
 mod saver;

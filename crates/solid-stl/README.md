@@ -4,14 +4,17 @@ STL (Stereolithography) binary and ASCII loader and saver for the [SolidRS](http
 
 ## Feature Matrix
 
-| Feature         | Supported |
-|-----------------|-----------|
-| Binary load     | ✅        |
-| ASCII load      | ✅        |
-| Binary save     | ✅        |
-| ASCII save      | ✅        |
-| Vertex dedup    | ✅        |
-| Face normals    | ✅        |
+| Feature                  | Supported |
+|--------------------------|-----------|
+| Binary load              | ✅        |
+| ASCII load               | ✅        |
+| Binary save              | ✅        |
+| ASCII save               | ✅        |
+| Vertex dedup             | ✅        |
+| Smooth vertex normals    | ✅        |
+| Vertex colors (VisCAM)   | ✅        |
+| Multiple meshes (binary) | ✅        |
+| Multiple meshes (ASCII)  | ✅        |
 
 ## Installation
 

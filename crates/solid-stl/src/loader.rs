@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::io::Read;
+use glam::Vec3;
 use solid_rs::prelude::*;
 use solid_rs::scene::Scene;
 
@@ -8,11 +9,12 @@ use crate::STL_FORMAT;
 
 pub struct StlLoader;
 
-fn deduplicate(triangles: &[StlTriangle]) -> (Vec<Vertex>, Vec<u32>) {
+fn build_mesh_data(triangles: &[StlTriangle]) -> (Vec<Vertex>, Vec<u32>) {
     let mut vertices: Vec<Vertex> = Vec::new();
     let mut indices: Vec<u32> = Vec::new();
     let mut map: HashMap<[u32; 3], u32> = HashMap::new();
 
+    // Deduplicate by position; assign per-triangle color on first encounter.
     for tri in triangles {
         for &pos in tri.vertices.iter() {
             let key = [pos.x.to_bits(), pos.y.to_bits(), pos.z.to_bits()];
@@ -20,7 +22,10 @@ fn deduplicate(triangles: &[StlTriangle]) -> (Vec<Vertex>, Vec<u32>) {
                 existing
             } else {
                 let new_idx = vertices.len() as u32;
-                let v = Vertex::new(pos).with_normal(tri.normal);
+                let mut v = Vertex::new(pos);
+                if let Some(c) = tri.color {
+                    v.colors[0] = Some(c);
+                }
                 vertices.push(v);
                 map.insert(key, new_idx);
                 new_idx
@@ -28,6 +33,35 @@ fn deduplicate(triangles: &[StlTriangle]) -> (Vec<Vertex>, Vec<u32>) {
             indices.push(idx);
         }
     }
+
+    // Accumulate area-weighted face normals (unnormalized cross product = area weighting).
+    let mut normal_accum: Vec<Vec3> = vec![Vec3::ZERO; vertices.len()];
+    let mut normal_count: Vec<u32>  = vec![0; vertices.len()];
+
+    for tri in triangles {
+        let v0 = tri.vertices[0];
+        let v1 = tri.vertices[1];
+        let v2 = tri.vertices[2];
+        let face_normal = (v1 - v0).cross(v2 - v0);
+
+        for &pos in &tri.vertices {
+            let key = [pos.x.to_bits(), pos.y.to_bits(), pos.z.to_bits()];
+            if let Some(&idx) = map.get(&key) {
+                normal_accum[idx as usize] += face_normal;
+                normal_count[idx as usize] += 1;
+            }
+        }
+    }
+
+    for (i, v) in vertices.iter_mut().enumerate() {
+        if normal_count[i] > 0 {
+            let n = normal_accum[i].normalize_or_zero();
+            if n != Vec3::ZERO {
+                v.normal = Some(n);
+            }
+        }
+    }
+
     (vertices, indices)
 }
 
@@ -52,7 +86,7 @@ impl Loader for StlLoader {
             }
         };
 
-        let (vertices, indices) = deduplicate(&triangles);
+        let (vertices, indices) = build_mesh_data(&triangles);
 
         let mesh_name = if name.is_empty() { "STL Model".to_string() } else { name.clone() };
         let mut mesh = Mesh::new(mesh_name.clone());

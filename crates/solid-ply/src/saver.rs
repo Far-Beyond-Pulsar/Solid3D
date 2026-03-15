@@ -1,4 +1,4 @@
-//! PLY saver: serialises a `solid_rs::Scene` to ASCII or binary-LE PLY.
+//! PLY saver: serialises a `solid_rs::Scene` to ASCII or binary PLY.
 
 use std::io::Write;
 
@@ -11,8 +11,9 @@ use crate::PLY_FORMAT;
 
 /// Saves a [`Scene`] as a Stanford PLY file.
 ///
-/// The default [`Saver::save`] writes **ASCII PLY 1.0**.  For compact
-/// little-endian binary output call [`PlySaver::save_binary_le`] directly.
+/// The default [`Saver::save`] writes **ASCII PLY 1.0**.  For compact binary
+/// output call [`PlySaver::save_binary_le`], [`PlySaver::save_binary_be`], or
+/// [`PlySaver::save_with_precision`] directly.
 pub struct PlySaver;
 
 impl Saver for PlySaver {
@@ -21,7 +22,7 @@ impl Saver for PlySaver {
     }
 
     fn save(&self, scene: &Scene, writer: &mut dyn Write, options: &SaveOptions) -> Result<()> {
-        write_ascii(scene, writer, options)
+        write_ascii(scene, writer, options, false)
     }
 }
 
@@ -32,18 +33,41 @@ impl PlySaver {
         writer:  &mut dyn Write,
         options: &SaveOptions,
     ) -> Result<()> {
-        write_binary_le(scene, writer, options)
+        write_binary(scene, writer, options, false, false)
+    }
+
+    /// Write binary big-endian PLY to `writer`.
+    pub fn save_binary_be(
+        scene:   &Scene,
+        writer:  &mut dyn Write,
+        options: &SaveOptions,
+    ) -> Result<()> {
+        write_binary(scene, writer, options, true, false)
+    }
+
+    /// Write binary little-endian PLY with selectable floating-point precision.
+    ///
+    /// When `use_double` is `true`, positions, normals, and tangents are written
+    /// as `double` (`f64`); otherwise they are written as `float` (`f32`).
+    pub fn save_with_precision(
+        scene:      &Scene,
+        writer:     &mut dyn Write,
+        use_double: bool,
+    ) -> Result<()> {
+        write_binary(scene, writer, &SaveOptions::default(), false, use_double)
     }
 }
 
 // ── Shared geometry collection ────────────────────────────────────────────────
 
 struct PlyGeom<'a> {
-    vertices:   Vec<&'a Vertex>,
-    indices:    Vec<u32>,
-    has_normals: bool,
-    has_uvs:     bool,
-    has_colors:  bool,
+    vertices:     Vec<&'a Vertex>,
+    indices:      Vec<u32>,
+    has_normals:  bool,
+    has_tangents: bool,
+    /// One entry per UV channel (0–7); `true` iff any vertex has that channel set.
+    has_uvs:      [bool; 8],
+    has_colors:   bool,
 }
 
 fn collect_geometry(scene: &Scene) -> PlyGeom<'_> {
@@ -62,14 +86,39 @@ fn collect_geometry(scene: &Scene) -> PlyGeom<'_> {
         }
     }
 
-    let has_normals = vertices.iter().any(|v| v.normal.is_some());
-    let has_uvs     = vertices.iter().any(|v| v.uvs[0].is_some());
-    let has_colors  = vertices.iter().any(|v| v.colors[0].is_some());
+    let has_normals  = vertices.iter().any(|v| v.normal.is_some());
+    let has_tangents = vertices.iter().any(|v| v.tangent.is_some());
+    let has_colors   = vertices.iter().any(|v| v.colors[0].is_some());
 
-    PlyGeom { vertices, indices, has_normals, has_uvs, has_colors }
+    let mut has_uvs = [false; 8];
+    for ch in 0..8 {
+        has_uvs[ch] = vertices.iter().any(|v| v.uvs[ch].is_some());
+    }
+
+    PlyGeom { vertices, indices, has_normals, has_tangents, has_uvs, has_colors }
 }
 
-fn build_header(geom: &PlyGeom<'_>, format_line: &str, options: &SaveOptions) -> String {
+/// Returns the canonical PLY property name pair `(s_name, t_name)` for a UV channel.
+fn uv_channel_names(ch: usize) -> (&'static str, &'static str) {
+    match ch {
+        0 => ("s",  "t"),
+        1 => ("s1", "t1"),
+        2 => ("s2", "t2"),
+        3 => ("s3", "t3"),
+        4 => ("s4", "t4"),
+        5 => ("s5", "t5"),
+        6 => ("s6", "t6"),
+        _ => ("s7", "t7"),
+    }
+}
+
+fn build_header(
+    geom:        &PlyGeom<'_>,
+    format_line: &str,
+    options:     &SaveOptions,
+    use_double:  bool,
+) -> String {
+    let ft = if use_double { "double" } else { "float" };
     let mut h = String::with_capacity(512);
     h.push_str("ply\n");
     h.push_str(format_line);
@@ -82,17 +131,27 @@ fn build_header(geom: &PlyGeom<'_>, format_line: &str, options: &SaveOptions) ->
     }
 
     h.push_str(&format!("element vertex {}\n", geom.vertices.len()));
-    h.push_str("property float x\n");
-    h.push_str("property float y\n");
-    h.push_str("property float z\n");
+    h.push_str(&format!("property {ft} x\n"));
+    h.push_str(&format!("property {ft} y\n"));
+    h.push_str(&format!("property {ft} z\n"));
     if geom.has_normals {
-        h.push_str("property float nx\n");
-        h.push_str("property float ny\n");
-        h.push_str("property float nz\n");
+        h.push_str(&format!("property {ft} nx\n"));
+        h.push_str(&format!("property {ft} ny\n"));
+        h.push_str(&format!("property {ft} nz\n"));
     }
-    if geom.has_uvs {
-        h.push_str("property float s\n");
-        h.push_str("property float t\n");
+    if geom.has_tangents {
+        h.push_str(&format!("property {ft} tx\n"));
+        h.push_str(&format!("property {ft} ty\n"));
+        h.push_str(&format!("property {ft} tz\n"));
+        h.push_str(&format!("property {ft} tw\n"));
+    }
+    // Write one pair of UV properties per active channel.
+    for ch in 0..8usize {
+        if geom.has_uvs[ch] {
+            let (s_name, t_name) = uv_channel_names(ch);
+            h.push_str(&format!("property float {s_name}\n"));
+            h.push_str(&format!("property float {t_name}\n"));
+        }
     }
     if geom.has_colors {
         h.push_str("property uchar red\n");
@@ -101,32 +160,61 @@ fn build_header(geom: &PlyGeom<'_>, format_line: &str, options: &SaveOptions) ->
         h.push_str("property uchar alpha\n");
     }
 
+    // Only write the face element when there are actual triangles (point-cloud support).
     let n_faces = geom.indices.len() / 3;
-    h.push_str(&format!("element face {n_faces}\n"));
-    h.push_str("property list uchar uint vertex_indices\n");
+    if n_faces > 0 {
+        h.push_str(&format!("element face {n_faces}\n"));
+        h.push_str("property list uchar uint vertex_indices\n");
+    }
     h.push_str("end_header\n");
     h
 }
 
 // ── ASCII writer ──────────────────────────────────────────────────────────────
 
-fn write_ascii(scene: &Scene, w: &mut dyn Write, options: &SaveOptions) -> Result<()> {
-    let geom = collect_geometry(scene);
-    let header = build_header(&geom, "format ascii 1.0", options);
+fn write_ascii(
+    scene:      &Scene,
+    w:          &mut dyn Write,
+    options:    &SaveOptions,
+    use_double: bool,
+) -> Result<()> {
+    let geom   = collect_geometry(scene);
+    let header = build_header(&geom, "format ascii 1.0", options, use_double);
     w.write_all(header.as_bytes()).map_err(SolidError::Io)?;
 
     for v in &geom.vertices {
         let p = v.position;
-        write!(w, "{} {} {}", p.x, p.y, p.z).map_err(SolidError::Io)?;
+        if use_double {
+            write!(w, "{} {} {}", p.x as f64, p.y as f64, p.z as f64)
+                .map_err(SolidError::Io)?;
+        } else {
+            write!(w, "{} {} {}", p.x, p.y, p.z).map_err(SolidError::Io)?;
+        }
 
         if geom.has_normals {
             let n = v.normal.unwrap_or(Vec3::Y);
-            write!(w, " {} {} {}", n.x, n.y, n.z).map_err(SolidError::Io)?;
+            if use_double {
+                write!(w, " {} {} {}", n.x as f64, n.y as f64, n.z as f64)
+                    .map_err(SolidError::Io)?;
+            } else {
+                write!(w, " {} {} {}", n.x, n.y, n.z).map_err(SolidError::Io)?;
+            }
         }
-        if geom.has_uvs {
-            let uv = v.uvs[0].unwrap_or(Vec2::ZERO);
-            let t  = if options.flip_uv_v { 1.0 - uv.y } else { uv.y };
-            write!(w, " {} {}", uv.x, t).map_err(SolidError::Io)?;
+        if geom.has_tangents {
+            let t = v.tangent.unwrap_or(Vec4::new(1.0, 0.0, 0.0, 1.0));
+            if use_double {
+                write!(w, " {} {} {} {}", t.x as f64, t.y as f64, t.z as f64, t.w as f64)
+                    .map_err(SolidError::Io)?;
+            } else {
+                write!(w, " {} {} {} {}", t.x, t.y, t.z, t.w).map_err(SolidError::Io)?;
+            }
+        }
+        for ch in 0..8usize {
+            if geom.has_uvs[ch] {
+                let uv = v.uvs[ch].unwrap_or(Vec2::ZERO);
+                let tv = if options.flip_uv_v { 1.0_f32 - uv.y } else { uv.y };
+                write!(w, " {} {}", uv.x, tv).map_err(SolidError::Io)?;
+            }
         }
         if geom.has_colors {
             let c = vertex_color_bytes(v);
@@ -135,37 +223,66 @@ fn write_ascii(scene: &Scene, w: &mut dyn Write, options: &SaveOptions) -> Resul
         writeln!(w).map_err(SolidError::Io)?;
     }
 
-    for tri in geom.indices.chunks(3) {
-        writeln!(w, "3 {} {} {}", tri[0], tri[1], tri[2]).map_err(SolidError::Io)?;
+    // Point-cloud scenes have no faces — omit the face section entirely.
+    if !geom.indices.is_empty() {
+        for tri in geom.indices.chunks(3) {
+            writeln!(w, "3 {} {} {}", tri[0], tri[1], tri[2]).map_err(SolidError::Io)?;
+        }
     }
 
     Ok(())
 }
 
-// ── Binary LE writer ──────────────────────────────────────────────────────────
+// ── Binary writer (LE and BE, float and double) ───────────────────────────────
 
-fn write_binary_le(scene: &Scene, w: &mut dyn Write, options: &SaveOptions) -> Result<()> {
+fn write_binary(
+    scene:      &Scene,
+    w:          &mut dyn Write,
+    options:    &SaveOptions,
+    big_endian: bool,
+    use_double: bool,
+) -> Result<()> {
     let geom = collect_geometry(scene);
-    let header = build_header(&geom, "format binary_little_endian 1.0", options);
+    let format_line = if big_endian {
+        "format binary_big_endian 1.0"
+    } else {
+        "format binary_little_endian 1.0"
+    };
+    let header = build_header(&geom, format_line, options, use_double);
     w.write_all(header.as_bytes()).map_err(SolidError::Io)?;
 
     for v in &geom.vertices {
         let p = v.position;
-        w.write_all(&p.x.to_le_bytes()).map_err(SolidError::Io)?;
-        w.write_all(&p.y.to_le_bytes()).map_err(SolidError::Io)?;
-        w.write_all(&p.z.to_le_bytes()).map_err(SolidError::Io)?;
+        write_float(w, p.x, big_endian, use_double)?;
+        write_float(w, p.y, big_endian, use_double)?;
+        write_float(w, p.z, big_endian, use_double)?;
 
         if geom.has_normals {
             let n = v.normal.unwrap_or(Vec3::Y);
-            w.write_all(&n.x.to_le_bytes()).map_err(SolidError::Io)?;
-            w.write_all(&n.y.to_le_bytes()).map_err(SolidError::Io)?;
-            w.write_all(&n.z.to_le_bytes()).map_err(SolidError::Io)?;
+            write_float(w, n.x, big_endian, use_double)?;
+            write_float(w, n.y, big_endian, use_double)?;
+            write_float(w, n.z, big_endian, use_double)?;
         }
-        if geom.has_uvs {
-            let uv = v.uvs[0].unwrap_or(Vec2::ZERO);
-            let t  = if options.flip_uv_v { 1.0_f32 - uv.y } else { uv.y };
-            w.write_all(&uv.x.to_le_bytes()).map_err(SolidError::Io)?;
-            w.write_all(&t.to_le_bytes()).map_err(SolidError::Io)?;
+        if geom.has_tangents {
+            let t = v.tangent.unwrap_or(Vec4::new(1.0, 0.0, 0.0, 1.0));
+            write_float(w, t.x, big_endian, use_double)?;
+            write_float(w, t.y, big_endian, use_double)?;
+            write_float(w, t.z, big_endian, use_double)?;
+            write_float(w, t.w, big_endian, use_double)?;
+        }
+        // UVs are always stored as f32 regardless of use_double.
+        for ch in 0..8usize {
+            if geom.has_uvs[ch] {
+                let uv = v.uvs[ch].unwrap_or(Vec2::ZERO);
+                let tv = if options.flip_uv_v { 1.0_f32 - uv.y } else { uv.y };
+                if big_endian {
+                    w.write_all(&uv.x.to_be_bytes()).map_err(SolidError::Io)?;
+                    w.write_all(&tv.to_be_bytes()).map_err(SolidError::Io)?;
+                } else {
+                    w.write_all(&uv.x.to_le_bytes()).map_err(SolidError::Io)?;
+                    w.write_all(&tv.to_le_bytes()).map_err(SolidError::Io)?;
+                }
+            }
         }
         if geom.has_colors {
             let c = vertex_color_bytes(v);
@@ -173,14 +290,38 @@ fn write_binary_le(scene: &Scene, w: &mut dyn Write, options: &SaveOptions) -> R
         }
     }
 
-    for tri in geom.indices.chunks(3) {
-        w.write_all(&[3u8]).map_err(SolidError::Io)?;
-        for &idx in tri {
-            w.write_all(&idx.to_le_bytes()).map_err(SolidError::Io)?;
+    // Point-cloud scenes have no faces — omit the face section entirely.
+    if !geom.indices.is_empty() {
+        for tri in geom.indices.chunks(3) {
+            w.write_all(&[3u8]).map_err(SolidError::Io)?;
+            for &idx in tri {
+                if big_endian {
+                    w.write_all(&idx.to_be_bytes()).map_err(SolidError::Io)?;
+                } else {
+                    w.write_all(&idx.to_le_bytes()).map_err(SolidError::Io)?;
+                }
+            }
         }
     }
 
     Ok(())
+}
+
+/// Write one `f32` value, optionally promoted to `f64`, in the requested byte order.
+#[inline]
+fn write_float(w: &mut dyn Write, val: f32, big_endian: bool, use_double: bool) -> Result<()> {
+    if use_double {
+        let d = val as f64;
+        if big_endian {
+            w.write_all(&d.to_be_bytes()).map_err(SolidError::Io)
+        } else {
+            w.write_all(&d.to_le_bytes()).map_err(SolidError::Io)
+        }
+    } else if big_endian {
+        w.write_all(&val.to_be_bytes()).map_err(SolidError::Io)
+    } else {
+        w.write_all(&val.to_le_bytes()).map_err(SolidError::Io)
+    }
 }
 
 // ── Helper ────────────────────────────────────────────────────────────────────
