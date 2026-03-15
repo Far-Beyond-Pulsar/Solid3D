@@ -20,17 +20,17 @@
 //! ## Quick start
 //!
 //! ```rust,no_run
-//! use solid_rs::Registry;
+//! use solid_rs::registry::Registry;
 //! use solid_fbx::{FbxLoader, FbxSaver};
 //!
 //! let mut registry = Registry::new();
 //! registry.register_loader(std::sync::Arc::new(FbxLoader));
 //! registry.register_saver(std::sync::Arc::new(FbxSaver));
 //!
-//! let scene = registry.load_file("model.fbx", Default::default()).unwrap();
+//! let scene = registry.load_file("model.fbx").unwrap();
 //! println!("Loaded {} meshes", scene.meshes.len());
 //!
-//! registry.save_file(&scene, "out.fbx", Default::default()).unwrap();
+//! registry.save_file(&scene, "out.fbx").unwrap();
 //! ```
 
 pub mod document;
@@ -47,9 +47,11 @@ use solid_rs::traits::FormatInfo;
 
 /// Metadata for the FBX format.
 pub static FBX_FORMAT: FormatInfo = FormatInfo {
-    name:       "Autodesk FBX",
-    short_name: "fbx",
-    extensions: &["fbx"],
-    mime_types: &["application/octet-stream"],
-    version:    "7.4",
+    name:         "Autodesk FBX",
+    id:           "fbx",
+    extensions:   &["fbx"],
+    mime_types:   &["application/octet-stream"],
+    can_load:     true,
+    can_save:     true,
+    spec_version: Some("7.4"),
 };

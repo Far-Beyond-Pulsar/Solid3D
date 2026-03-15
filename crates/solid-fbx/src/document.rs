@@ -40,7 +40,7 @@ impl FbxNode {
     }
 
     /// Iterate over every direct child whose name equals `name`.
-    pub fn children_named(&self, name: &str) -> impl Iterator<Item = &FbxNode> {
+    pub fn children_named<'a>(&'a self, name: &'a str) -> impl Iterator<Item = &'a FbxNode> + 'a {
         self.children.iter().filter(move |n| n.name == name)
     }
 
