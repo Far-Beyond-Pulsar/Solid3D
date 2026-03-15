@@ -335,7 +335,7 @@ Extensions: `.gltf`, `.glb` · MIME: `model/gltf+json`, `model/gltf-binary`
 | **Animation** | | | |
 | Translation / rotation / scale samplers | ✅ | ✅ | |
 | LINEAR / STEP / CUBICSPLINE | ✅ | ✅ | |
-| Morph target weights | ❌ | ❌ | |
+| Morph target weights | ✅ | ✅ | POSITION/NORMAL/TANGENT deltas + mesh weights |
 | **Lighting** | | | |
 | Cameras attached to nodes | ✅ | ✅ | |
 | `KHR_lights_punctual` (point / spot / directional) | ✅ | ✅ | |
