@@ -629,7 +629,8 @@ impl<'d> Converter<'d> {
         let name = fbx_object_name(node);
 
         let verts: Vec<f64> = node.child("Vertices")
-            .and_then(|n| n.as_f64_slice()).map(|s| s.to_vec()).unwrap_or_default();
+            .and_then(|n| n.properties.first().and_then(|p| p.to_f64_vec()))
+            .unwrap_or_default();
         let pvi: Vec<i32> = node.child("PolygonVertexIndex")
             .and_then(|n| n.as_i32_slice()).map(|s| s.to_vec()).unwrap_or_default();
 
@@ -1056,14 +1057,13 @@ impl<'d> Converter<'d> {
 
         let times: Vec<f32> = node.child("KeyTime")
             .and_then(|n| n.properties.first())
-            .and_then(|p| p.as_i64_slice())
+            .and_then(|p| p.to_i64_vec())
             .map(|s| s.iter().map(|&t| (t as f64 / FBX_TIME_UNIT) as f32).collect())
             .unwrap_or_default();
 
         let values: Vec<f32> = node.child("KeyValueFloat")
             .and_then(|n| n.properties.first())
-            .and_then(|p| p.as_f32_slice())
-            .map(|s| s.to_vec())
+            .and_then(|p| p.to_f32_vec())
             .unwrap_or_default();
 
         let idx = self.curves.len();
@@ -1084,8 +1084,7 @@ fn fbx_object_name(node: &FbxNode) -> String {
 fn extract_f64_layer(geo: &FbxNode, layer: &str, key: &str) -> Vec<f64> {
     geo.child(layer)
         .and_then(|l| l.child(key))
-        .and_then(|n| n.as_f64_slice())
-        .map(|s| s.to_vec())
+        .and_then(|n| n.properties.first().and_then(|p| p.to_f64_vec()))
         .unwrap_or_default()
 }
 
@@ -1107,8 +1106,7 @@ fn extract_color_layer(geo: &FbxNode)
     };
 
     let colors = layer.child("Colors")
-        .and_then(|n| n.as_f64_slice())
-        .map(|s| s.to_vec())
+        .and_then(|n| n.properties.first().and_then(|p| p.to_f64_vec()))
         .unwrap_or_default();
 
     let color_indices = layer.child("ColorIndex")

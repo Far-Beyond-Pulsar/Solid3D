@@ -141,9 +141,40 @@ impl FbxProperty {
         }
     }
 
+    /// Returns this property as a `Vec<f64>`, accepting both float and integer array types.
+    pub fn to_f64_vec(&self) -> Option<Vec<f64>> {
+        match self {
+            FbxProperty::ArrFloat64(v) => Some(v.clone()),
+            FbxProperty::ArrFloat32(v) => Some(v.iter().map(|&x| x as f64).collect()),
+            FbxProperty::ArrInt32(v)   => Some(v.iter().map(|&x| x as f64).collect()),
+            FbxProperty::ArrInt64(v)   => Some(v.iter().map(|&x| x as f64).collect()),
+            _ => None,
+        }
+    }
+
     pub fn as_f32_slice(&self) -> Option<&[f32]> {
         match self {
             FbxProperty::ArrFloat32(v) => Some(v),
+            _ => None,
+        }
+    }
+
+    /// Returns this property as a `Vec<f32>`, accepting float64/int32/int64 arrays too.
+    pub fn to_f32_vec(&self) -> Option<Vec<f32>> {
+        match self {
+            FbxProperty::ArrFloat32(v) => Some(v.clone()),
+            FbxProperty::ArrFloat64(v) => Some(v.iter().map(|&x| x as f32).collect()),
+            FbxProperty::ArrInt32(v)   => Some(v.iter().map(|&x| x as f32).collect()),
+            FbxProperty::ArrInt64(v)   => Some(v.iter().map(|&x| x as f32).collect()),
+            _ => None,
+        }
+    }
+
+    /// Returns this property as a `Vec<i64>`, also accepting int32/int64 arrays.
+    pub fn to_i64_vec(&self) -> Option<Vec<i64>> {
+        match self {
+            FbxProperty::ArrInt64(v) => Some(v.clone()),
+            FbxProperty::ArrInt32(v) => Some(v.iter().map(|&x| x as i64).collect()),
             _ => None,
         }
     }

@@ -298,7 +298,10 @@ impl<'w> FbxWriter<'w> {
                     self.line(&format!("a: {}", kt_str.join(",")))?;
                     self.indent -= 1;
                     self.line("}")?;
-                    let kv_str: Vec<String> = axis_vals.iter().map(|v| format!("{v}")).collect();
+                    let kv_str: Vec<String> = axis_vals.iter().map(|v| {
+                        let s = format!("{v}");
+                        if s.contains('.') || s.contains('e') || s.contains('E') { s } else { format!("{v}.0") }
+                    }).collect();
                     self.line(&format!("KeyValueFloat: *{} {{", axis_vals.len()))?;
                     self.indent += 1;
                     self.line(&format!("a: {}", kv_str.join(",")))?;
@@ -720,7 +723,11 @@ impl<'w> FbxWriter<'w> {
     fn write_f64_array(&mut self, name: &str, data: &[f64]) -> Result<()> {
         self.line(&format!("{name}: *{} {{", data.len()))?;
         self.indent += 1;
-        let items: Vec<String> = data.iter().map(|v| format!("{v}")).collect();
+        let items: Vec<String> = data.iter().map(|v| {
+            let s = format!("{v}");
+            // Always include a decimal point so the ASCII parser creates ArrFloat64
+            if s.contains('.') || s.contains('e') || s.contains('E') { s } else { format!("{v}.0") }
+        }).collect();
         self.line(&format!("a: {}", items.join(",")))?;
         self.indent -= 1;
         self.line("}")
