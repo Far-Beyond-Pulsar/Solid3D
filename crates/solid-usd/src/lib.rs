@@ -11,8 +11,8 @@
 //! |---------|------|------|
 //! | **Encoding** | | |
 //! | USDA (ASCII USD) | ✅ | ✅ |
-//! | USDC (binary USD) | ❌ | ❌ |
-//! | USDZ (zip container) | ❌ | ❌ |
+//! | USDC (binary USD) | ✅ | ❌ |
+//! | USDZ (zip container) | ✅ | ❌ |
 //! | **Geometry** | | |
 //! | Positions (`points`) | ✅ | ✅ |
 //! | Normals | ✅ | ✅ |
@@ -55,6 +55,8 @@ pub mod document;
 pub(crate) mod lexer;
 pub(crate) mod parser;
 pub(crate) mod convert;
+pub(crate) mod usdc;
+pub(crate) mod usdz;
 pub mod loader;
 pub mod saver;
 
@@ -63,12 +65,12 @@ pub use saver::UsdSaver;
 
 use solid_rs::traits::FormatInfo;
 
-/// Metadata for the USD format (USDA dialect).
+/// Metadata for the USD format (all dialects).
 pub static USD_FORMAT: FormatInfo = FormatInfo {
-    name:         "OpenUSD ASCII",
+    name:         "OpenUSD",
     id:           "usd",
-    extensions:   &["usda", "usd"],
-    mime_types:   &["model/vnd.usd"],
+    extensions:   &["usda", "usdc", "usdz", "usd"],
+    mime_types:   &["model/vnd.usd", "model/vnd.usdz+zip"],
     can_load:     true,
     can_save:     true,
     spec_version: Some("1.0"),

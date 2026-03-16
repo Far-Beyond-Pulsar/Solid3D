@@ -9,16 +9,17 @@
 
 use std::collections::HashMap;
 
-use glam::{Quat, Vec2, Vec3, Vec4};
+use glam::{Mat4, Quat, Vec2, Vec3, Vec4};
 
 use solid_rs::{
     SolidError,
     builder::SceneBuilder,
-    geometry::{Primitive, Transform, Vertex},
+    geometry::{Primitive, SkinWeights, Transform, Vertex},
     scene::{
-        AlphaMode, Camera, Image, ImageSource, Light, LightBase, Material, Mesh,
-        OrthographicCamera, PerspectiveCamera, PointLight, DirectionalLight,
-        Projection, Scene, Texture,
+        AlphaMode, Animation, AnimationChannel, AnimationTarget, Camera, DirectionalLight,
+        Image, ImageSource, Interpolation, Light, LightBase, Material, Mesh,
+        OrthographicCamera, PerspectiveCamera, PointLight,
+        Projection, Scene, Skin, SpotLight, Texture,
     },
 };
 

@@ -273,6 +273,8 @@ impl Parser {
             Some(Token::Ident(s))     => { self.advance(); Ok(UsdValue::Token(s)) }
             Some(Token::LParen)       => self.parse_tuple(),
             Some(Token::LBracket)     => self.parse_array(),
+            // Time-sampled block  { time: value, ... }  → extract first keyframe value
+            Some(Token::LBrace)       => self.parse_time_samples(),
             Some(t) => Err(SolidError::parse(format!("expected value, got {t:?}"))),
             None    => Err(SolidError::parse("unexpected end of input in value")),
         }
@@ -438,6 +440,33 @@ impl Parser {
                 _ => { self.advance(); }
             }
         }
+    }
+
+    /// Parse a time-samples block `{ time: value, ... }` and return the first
+    /// sample's value (or a placeholder).
+    fn parse_time_samples(&mut self) -> Result<UsdValue, SolidError> {
+        self.expect(&Token::LBrace)?;
+        let mut first_val: Option<UsdValue> = None;
+
+        while self.peek() != Some(&Token::RBrace) && self.pos < self.tokens.len() {
+            // time key — may be a number or ident
+            match self.peek().cloned() {
+                Some(Token::Float(_)) | Some(Token::Int(_)) | Some(Token::Ident(_)) => {
+                    self.advance();
+                }
+                _ => { self.advance(); continue; }
+            }
+            self.eat(&Token::Colon);
+            match self.parse_value() {
+                Ok(v) => {
+                    if first_val.is_none() { first_val = Some(v); }
+                }
+                Err(_) => { self.skip_value(); }
+            }
+            self.eat(&Token::Comma);
+        }
+        self.expect(&Token::RBrace)?;
+        Ok(first_val.unwrap_or(UsdValue::String("timeSamples".into())))
     }
 }
 

@@ -14,6 +14,8 @@ categories   = ["graphics", "rendering", "game-development"]
 solid-rs  = { workspace = true }
 glam      = { workspace = true }
 thiserror = { workspace = true }
+lz4_flex  = { workspace = true }
+zip       = { workspace = true }
 
 [dev-dependencies]
 solid-rs = { workspace = true }

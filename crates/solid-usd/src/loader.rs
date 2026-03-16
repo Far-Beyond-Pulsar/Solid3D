@@ -1,6 +1,6 @@
-//! USDA file loader.
+//! USD family loader — dispatches USDA (text), USDC (binary Crate), and USDZ (ZIP).
 
-use std::io::Read;
+use std::io::{Cursor, Read};
 
 use solid_rs::{
     SolidError,
@@ -8,7 +8,7 @@ use solid_rs::{
     traits::{FormatInfo, LoadOptions, Loader, ReadSeek},
 };
 
-use crate::{USD_FORMAT, convert, parser};
+use crate::{USD_FORMAT, convert, parser, usdc, usdz};
 
 pub struct UsdLoader;
 
@@ -21,12 +21,9 @@ impl Loader for UsdLoader {
         let mut buf = [0u8; 10];
         let n = reader.read(&mut buf).unwrap_or(0);
         let s = &buf[..n];
-        // USDA starts with `#usda `
-        if s.starts_with(b"#usda ") { return 0.95; }
-        // USDC binary magic
-        if s.starts_with(b"PXR-USDC") { return 0.0; } // we can't read binary USD
-        // USDZ (zip)
-        if s.starts_with(b"PK\x03\x04") { return 0.0; }
+        if s.starts_with(b"#usda ")     { return 0.95; }
+        if s.starts_with(b"PXR-USDC")  { return 0.90; }
+        if s.starts_with(b"PK\x03\x04") { return 0.85; } // USDZ
         0.0
     }
 
@@ -34,16 +31,21 @@ impl Loader for UsdLoader {
         let mut data = Vec::new();
         reader.read_to_end(&mut data).map_err(SolidError::Io)?;
 
-        let src = std::str::from_utf8(&data)
-            .map_err(|e| SolidError::parse(format!("USDA is not valid UTF-8: {e}")))?;
-
-        // Reject non-USDA (binary USDC / USDZ) early
-        if src.trim_start().starts_with("PXR-USDC") {
-            return Err(SolidError::unsupported(
-                "USDC (binary USD) is not supported; convert to USDA first",
-            ));
+        // --- USDC binary ---
+        if data.starts_with(b"PXR-USDC") {
+            let doc = usdc::read(&data)?;
+            return convert::doc_to_scene(&doc);
         }
 
+        // --- USDZ ZIP container ---
+        if data.starts_with(b"PK\x03\x04") {
+            let doc = usdz::read(Cursor::new(&data))?;
+            return convert::doc_to_scene(&doc);
+        }
+
+        // --- USDA text ---
+        let src = std::str::from_utf8(&data)
+            .map_err(|e| SolidError::parse(format!("USD file is not valid UTF-8: {e}")))?;
         let doc = parser::parse(src)?;
         convert::doc_to_scene(&doc)
     }
