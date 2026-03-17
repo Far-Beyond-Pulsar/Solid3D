@@ -67,6 +67,16 @@ pub fn pbr_material_scene() -> Scene {
     b.build()
 }
 
+/// Scene with explicit specular/IOR terms alongside metallic/roughness.
+pub fn pbr_specular_ior_scene() -> Scene {
+    let mut scene = pbr_material_scene();
+    let mat = &mut scene.materials[0];
+    mat.specular_color = Vec3::new(0.9, 0.8, 0.7);
+    mat.specular_weight = 0.65;
+    mat.ior = 1.33;
+    scene
+}
+
 /// Scene with perspective and orthographic cameras in a hierarchy.
 pub fn camera_scene() -> Scene {
     let mut b = SceneBuilder::named("Camera Scene");

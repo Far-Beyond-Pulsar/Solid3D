@@ -94,6 +94,29 @@ pub struct GltfMaterial {
     pub alpha_mode: Option<String>,
     pub alpha_cutoff: Option<f32>,
     pub double_sided: Option<bool>,
+    pub extensions: Option<GltfMaterialExtensions>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+#[serde(default)]
+pub struct GltfMaterialExtensions {
+    #[serde(rename = "KHR_materials_specular")]
+    pub khr_materials_specular: Option<GltfMaterialsSpecular>,
+    #[serde(rename = "KHR_materials_ior")]
+    pub khr_materials_ior: Option<GltfMaterialsIor>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+#[serde(rename_all = "camelCase", default)]
+pub struct GltfMaterialsSpecular {
+    pub specular_factor: Option<f32>,
+    pub specular_color_factor: Option<[f32; 3]>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+#[serde(rename_all = "camelCase", default)]
+pub struct GltfMaterialsIor {
+    pub ior: Option<f32>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]

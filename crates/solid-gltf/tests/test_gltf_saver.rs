@@ -101,6 +101,33 @@ fn saver_material_metallic_factor() {
 }
 
 #[test]
+fn saver_material_specular_ior_extensions() {
+    let json = save_json(&pbr_specular_ior_scene());
+
+    let extensions_used = json["extensionsUsed"].as_array().unwrap();
+    assert!(
+        extensions_used.iter().any(|ext| ext.as_str() == Some("KHR_materials_specular")),
+        "KHR_materials_specular should be advertised in extensionsUsed"
+    );
+    assert!(
+        extensions_used.iter().any(|ext| ext.as_str() == Some("KHR_materials_ior")),
+        "KHR_materials_ior should be advertised in extensionsUsed"
+    );
+
+    let specular = &json["materials"][0]["extensions"]["KHR_materials_specular"];
+    assert!((specular["specularFactor"].as_f64().unwrap() as f32 - 0.65).abs() < 1e-5);
+    let color = specular["specularColorFactor"].as_array().unwrap();
+    assert!((color[0].as_f64().unwrap() as f32 - 0.9).abs() < 1e-5);
+    assert!((color[1].as_f64().unwrap() as f32 - 0.8).abs() < 1e-5);
+    assert!((color[2].as_f64().unwrap() as f32 - 0.7).abs() < 1e-5);
+
+    let ior = json["materials"][0]["extensions"]["KHR_materials_ior"]["ior"]
+        .as_f64()
+        .unwrap() as f32;
+    assert!((ior - 1.33).abs() < 1e-5);
+}
+
+#[test]
 fn saver_material_alpha_mode_opaque() {
     let json = save_json(&pbr_material_scene());
     // Opaque is the default and should be omitted or null in JSON

@@ -627,7 +627,7 @@ impl<'w> FbxWriter<'w> {
         ))?;
 
         self.line(&format!(
-            "P: \"ReflectionFactor\", \"Number\", \"\", \"A+\",{}", mat.metallic_factor
+            "P: \"Metalness\", \"Number\", \"\", \"A+\",{}", mat.metallic_factor
         ))?;
 
         if mat.alpha_mode == AlphaMode::Blend {

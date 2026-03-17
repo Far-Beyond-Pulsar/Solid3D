@@ -1,4 +1,4 @@
-//! PBR metallic-roughness material model.
+//! Canonical physically based material model.
 
 use glam::{Vec2, Vec3, Vec4};
 
@@ -55,9 +55,15 @@ pub enum AlphaMode {
     Blend,
 }
 
-/// A PBR metallic-roughness material, aligned with the glTF 2.0 material model.
+/// A canonical physically based material description.
+/// 
+/// The schema keeps the widely-used metallic/roughness controls while also
+/// carrying explicit dielectric specular and IOR terms. That additive shape is
+/// deliberate groundwork for AAA renderers that need a canonical source of
+/// truth without collapsing authored workflows during import.
 ///
-/// Format-specific loaders may store additional properties in [`extensions`](Material::extensions).
+/// Format-specific loaders may store additional properties in
+/// [`extensions`](Material::extensions).
 #[derive(Debug, Clone)]
 pub struct Material {
     /// Human-readable name.
@@ -77,6 +83,20 @@ pub struct Material {
     pub roughness_factor: f32,
     /// Optional combined metallic (B) / roughness (G) texture.
     pub metallic_roughness_texture: Option<TextureRef>,
+
+    // ── Explicit dielectric specular / IOR ───────────────────────────────────
+    /// Linear RGB specular tint for explicit dielectric workflows.
+    ///
+    /// A value of white preserves the authored Fresnel colour derived from
+    /// [`Material::ior`].
+    pub specular_color: Vec3,
+    /// Scalar multiplier for explicit specular response.
+    pub specular_weight: f32,
+    /// Index of refraction for the dielectric interface.
+    ///
+    /// This stays alongside metallic/roughness so importers do not have to
+    /// heuristically collapse one authored workflow into another.
+    pub ior: f32,
 
     // ── Surface detail ───────────────────────────────────────────────────────
     /// Optional tangent-space normal map.
@@ -116,6 +136,9 @@ impl Default for Material {
             metallic_factor: 1.0,
             roughness_factor: 1.0,
             metallic_roughness_texture: None,
+            specular_color: Vec3::ONE,
+            specular_weight: 1.0,
+            ior: 1.5,
             normal_texture: None,
             normal_scale: 1.0,
             occlusion_texture: None,

@@ -641,15 +641,15 @@ impl<'d> Converter<'d> {
 
         if verts.is_empty() || pvi.is_empty() { return Ok(()); }
 
-        let normals   = extract_f64_layer(node, "LayerElementNormal", "Normals");
-        let uvs       = extract_f64_layer(node, "LayerElementUV", "UV");
+        let (normals, norm_indices, norm_ref_mode) = extract_normal_layer(node);
+        let (uvs, uv_indices, uv_ref_mode) = extract_uv_layer(node);
         let norm_mode = extract_mapping_mode(node, "LayerElementNormal");
         let uv_mode   = extract_mapping_mode(node, "LayerElementUV");
 
         let (colors_data, color_indices, color_mode, color_ref_mode) =
             extract_color_layer(node);
 
-        let tangents  = extract_f64_layer(node, "LayerElementTangent", "Tangents");
+        let (tangents, tangent_indices, tang_ref_mode) = extract_tangent_layer(node);
         let tangent_w = extract_f64_layer(node, "LayerElementTangent", "TangentW");
         let tang_mode = extract_mapping_mode(node, "LayerElementTangent");
 
@@ -672,13 +672,23 @@ impl<'d> Converter<'d> {
             let pz = verts.get(vert_idx*3+2).copied().unwrap_or(0.0) as f32;
 
             let ns = match norm_mode { MappingMode::ByVertex => vert_idx, _ => flat_idx };
-            let nx = normals.get(ns*3  ).copied().unwrap_or(0.0) as f32;
-            let ny = normals.get(ns*3+1).copied().unwrap_or(0.0) as f32;
-            let nz = normals.get(ns*3+2).copied().unwrap_or(0.0) as f32;
+            let ni = if norm_ref_mode == RefMode::IndexToDirect {
+                norm_indices.get(ns).copied().unwrap_or(ns as i32) as usize
+            } else {
+                ns
+            };
+            let nx = normals.get(ni*3  ).copied().unwrap_or(0.0) as f32;
+            let ny = normals.get(ni*3+1).copied().unwrap_or(0.0) as f32;
+            let nz = normals.get(ni*3+2).copied().unwrap_or(0.0) as f32;
 
             let us = match uv_mode { MappingMode::ByVertex => vert_idx, _ => flat_idx };
-            let u  = uvs.get(us*2  ).copied().unwrap_or(0.0) as f32;
-            let v  = uvs.get(us*2+1).copied().unwrap_or(0.0) as f32;
+            let ui = if uv_ref_mode == RefMode::IndexToDirect {
+                uv_indices.get(us).copied().unwrap_or(us as i32) as usize
+            } else {
+                us
+            };
+            let u  = uvs.get(ui*2  ).copied().unwrap_or(0.0) as f32;
+            let v  = uvs.get(ui*2+1).copied().unwrap_or(0.0) as f32;
 
             // Resolve vertex colour
             let color = if !colors_data.is_empty() {
@@ -705,10 +715,15 @@ impl<'d> Converter<'d> {
             }
             if !tangents.is_empty() {
                 let ts = match tang_mode { MappingMode::ByVertex => vert_idx, _ => flat_idx };
-                let tx = tangents.get(ts * 3    ).copied().unwrap_or(0.0) as f32;
-                let ty = tangents.get(ts * 3 + 1).copied().unwrap_or(0.0) as f32;
-                let tz = tangents.get(ts * 3 + 2).copied().unwrap_or(0.0) as f32;
-                let tw = tangent_w.get(ts).copied().unwrap_or(1.0) as f32;
+                let ti = if tang_ref_mode == RefMode::IndexToDirect {
+                    tangent_indices.get(ts).copied().unwrap_or(ts as i32) as usize
+                } else {
+                    ts
+                };
+                let tx = tangents.get(ti * 3    ).copied().unwrap_or(0.0) as f32;
+                let ty = tangents.get(ti * 3 + 1).copied().unwrap_or(0.0) as f32;
+                let tz = tangents.get(ti * 3 + 2).copied().unwrap_or(0.0) as f32;
+                let tw = tangent_w.get(ti).copied().unwrap_or(1.0) as f32;
                 vtx.tangent = Some(Vec4::new(tx, ty, tz, tw));
             }
             orig_vert_indices.push(vert_idx);
@@ -780,8 +795,14 @@ impl<'d> Converter<'d> {
                         mat.roughness_factor = ((2.0 / (s as f64 + 2.0)).sqrt() as f32)
                             .clamp(0.0, 1.0);
                     }
-                    "ReflectionFactor" | "SpecularFactor" => {
+                    "Metalness" | "Metallic" | "MetalnessFactor" | "MetallicFactor" => {
                         mat.metallic_factor = prop_f32(p, 4).clamp(0.0, 1.0);
+                    }
+                    "ReflectionFactor" | "SpecularFactor" => {
+                        // Legacy FBX Phong/Lambert specular/reflection controls are not
+                        // equivalent to PBR metalness. Treating them as metallic makes
+                        // ordinary dielectrics look chrome-like, so we intentionally
+                        // ignore them here until SolidRS grows a separate specular workflow.
                     }
                     "TransparencyFactor" => {
                         // 0.0 = fully opaque, 1.0 = fully transparent
@@ -828,9 +849,10 @@ impl<'d> Converter<'d> {
         let id   = node.id().unwrap_or(0);
         let name = fbx_object_name(node);
 
-        let mut translation  = Vec3::ZERO;
-        let mut rotation_deg = Vec3::ZERO;
-        let mut scale        = Vec3::ONE;
+        let mut translation   = Vec3::ZERO;
+        let mut rotation_deg  = Vec3::ZERO;
+        let mut pre_rot_deg   = Vec3::ZERO;
+        let mut scale         = Vec3::ONE;
 
         if let Some(props) = node.child("Properties70") {
             for p in props.children_named("P") {
@@ -845,6 +867,9 @@ impl<'d> Converter<'d> {
                     "LclRotation" | "Lcl Rotation" => {
                         rotation_deg = Vec3::new(prop_f32(p, 4), prop_f32(p, 5), prop_f32(p, 6));
                     }
+                    "PreRotation" => {
+                        pre_rot_deg = Vec3::new(prop_f32(p, 4), prop_f32(p, 5), prop_f32(p, 6));
+                    }
                     "LclScaling" | "Lcl Scaling" => {
                         scale = Vec3::new(
                             prop_f32_default(p, 4, 1.0),
@@ -857,12 +882,19 @@ impl<'d> Converter<'d> {
             }
         }
 
-        let rotation = Quat::from_euler(
+        let pre_rotation = Quat::from_euler(
+            EulerRot::XYZ,
+            pre_rot_deg.x.to_radians(),
+            pre_rot_deg.y.to_radians(),
+            pre_rot_deg.z.to_radians(),
+        );
+        let lcl_rotation = Quat::from_euler(
             EulerRot::XYZ,
             rotation_deg.x.to_radians(),
             rotation_deg.y.to_radians(),
             rotation_deg.z.to_radians(),
         );
+        let rotation = pre_rotation * lcl_rotation;
 
         let idx = self.models.len();
         self.model_fbx.insert(id, idx);
@@ -1128,6 +1160,78 @@ fn extract_color_layer(geo: &FbxNode)
         .unwrap_or(RefMode::Direct);
 
     (colors, color_indices, mapping, ref_mode)
+}
+
+/// Returns `(tangents_f64, tangent_indices, ref_mode)`.
+fn extract_tangent_layer(geo: &FbxNode) -> (Vec<f64>, Vec<i32>, RefMode) {
+    let layer = match geo.child("LayerElementTangent") {
+        Some(l) => l,
+        None    => return (Vec::new(), Vec::new(), RefMode::Direct),
+    };
+
+    let tangents = layer.child("Tangents")
+        .and_then(|n| n.properties.first().and_then(|p| p.to_f64_vec()))
+        .unwrap_or_default();
+
+    let tangent_indices = layer.child("TangentsIndex")
+        .and_then(|n| n.as_i32_slice())
+        .map(|s| s.to_vec())
+        .unwrap_or_default();
+
+    let ref_mode = layer.child("ReferenceInformationType")
+        .and_then(|n| n.as_str())
+        .map(RefMode::from_str)
+        .unwrap_or(RefMode::Direct);
+
+    (tangents, tangent_indices, ref_mode)
+}
+
+/// Returns `(normals_f64, normal_indices, ref_mode)`.
+fn extract_normal_layer(geo: &FbxNode) -> (Vec<f64>, Vec<i32>, RefMode) {
+    let layer = match geo.child("LayerElementNormal") {
+        Some(l) => l,
+        None    => return (Vec::new(), Vec::new(), RefMode::Direct),
+    };
+
+    let normals = layer.child("Normals")
+        .and_then(|n| n.properties.first().and_then(|p| p.to_f64_vec()))
+        .unwrap_or_default();
+
+    let norm_indices = layer.child("NormalsIndex")
+        .and_then(|n| n.as_i32_slice())
+        .map(|s| s.to_vec())
+        .unwrap_or_default();
+
+    let ref_mode = layer.child("ReferenceInformationType")
+        .and_then(|n| n.as_str())
+        .map(RefMode::from_str)
+        .unwrap_or(RefMode::Direct);
+
+    (normals, norm_indices, ref_mode)
+}
+
+/// Returns `(uvs_f64, uv_indices, ref_mode)`.
+fn extract_uv_layer(geo: &FbxNode) -> (Vec<f64>, Vec<i32>, RefMode) {
+    let layer = match geo.child("LayerElementUV") {
+        Some(l) => l,
+        None    => return (Vec::new(), Vec::new(), RefMode::Direct),
+    };
+
+    let uvs = layer.child("UV")
+        .and_then(|n| n.properties.first().and_then(|p| p.to_f64_vec()))
+        .unwrap_or_default();
+
+    let uv_indices = layer.child("UVIndex")
+        .and_then(|n| n.as_i32_slice())
+        .map(|s| s.to_vec())
+        .unwrap_or_default();
+
+    let ref_mode = layer.child("ReferenceInformationType")
+        .and_then(|n| n.as_str())
+        .map(RefMode::from_str)
+        .unwrap_or(RefMode::Direct);
+
+    (uvs, uv_indices, ref_mode)
 }
 
 /// Returns `(per_polygon_mat_indices, all_same_flag)`.

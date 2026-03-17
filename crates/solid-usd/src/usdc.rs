@@ -14,6 +14,7 @@
 //! Sections: TOKENS · STRINGS · FIELDS · FIELDSETS · PATHS · SPECS
 
 use std::collections::HashMap;
+use std::io::{Cursor, Read};
 use solid_rs::SolidError;
 
 use crate::document::{Attribute, Prim, Relationship, Specifier, StageMeta, UsdDoc, UsdValue};
@@ -167,14 +168,36 @@ fn read_fields_section(file: &[u8], sec: &[u8]) -> Result<Vec<(u32, u64)>, Solid
     // name token indices — compressed uint32 array
     let name_toks = read_compressed_u32(sec, &mut pos, num)?;
 
-    // value reps — raw uint64 (NOT compressed)
-    let mut value_reps = Vec::with_capacity(num);
-    for _ in 0..num {
-        value_reps.push(ru64(sec, &mut pos)?);
-    }
+    // value reps — compressed uint64 array (USD uses compression here too)
+    let value_reps = read_compressed_u64(sec, &mut pos, num)?;
     let _ = file;
 
     Ok(name_toks.into_iter().zip(value_reps).collect())
+}
+
+/// Read a count-prefixed, potentially lz4-compressed array of u64.
+///
+/// Wire format:
+/// - `compressedSize: u64`
+/// - `compressedSize` bytes of either raw or lz4-compressed data
+///
+/// If `compressedSize == count * 8` the data is raw; otherwise it is lz4.
+fn read_compressed_u64(data: &[u8], pos: &mut usize, count: usize) -> Result<Vec<u64>, SolidError> {
+    if count == 0 { return Ok(vec![]); }
+    let uncompressed_size = count * 8;
+    let compressed_size   = ru64(data, pos)? as usize;
+
+    let raw = if compressed_size == uncompressed_size {
+        let bytes = rbytes(data, pos, compressed_size)?;
+        bytes.to_vec()
+    } else {
+        let bytes = rbytes(data, pos, compressed_size)?;
+        lz4_decompress(bytes, uncompressed_size)?
+    };
+
+    Ok(raw.chunks_exact(8)
+        .map(|c| u64::from_le_bytes(c.try_into().unwrap()))
+        .collect())
 }
 
 // ── FIELDSETS section ─────────────────────────────────────────────────────────
@@ -882,8 +905,77 @@ fn read_compressed_u32(data: &[u8], pos: &mut usize, count: usize) -> Result<Vec
 // ── LZ4 decompression ─────────────────────────────────────────────────────────
 
 fn lz4_decompress(src: &[u8], expected: usize) -> Result<Vec<u8>, SolidError> {
-    lz4_flex::block::decompress(src, expected)
-        .map_err(|e| SolidError::parse(format!("USDC lz4 decompress: {e}")))
+    // USD's binary format stores some blocks as raw LZ4 block data (no frame header).
+    // Some exporters may add small amounts of alignment/padding in front of the block.
+
+    // 1) Try raw block decompress (most common in USD files)
+    if let Ok(out) = lz4_flex::block::decompress(src, expected) {
+        return Ok(out);
+    }
+
+    // 1b) Try skipping a few bytes (alignment/padding) and see if a valid block begins.
+    // This helps with USD writers that emit zero padding or a small header before the LZ4 block.
+    for skip in 1..=16 {
+        if src.len() <= skip { break; }
+        if let Ok(out) = lz4_flex::block::decompress(&src[skip..], expected) {
+            println!("USDC lz4 decompress: succeeded after skipping {} bytes of padding", skip);
+            return Ok(out);
+        }
+    }
+
+    // 2) Fallback: try LZ4 frame decompression if the data starts with a known frame magic.
+    if src.len() >= 4 {
+        const LZ4F_MAGIC_NUMBER: [u8; 4] = [0x04, 0x22, 0x4D, 0x18];
+        const LZ4F_LEGACY_MAGIC_NUMBER: [u8; 4] = [0x02, 0x21, 0x4C, 0x18];
+        if src.starts_with(&LZ4F_MAGIC_NUMBER) || src.starts_with(&LZ4F_LEGACY_MAGIC_NUMBER) {
+            let mut out = Vec::with_capacity(expected);
+            let mut reader = std::io::Cursor::new(src);
+            let mut decoder = lz4_flex::frame::FrameDecoder::new(&mut reader);
+            decoder
+                .read_to_end(&mut out)
+                .map_err(|e| SolidError::parse(format!("USDC lz4 frame decompress: {e}")))?;
+
+            if out.len() != expected {
+                return Err(SolidError::parse(format!(
+                    "USDC lz4 decompress: expected {} bytes but got {} bytes from frame format",
+                    expected,
+                    out.len()
+                )));
+            }
+
+            return Ok(out);
+        }
+    }
+
+    // 3) Try LZ4 size-prepended block format (common in some toolchains)
+    if src.len() >= 4 {
+        if let Ok(out) = lz4_flex::block::decompress_size_prepended(src) {
+            if out.len() == expected {
+                return Ok(out);
+            }
+        }
+
+        // Some writers may add a small padding header before the size-prefixed block.
+        for skip in 1..=4 {
+            if src.len() <= skip { break; }
+            if let Ok(out) = lz4_flex::block::decompress_size_prepended(&src[skip..]) {
+                if out.len() == expected {
+                    println!("USDC lz4 decompress: succeeded after skipping {} bytes before size-prefixed block", skip);
+                    return Ok(out);
+                }
+            }
+        }
+    }
+
+    // As a last resort, if the caller marked this as compressed but the data is already
+    // the expected size, treat it as uncompressed. Some USD writers may set the compression
+    // bit even when they store raw data.
+    if src.len() == expected {
+        println!("USDC lz4 decompress: expected compressed data but got raw bytes; returning raw slice");
+        return Ok(src.to_vec());
+    }
+
+    Err(SolidError::parse("USDC lz4 decompress: data is not a valid LZ4 block/frame/size-prefixed block"))
 }
 
 // ── Low-level byte readers ────────────────────────────────────────────────────
@@ -907,7 +999,14 @@ fn ru32(d: &[u8], pos: &mut usize) -> Result<u32, SolidError> {
 }
 
 fn ru64(d: &[u8], pos: &mut usize) -> Result<u64, SolidError> {
-    let s = d.get(*pos..*pos+8).ok_or_else(|| SolidError::parse("USDC: unexpected EOF (u64)"))?;
+    if *pos + 8 > d.len() {
+        return Err(SolidError::parse(format!(
+            "USDC: unexpected EOF (u64) at pos {} of {}",
+            pos,
+            d.len()
+        )));
+    }
+    let s = &d[*pos..*pos+8];
     *pos += 8;
     Ok(u64::from_le_bytes(s.try_into().unwrap()))
 }

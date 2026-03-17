@@ -132,6 +132,38 @@ fn loader_material_metallic() {
 }
 
 #[test]
+fn loader_material_specular_ior_extensions() {
+    let json = r#"{
+        "asset": { "version": "2.0" },
+        "materials": [
+            {
+                "name": "SpecMat",
+                "extensions": {
+                    "KHR_materials_specular": {
+                        "specularFactor": 0.65,
+                        "specularColorFactor": [0.9, 0.8, 0.7]
+                    },
+                    "KHR_materials_ior": {
+                        "ior": 1.33
+                    }
+                }
+            }
+        ]
+    }"#;
+
+    let scene = GltfLoader
+        .load(&mut Cursor::new(json.as_bytes()), &LoadOptions::default())
+        .expect("glTF with specular/ior extensions should load");
+
+    let material = &scene.materials[0];
+    assert!((material.specular_weight - 0.65).abs() < 1e-5);
+    assert!((material.specular_color.x - 0.9).abs() < 1e-5);
+    assert!((material.specular_color.y - 0.8).abs() < 1e-5);
+    assert!((material.specular_color.z - 0.7).abs() < 1e-5);
+    assert!((material.ior - 1.33).abs() < 1e-5);
+}
+
+#[test]
 fn loader_material_alpha_mode_opaque() {
     let scene = gltf_round_trip(&pbr_material_scene());
     assert_eq!(scene.materials[0].alpha_mode, AlphaMode::Opaque);

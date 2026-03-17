@@ -128,6 +128,20 @@ fn round_trip_material_emissive() {
 }
 
 #[test]
+fn round_trip_material_specular_ior() {
+    let original = pbr_specular_ior_scene();
+    let loaded = gltf_round_trip(&original);
+    let authored = &original.materials[0];
+    let round_tripped = &loaded.materials[0];
+
+    assert!((authored.specular_weight - round_tripped.specular_weight).abs() < 1e-5);
+    assert!((authored.specular_color.x - round_tripped.specular_color.x).abs() < 1e-5);
+    assert!((authored.specular_color.y - round_tripped.specular_color.y).abs() < 1e-5);
+    assert!((authored.specular_color.z - round_tripped.specular_color.z).abs() < 1e-5);
+    assert!((authored.ior - round_tripped.ior).abs() < 1e-5);
+}
+
+#[test]
 fn round_trip_alpha_opaque() {
     let original = pbr_material_scene();
     let loaded = gltf_round_trip(&original);

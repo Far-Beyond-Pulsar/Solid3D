@@ -14,6 +14,10 @@ use solid_rs::scene::{
 use solid_rs::{Result, SolidError};
 use std::path::Path;
 
+const DEFAULT_GLTF_SPECULAR_WEIGHT: f32 = 1.0;
+const DEFAULT_GLTF_IOR: f32 = 1.5;
+const GLTF_FLOAT_EPSILON: f32 = 1.0e-6;
+
 pub fn gltf_to_scene(
     root: &GltfRoot,
     bin_chunk: &[u8],
@@ -111,6 +115,23 @@ pub fn gltf_to_scene(
         }
         if let Some(ef) = mat.emissive_factor {
             m.emissive_factor = Vec3::from(ef);
+        }
+        if let Some(ext) = &mat.extensions {
+            // Preserve authored dielectric specular/IOR data instead of forcing
+            // glTF's optional extensions to collapse into metallic-roughness.
+            if let Some(specular) = &ext.khr_materials_specular {
+                if let Some(color) = specular.specular_color_factor {
+                    m.specular_color = Vec3::from(color);
+                }
+                if let Some(weight) = specular.specular_factor {
+                    m.specular_weight = weight;
+                }
+            }
+            if let Some(ior) = &ext.khr_materials_ior {
+                if let Some(ior) = ior.ior {
+                    m.ior = ior;
+                }
+            }
         }
         m.alpha_mode = match mat.alpha_mode.as_deref() {
             Some("MASK")  => AlphaMode::Mask,
@@ -525,6 +546,13 @@ pub fn scene_to_gltf(
     }
 
     // --- Materials ---
+    if scene.materials.iter().any(material_uses_specular_extension) {
+        gltf.extensions_used.push("KHR_materials_specular".into());
+    }
+    if scene.materials.iter().any(material_uses_ior_extension) {
+        gltf.extensions_used.push("KHR_materials_ior".into());
+    }
+
     for mat in &scene.materials {
         let base_color_texture = mat.base_color_texture.as_ref().map(|tr| GltfTextureInfo {
             index: tr.texture_index,
@@ -555,6 +583,7 @@ pub fn scene_to_gltf(
             AlphaMode::Blend  => Some("BLEND".into()),
         };
         let f = mat.base_color_factor;
+        let material_extensions = build_material_extensions(mat);
         gltf.materials.push(GltfMaterial {
             name: if mat.name.is_empty() { None } else { Some(mat.name.clone()) },
             pbr_metallic_roughness: Some(GltfPbr {
@@ -583,6 +612,7 @@ pub fn scene_to_gltf(
             alpha_mode,
             alpha_cutoff: if mat.alpha_mode == AlphaMode::Mask { Some(mat.alpha_cutoff) } else { None },
             double_sided: if mat.double_sided { Some(true) } else { None },
+            extensions: material_extensions,
         });
     }
 
@@ -1052,6 +1082,35 @@ pub fn scene_to_gltf(
     }
 
     Ok((gltf, bin))
+}
+
+fn material_uses_specular_extension(material: &Material) -> bool {
+    material.specular_color != Vec3::ONE
+        || (material.specular_weight - DEFAULT_GLTF_SPECULAR_WEIGHT).abs() > GLTF_FLOAT_EPSILON
+}
+
+fn material_uses_ior_extension(material: &Material) -> bool {
+    (material.ior - DEFAULT_GLTF_IOR).abs() > GLTF_FLOAT_EPSILON
+}
+
+fn build_material_extensions(material: &Material) -> Option<GltfMaterialExtensions> {
+    let specular = material_uses_specular_extension(material).then(|| GltfMaterialsSpecular {
+        specular_factor: ((material.specular_weight - DEFAULT_GLTF_SPECULAR_WEIGHT).abs()
+            > GLTF_FLOAT_EPSILON)
+            .then_some(material.specular_weight),
+        specular_color_factor: (material.specular_color != Vec3::ONE).then_some([
+            material.specular_color.x,
+            material.specular_color.y,
+            material.specular_color.z,
+        ]),
+    });
+    let ior = material_uses_ior_extension(material)
+        .then(|| GltfMaterialsIor { ior: Some(material.ior) });
+
+    (specular.is_some() || ior.is_some()).then_some(GltfMaterialExtensions {
+        khr_materials_specular: specular,
+        khr_materials_ior: ior,
+    })
 }
 
 fn push_bv(
