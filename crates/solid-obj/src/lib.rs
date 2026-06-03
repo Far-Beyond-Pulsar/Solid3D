@@ -55,9 +55,9 @@
 //! let scene = loader.load(&mut file, &opts).unwrap();
 //! ```
 
-pub mod parser;
 pub mod convert;
 pub mod loader;
+pub mod parser;
 pub mod saver;
 
 pub use loader::ObjLoader;
@@ -67,11 +67,11 @@ use solid_rs::traits::FormatInfo;
 
 /// Metadata for the Wavefront OBJ format.
 pub static OBJ_FORMAT: FormatInfo = FormatInfo {
-    name:         "Wavefront OBJ",
-    id:           "obj",
-    extensions:   &["obj"],
-    mime_types:   &["model/obj", "text/plain"],
-    can_load:     true,
-    can_save:     true,
+    name: "Wavefront OBJ",
+    id: "obj",
+    extensions: &["obj"],
+    mime_types: &["model/obj", "text/plain"],
+    can_load: true,
+    can_save: true,
     spec_version: None,
 };

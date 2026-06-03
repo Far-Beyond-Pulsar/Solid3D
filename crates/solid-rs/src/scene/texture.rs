@@ -37,14 +37,13 @@ impl Image {
     }
 
     /// Creates an image backed by embedded bytes.
-    pub fn embedded(
-        name: impl Into<String>,
-        mime_type: impl Into<String>,
-        data: Vec<u8>,
-    ) -> Self {
+    pub fn embedded(name: impl Into<String>, mime_type: impl Into<String>, data: Vec<u8>) -> Self {
         Self {
             name: name.into(),
-            source: ImageSource::Embedded { mime_type: mime_type.into(), data },
+            source: ImageSource::Embedded {
+                mime_type: mime_type.into(),
+                data,
+            },
             extensions: Extensions::new(),
         }
     }

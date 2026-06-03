@@ -6,9 +6,9 @@
 //!
 //! Reference: <https://openusd.org/release/spec_usdz.html>
 
-use std::io::{Cursor, Read, Seek};
-use solid_rs::SolidError;
 use crate::document::UsdDoc;
+use solid_rs::SolidError;
+use std::io::{Cursor, Read, Seek};
 
 /// Read a USDZ ZIP archive and return the parsed [`UsdDoc`] of its root layer.
 pub fn read<R: Read + Seek>(reader: R) -> Result<UsdDoc, SolidError> {
@@ -25,13 +25,13 @@ pub fn read<R: Read + Seek>(reader: R) -> Result<UsdDoc, SolidError> {
         })
         .ok_or_else(|| SolidError::parse("USDZ: no USD layer found in archive"))?;
 
-    let mut entry = archive.by_index(root_index)
+    let mut entry = archive
+        .by_index(root_index)
         .map_err(|e| SolidError::parse(format!("USDZ: cannot open root entry: {e}")))?;
 
     let name = entry.name().to_ascii_lowercase();
     let mut buf = Vec::new();
-    entry.read_to_end(&mut buf)
-        .map_err(SolidError::Io)?;
+    entry.read_to_end(&mut buf).map_err(SolidError::Io)?;
 
     if name.ends_with(".usda") || name.ends_with(".usd") {
         let src = std::str::from_utf8(&buf)

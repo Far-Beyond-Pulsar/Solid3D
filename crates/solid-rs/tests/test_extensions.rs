@@ -3,15 +3,27 @@ use solid_rs::prelude::*;
 
 // ── new / is_empty / len ──────────────────────────────────────────────────────
 
-#[test] fn extensions_new_is_empty()       { assert!(Extensions::new().is_empty()); }
-#[test] fn extensions_default_is_empty()   { assert!(Extensions::default().is_empty()); }
-#[test] fn extensions_new_len_zero()       { assert_eq!(Extensions::new().len(), 0); }
+#[test]
+fn extensions_new_is_empty() {
+    assert!(Extensions::new().is_empty());
+}
+#[test]
+fn extensions_default_is_empty() {
+    assert!(Extensions::default().is_empty());
+}
+#[test]
+fn extensions_new_len_zero() {
+    assert_eq!(Extensions::new().len(), 0);
+}
 
 // ── insert & get ─────────────────────────────────────────────────────────────
 
-#[derive(Debug, PartialEq)] struct TagA(u32);
-#[derive(Debug, PartialEq)] struct TagB(String);
-#[derive(Debug)] struct TagC;
+#[derive(Debug, PartialEq)]
+struct TagA(u32);
+#[derive(Debug, PartialEq)]
+struct TagB(String);
+#[derive(Debug)]
+struct TagC;
 
 #[test]
 fn extensions_insert_and_get_found() {
@@ -169,7 +181,8 @@ fn extensions_is_sync() {
 
 #[test]
 fn mesh_extensions_roundtrip() {
-    #[derive(Debug)] struct LodLevel(u8);
+    #[derive(Debug)]
+    struct LodLevel(u8);
     let mut m = Mesh::new("X");
     m.extensions.insert(LodLevel(3));
     assert_eq!(m.extensions.get::<LodLevel>().unwrap().0, 3);
@@ -177,8 +190,13 @@ fn mesh_extensions_roundtrip() {
 
 #[test]
 fn node_extensions_roundtrip() {
-    #[derive(Debug)] struct EditorTag { label: String }
+    #[derive(Debug)]
+    struct EditorTag {
+        label: String,
+    }
     let mut n = Node::new(NodeId(0), "X");
-    n.extensions.insert(EditorTag { label: "selected".into() });
+    n.extensions.insert(EditorTag {
+        label: "selected".into(),
+    });
     assert_eq!(n.extensions.get::<EditorTag>().unwrap().label, "selected");
 }

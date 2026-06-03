@@ -37,7 +37,12 @@ pub struct GltfAsset {
 
 impl Default for GltfAsset {
     fn default() -> Self {
-        Self { version: "2.0".into(), generator: None, min_version: None, copyright: None }
+        Self {
+            version: "2.0".into(),
+            generator: None,
+            min_version: None,
+            copyright: None,
+        }
     }
 }
 
@@ -286,13 +291,13 @@ pub struct GltfAnimationSampler {
 pub fn num_components(type_: &str) -> usize {
     match type_ {
         "SCALAR" => 1,
-        "VEC2"   => 2,
-        "VEC3"   => 3,
-        "VEC4"   => 4,
-        "MAT2"   => 4,
-        "MAT3"   => 9,
-        "MAT4"   => 16,
-        _        => 1,
+        "VEC2" => 2,
+        "VEC3" => 3,
+        "VEC4" => 4,
+        "MAT2" => 4,
+        "MAT3" => 9,
+        "MAT4" => 16,
+        _ => 1,
     }
 }
 
@@ -301,6 +306,6 @@ pub fn component_size(component_type: u32) -> usize {
         5120 | 5121 => 1,
         5122 | 5123 => 2,
         5125 | 5126 => 4,
-        _           => 4,
+        _ => 4,
     }
 }

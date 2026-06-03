@@ -41,13 +41,13 @@ impl Topology {
     /// Returns a human-readable name for this topology.
     pub fn name(self) -> &'static str {
         match self {
-            Self::TriangleList  => "TriangleList",
+            Self::TriangleList => "TriangleList",
             Self::TriangleStrip => "TriangleStrip",
-            Self::LineList      => "LineList",
-            Self::LineStrip     => "LineStrip",
-            Self::PointList     => "PointList",
-            Self::QuadList      => "QuadList",
-            Self::Polygon       => "Polygon",
+            Self::LineList => "LineList",
+            Self::LineStrip => "LineStrip",
+            Self::PointList => "PointList",
+            Self::QuadList => "QuadList",
+            Self::Polygon => "Polygon",
         }
     }
 }
@@ -71,30 +71,42 @@ pub struct Primitive {
 impl Primitive {
     /// Convenience constructor for a [`TriangleList`](Topology::TriangleList) primitive.
     pub fn triangles(indices: Vec<u32>, material_index: Option<usize>) -> Self {
-        Self { topology: Topology::TriangleList, indices, material_index }
+        Self {
+            topology: Topology::TriangleList,
+            indices,
+            material_index,
+        }
     }
 
     /// Convenience constructor for a [`LineList`](Topology::LineList) primitive.
     pub fn lines(indices: Vec<u32>, material_index: Option<usize>) -> Self {
-        Self { topology: Topology::LineList, indices, material_index }
+        Self {
+            topology: Topology::LineList,
+            indices,
+            material_index,
+        }
     }
 
     /// Convenience constructor for a [`PointList`](Topology::PointList) primitive.
     pub fn points(indices: Vec<u32>, material_index: Option<usize>) -> Self {
-        Self { topology: Topology::PointList, indices, material_index }
+        Self {
+            topology: Topology::PointList,
+            indices,
+            material_index,
+        }
     }
 
     /// Returns the number of complete geometric elements (triangles, lines,
     /// points, or quads) in this primitive.
     pub fn element_count(&self) -> usize {
         match self.topology {
-            Topology::TriangleList  => self.indices.len() / 3,
+            Topology::TriangleList => self.indices.len() / 3,
             Topology::TriangleStrip => self.indices.len().saturating_sub(2),
-            Topology::LineList      => self.indices.len() / 2,
-            Topology::LineStrip     => self.indices.len().saturating_sub(1),
-            Topology::PointList     => self.indices.len(),
-            Topology::QuadList      => self.indices.len() / 4,
-            Topology::Polygon       => 1,
+            Topology::LineList => self.indices.len() / 2,
+            Topology::LineStrip => self.indices.len().saturating_sub(1),
+            Topology::PointList => self.indices.len(),
+            Topology::QuadList => self.indices.len() / 4,
+            Topology::Polygon => 1,
         }
     }
 

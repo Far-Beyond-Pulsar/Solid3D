@@ -3,9 +3,7 @@
 use std::collections::HashMap;
 
 use crate::extensions::Extensions;
-use crate::scene::{
-    Animation, Camera, Image, Light, Material, Mesh, Node, NodeId, Skin, Texture,
-};
+use crate::scene::{Animation, Camera, Image, Light, Material, Mesh, Node, NodeId, Skin, Texture};
 use crate::value::Value;
 
 /// Free-form metadata stored in the scene header.
@@ -99,7 +97,10 @@ impl Scene {
 
     /// Creates an empty scene with the given name.
     pub fn named(name: impl Into<String>) -> Self {
-        Self { name: name.into(), ..Default::default() }
+        Self {
+            name: name.into(),
+            ..Default::default()
+        }
     }
 
     // ── Node lookup ──────────────────────────────────────────────────────────
@@ -147,10 +148,7 @@ impl Scene {
 
     /// Accepts a [`SceneVisitor`](crate::traits::SceneVisitor), calling its
     /// `visit_*` methods for every object in the scene.
-    pub fn visit(
-        &self,
-        visitor: &mut dyn crate::traits::SceneVisitor,
-    ) -> crate::error::Result<()> {
+    pub fn visit(&self, visitor: &mut dyn crate::traits::SceneVisitor) -> crate::error::Result<()> {
         for node in &self.nodes {
             visitor.visit_node(node)?;
         }

@@ -4,8 +4,8 @@
 //! `registry.save_file(&scene, "output.obj")`.  This example shows how to
 //! wire everything up and prints what *would* be saved.
 
-use solid_rs::prelude::*;
 use glam::{Vec3, Vec4};
+use solid_rs::prelude::*;
 
 fn main() -> Result<()> {
     // ── 1. Build a registry ───────────────────────────────────────────────
@@ -15,10 +15,12 @@ fn main() -> Result<()> {
     println!("Registered savers:");
     let mut any = false;
     for info in registry.saver_infos() {
-        println!("  [{id}]  {name}  (.{exts})",
-            id   = info.id,
+        println!(
+            "  [{id}]  {name}  (.{exts})",
+            id = info.id,
             name = info.name,
-            exts = info.extensions.join(", ."));
+            exts = info.extensions.join(", .")
+        );
         any = true;
     }
     if !any {
@@ -37,12 +39,19 @@ fn main() -> Result<()> {
     println!("  {} material(s)", scene.materials.len());
 
     for mesh in &scene.meshes {
-        println!("  Mesh \"{}\" — {} vertices, {} primitives",
-            mesh.name, mesh.vertex_count(), mesh.primitives.len());
+        println!(
+            "  Mesh \"{}\" — {} vertices, {} primitives",
+            mesh.name,
+            mesh.vertex_count(),
+            mesh.primitives.len()
+        );
     }
 
     for mat in &scene.materials {
-        println!("  Material \"{}\" — base_color {:?}", mat.name, mat.base_color_factor);
+        println!(
+            "  Material \"{}\" — base_color {:?}",
+            mat.name, mat.base_color_factor
+        );
     }
 
     Ok(())
@@ -59,9 +68,9 @@ fn build_scene() -> solid_rs::Scene {
     let mut quad = Mesh::new("Quad");
     quad.vertices = vec![
         Vertex::new(Vec3::new(-1.0, -1.0, 0.0)).with_normal(Vec3::Z),
-        Vertex::new(Vec3::new( 1.0, -1.0, 0.0)).with_normal(Vec3::Z),
-        Vertex::new(Vec3::new( 1.0,  1.0, 0.0)).with_normal(Vec3::Z),
-        Vertex::new(Vec3::new(-1.0,  1.0, 0.0)).with_normal(Vec3::Z),
+        Vertex::new(Vec3::new(1.0, -1.0, 0.0)).with_normal(Vec3::Z),
+        Vertex::new(Vec3::new(1.0, 1.0, 0.0)).with_normal(Vec3::Z),
+        Vertex::new(Vec3::new(-1.0, 1.0, 0.0)).with_normal(Vec3::Z),
     ];
     quad.primitives = vec![Primitive::triangles(vec![0, 1, 2, 0, 2, 3], Some(mat_idx))];
     let quad_idx = b.push_mesh(quad);

@@ -3,8 +3,8 @@
 use std::io::Read;
 
 use solid_rs::prelude::*;
-use solid_rs::{Result, SolidError};
 use solid_rs::scene::Scene;
+use solid_rs::{Result, SolidError};
 
 use crate::{ascii, binary, convert, FBX_FORMAT};
 
@@ -16,11 +16,7 @@ impl Loader for FbxLoader {
         &FBX_FORMAT
     }
 
-    fn load(
-        &self,
-        reader: &mut dyn ReadSeek,
-        _options: &LoadOptions,
-    ) -> Result<Scene> {
+    fn load(&self, reader: &mut dyn ReadSeek, _options: &LoadOptions) -> Result<Scene> {
         // Detect format variant (binary magic vs ASCII comment header)
         if binary::detect(reader) {
             let doc = binary::parse(reader)?;

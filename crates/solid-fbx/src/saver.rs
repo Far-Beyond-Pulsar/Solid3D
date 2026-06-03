@@ -8,22 +8,22 @@ use std::io::Write;
 use glam::{EulerRot, Mat4, Quat, Vec3};
 
 use solid_rs::prelude::*;
-use solid_rs::scene::{AlphaMode, Animation, AnimationTarget, Camera, Light, Scene};
 use solid_rs::scene::camera::Projection;
+use solid_rs::scene::{AlphaMode, Animation, AnimationTarget, Camera, Light, Scene};
 use solid_rs::{Result, SolidError};
 
 use crate::FBX_FORMAT;
 
 struct SkinEntry {
-    skin_id:   i64,
-    geom_id:   i64,
-    node_idx:  usize,
-    skin_idx:  usize,
-    clusters:  Vec<ClusterEntry>,
+    skin_id: i64,
+    geom_id: i64,
+    node_idx: usize,
+    skin_idx: usize,
+    clusters: Vec<ClusterEntry>,
 }
 
 struct ClusterEntry {
-    cluster_id:     i64,
+    cluster_id: i64,
     joint_node_idx: usize,
 }
 
@@ -35,11 +35,11 @@ struct AnimEntry {
 
 struct ChannelEntry {
     curve_node_id: i64,
-    cx_id:         i64,
-    cy_id:         i64,
-    cz_id:         i64,
-    chan_idx:       usize,
-    anim_idx:       usize,
+    cx_id: i64,
+    cy_id: i64,
+    cz_id: i64,
+    chan_idx: usize,
+    anim_idx: usize,
 }
 
 /// Saves a `Scene` as ASCII FBX 7.4.
@@ -50,13 +50,11 @@ impl Saver for FbxSaver {
         &FBX_FORMAT
     }
 
-    fn save(
-        &self,
-        scene: &Scene,
-        writer: &mut dyn Write,
-        _options: &SaveOptions,
-    ) -> Result<()> {
-        let mut w = FbxWriter { inner: writer, indent: 0 };
+    fn save(&self, scene: &Scene, writer: &mut dyn Write, _options: &SaveOptions) -> Result<()> {
+        let mut w = FbxWriter {
+            inner: writer,
+            indent: 0,
+        };
         w.write_scene(scene)
     }
 }
@@ -64,7 +62,7 @@ impl Saver for FbxSaver {
 // ── Writer ────────────────────────────────────────────────────────────────────
 
 struct FbxWriter<'w> {
-    inner:  &'w mut dyn Write,
+    inner: &'w mut dyn Write,
     indent: usize,
 }
 
@@ -78,18 +76,32 @@ impl<'w> FbxWriter<'w> {
         self.write_header()?;
 
         let mut id_counter: i64 = 0;
-        let mesh_ids:  Vec<i64> = (0..scene.meshes.len()).map(|_| next_id(&mut id_counter)).collect();
-        let mat_ids:   Vec<i64> = (0..scene.materials.len()).map(|_| next_id(&mut id_counter)).collect();
-        let tex_ids:   Vec<i64> = (0..scene.textures.len()).map(|_| next_id(&mut id_counter)).collect();
-        let node_ids:  Vec<i64> = (0..scene.nodes.len()).map(|_| next_id(&mut id_counter)).collect();
-        let cam_ids:   Vec<i64> = (0..scene.cameras.len()).map(|_| next_id(&mut id_counter)).collect();
-        let light_ids: Vec<i64> = (0..scene.lights.len()).map(|_| next_id(&mut id_counter)).collect();
+        let mesh_ids: Vec<i64> = (0..scene.meshes.len())
+            .map(|_| next_id(&mut id_counter))
+            .collect();
+        let mat_ids: Vec<i64> = (0..scene.materials.len())
+            .map(|_| next_id(&mut id_counter))
+            .collect();
+        let tex_ids: Vec<i64> = (0..scene.textures.len())
+            .map(|_| next_id(&mut id_counter))
+            .collect();
+        let node_ids: Vec<i64> = (0..scene.nodes.len())
+            .map(|_| next_id(&mut id_counter))
+            .collect();
+        let cam_ids: Vec<i64> = (0..scene.cameras.len())
+            .map(|_| next_id(&mut id_counter))
+            .collect();
+        let light_ids: Vec<i64> = (0..scene.lights.len())
+            .map(|_| next_id(&mut id_counter))
+            .collect();
 
         // ── Skin entries ──────────────────────────────────────────────────────
         let mut skin_entries: Vec<SkinEntry> = Vec::new();
         for (ni, node) in scene.nodes.iter().enumerate() {
             if let (Some(skin_idx), Some(mesh_idx)) = (node.skin, node.mesh) {
-                if skin_idx >= scene.skins.len() || mesh_idx >= scene.meshes.len() { continue; }
+                if skin_idx >= scene.skins.len() || mesh_idx >= scene.meshes.len() {
+                    continue;
+                }
                 let skin = &scene.skins[skin_idx];
                 let skin_id = next_id(&mut id_counter);
                 let geom_id = mesh_ids[mesh_idx];
@@ -97,10 +109,19 @@ impl<'w> FbxWriter<'w> {
                 for joint_node_id in &skin.joints {
                     if let Some(jni) = scene.nodes.iter().position(|n| n.id == *joint_node_id) {
                         let cluster_id = next_id(&mut id_counter);
-                        clusters.push(ClusterEntry { cluster_id, joint_node_idx: jni });
+                        clusters.push(ClusterEntry {
+                            cluster_id,
+                            joint_node_idx: jni,
+                        });
                     }
                 }
-                skin_entries.push(SkinEntry { skin_id, geom_id, node_idx: ni, skin_idx, clusters });
+                skin_entries.push(SkinEntry {
+                    skin_id,
+                    geom_id,
+                    node_idx: ni,
+                    skin_idx,
+                    clusters,
+                });
             }
         }
 
@@ -115,18 +136,33 @@ impl<'w> FbxWriter<'w> {
                 let cx_id = next_id(&mut id_counter);
                 let cy_id = next_id(&mut id_counter);
                 let cz_id = next_id(&mut id_counter);
-                channels.push(ChannelEntry { curve_node_id, cx_id, cy_id, cz_id, chan_idx: ci, anim_idx: ai });
+                channels.push(ChannelEntry {
+                    curve_node_id,
+                    cx_id,
+                    cy_id,
+                    cz_id,
+                    chan_idx: ci,
+                    anim_idx: ai,
+                });
             }
-            anim_entries.push(AnimEntry { stack_id, layer_id, channels });
+            anim_entries.push(AnimEntry {
+                stack_id,
+                layer_id,
+                channels,
+            });
         }
 
         // ── Definitions ──────────────────────────────────────────────────────
         let skin_obj_count: usize = skin_entries.iter().map(|e| 1 + e.clusters.len()).sum();
         let anim_obj_count: usize = anim_entries.iter().map(|e| 2 + e.channels.len() * 4).sum();
-        let total = scene.meshes.len() + scene.materials.len()
-                  + scene.textures.len() + scene.nodes.len()
-                  + scene.cameras.len() + scene.lights.len()
-                  + skin_obj_count + anim_obj_count;
+        let total = scene.meshes.len()
+            + scene.materials.len()
+            + scene.textures.len()
+            + scene.nodes.len()
+            + scene.cameras.len()
+            + scene.lights.len()
+            + skin_obj_count
+            + anim_obj_count;
         self.line("Definitions:  {")?;
         self.indent += 1;
         self.line("Version: 100")?;
@@ -158,9 +194,16 @@ impl<'w> FbxWriter<'w> {
             self.write_material(mat_ids[i], mat)?;
         }
         for (i, tex) in scene.textures.iter().enumerate() {
-            let uri = scene.images
+            let uri = scene
+                .images
                 .get(tex.image_index)
-                .and_then(|img| if let solid_rs::scene::ImageSource::Uri(u) = &img.source { Some(u.as_str()) } else { None })
+                .and_then(|img| {
+                    if let solid_rs::scene::ImageSource::Uri(u) = &img.source {
+                        Some(u.as_str())
+                    } else {
+                        None
+                    }
+                })
                 .unwrap_or("");
             self.write_texture(tex_ids[i], &tex.name, uri)?;
         }
@@ -174,7 +217,11 @@ impl<'w> FbxWriter<'w> {
         // Write skin deformers
         for entry in &skin_entries {
             let skin = &scene.skins[entry.skin_idx];
-            self.line(&format!("Deformer: {}, \"{}\", \"Skin\"  {{", entry.skin_id, escape(&skin.name)))?;
+            self.line(&format!(
+                "Deformer: {}, \"{}\", \"Skin\"  {{",
+                entry.skin_id,
+                escape(&skin.name)
+            ))?;
             self.indent += 1;
             self.line("Version: 101")?;
             self.indent -= 1;
@@ -184,7 +231,11 @@ impl<'w> FbxWriter<'w> {
             let mesh = &scene.meshes[scene.nodes[entry.node_idx].mesh.unwrap()];
             for (ji, cluster_entry) in entry.clusters.iter().enumerate() {
                 let joint_name = &scene.nodes[cluster_entry.joint_node_idx].name;
-                let ibp = skin.inverse_bind_matrices.get(ji).copied().unwrap_or(Mat4::IDENTITY);
+                let ibp = skin
+                    .inverse_bind_matrices
+                    .get(ji)
+                    .copied()
+                    .unwrap_or(Mat4::IDENTITY);
                 let tl = ibp.inverse();
                 let tl_cols: Vec<f64> = tl.to_cols_array().iter().map(|&x| x as f64).collect();
 
@@ -202,12 +253,22 @@ impl<'w> FbxWriter<'w> {
                     }
                 }
 
-                self.line(&format!("Deformer: {}, \"{}\", \"Cluster\"  {{", cluster_entry.cluster_id, escape(joint_name)))?;
+                self.line(&format!(
+                    "Deformer: {}, \"{}\", \"Cluster\"  {{",
+                    cluster_entry.cluster_id,
+                    escape(joint_name)
+                ))?;
                 self.indent += 1;
                 self.line("Version: 100")?;
                 self.write_i32_array("Indexes", &indexes)?;
                 self.write_f64_array("Weights", &weights)?;
-                self.write_f64_array("Transform", &[1.0,0.0,0.0,0.0, 0.0,1.0,0.0,0.0, 0.0,0.0,1.0,0.0, 0.0,0.0,0.0,1.0])?;
+                self.write_f64_array(
+                    "Transform",
+                    &[
+                        1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0,
+                        1.0,
+                    ],
+                )?;
                 self.write_f64_array("TransformLink", &tl_cols)?;
                 self.indent -= 1;
                 self.line("}")?;
@@ -220,18 +281,28 @@ impl<'w> FbxWriter<'w> {
         for (ae_idx, ae) in anim_entries.iter().enumerate() {
             let anim = &scene.animations[ae_idx];
 
-            self.line(&format!("AnimationStack: {}, \"{}\", \"\"  {{", ae.stack_id, escape(&anim.name)))?;
+            self.line(&format!(
+                "AnimationStack: {}, \"{}\", \"\"  {{",
+                ae.stack_id,
+                escape(&anim.name)
+            ))?;
             self.indent += 1;
             self.line("Properties70:  {")?;
             self.indent += 1;
-            self.line(&format!("P: \"LocalStop\", \"KTime\", \"Time\", \"\",{}", (anim.duration() as f64 * FBX_TIME_UNIT) as i64))?;
+            self.line(&format!(
+                "P: \"LocalStop\", \"KTime\", \"Time\", \"\",{}",
+                (anim.duration() as f64 * FBX_TIME_UNIT) as i64
+            ))?;
             self.indent -= 1;
             self.line("}")?;
             self.indent -= 1;
             self.line("}")?;
             self.blank()?;
 
-            self.line(&format!("AnimationLayer: {}, \"BaseLayer\", \"\"  {{", ae.layer_id))?;
+            self.line(&format!(
+                "AnimationLayer: {}, \"BaseLayer\", \"\"  {{",
+                ae.layer_id
+            ))?;
             self.line("}")?;
             self.blank()?;
 
@@ -239,12 +310,15 @@ impl<'w> FbxWriter<'w> {
                 let chan = &scene.animations[ce.anim_idx].channels[ce.chan_idx];
                 let prop_name = match &chan.target {
                     AnimationTarget::Translation(_) => "T",
-                    AnimationTarget::Rotation(_)    => "R",
-                    AnimationTarget::Scale(_)        => "S",
-                    _                                => "T",
+                    AnimationTarget::Rotation(_) => "R",
+                    AnimationTarget::Scale(_) => "S",
+                    _ => "T",
                 };
 
-                self.line(&format!("AnimationCurveNode: {}, \"AnimCurveNode::{prop_name}\", \"\"  {{", ce.curve_node_id))?;
+                self.line(&format!(
+                    "AnimationCurveNode: {}, \"AnimCurveNode::{prop_name}\", \"\"  {{",
+                    ce.curve_node_id
+                ))?;
                 self.indent += 1;
                 self.line("Properties70:  {")?;
                 self.indent += 1;
@@ -259,18 +333,33 @@ impl<'w> FbxWriter<'w> {
 
                 let (x_vals, y_vals, z_vals) = match &chan.target {
                     AnimationTarget::Translation(_) | AnimationTarget::Scale(_) => {
-                        let x: Vec<f64> = chan.values.iter().step_by(3).map(|&v| v as f64).collect();
-                        let y: Vec<f64> = chan.values.iter().skip(1).step_by(3).map(|&v| v as f64).collect();
-                        let z: Vec<f64> = chan.values.iter().skip(2).step_by(3).map(|&v| v as f64).collect();
+                        let x: Vec<f64> =
+                            chan.values.iter().step_by(3).map(|&v| v as f64).collect();
+                        let y: Vec<f64> = chan
+                            .values
+                            .iter()
+                            .skip(1)
+                            .step_by(3)
+                            .map(|&v| v as f64)
+                            .collect();
+                        let z: Vec<f64> = chan
+                            .values
+                            .iter()
+                            .skip(2)
+                            .step_by(3)
+                            .map(|&v| v as f64)
+                            .collect();
                         (x, y, z)
-                    },
+                    }
                     AnimationTarget::Rotation(_) => {
-                        let mut x = Vec::new(); let mut y = Vec::new(); let mut z = Vec::new();
+                        let mut x = Vec::new();
+                        let mut y = Vec::new();
+                        let mut z = Vec::new();
                         for i in 0..chan.times.len() {
-                            let qx = chan.values.get(i*4).copied().unwrap_or(0.0);
-                            let qy = chan.values.get(i*4+1).copied().unwrap_or(0.0);
-                            let qz = chan.values.get(i*4+2).copied().unwrap_or(0.0);
-                            let qw = chan.values.get(i*4+3).copied().unwrap_or(1.0);
+                            let qx = chan.values.get(i * 4).copied().unwrap_or(0.0);
+                            let qy = chan.values.get(i * 4 + 1).copied().unwrap_or(0.0);
+                            let qz = chan.values.get(i * 4 + 2).copied().unwrap_or(0.0);
+                            let qw = chan.values.get(i * 4 + 3).copied().unwrap_or(1.0);
                             let q = Quat::from_xyzw(qx, qy, qz, qw);
                             let (rx, ry, rz) = q.to_euler(EulerRot::XYZ);
                             x.push(rx.to_degrees() as f64);
@@ -278,18 +367,24 @@ impl<'w> FbxWriter<'w> {
                             z.push(rz.to_degrees() as f64);
                         }
                         (x, y, z)
-                    },
+                    }
                     _ => (Vec::new(), Vec::new(), Vec::new()),
                 };
 
-                let key_times_fbx: Vec<i64> = chan.times.iter().map(|&t| (t as f64 * FBX_TIME_UNIT) as i64).collect();
+                let key_times_fbx: Vec<i64> = chan
+                    .times
+                    .iter()
+                    .map(|&t| (t as f64 * FBX_TIME_UNIT) as i64)
+                    .collect();
 
                 for (axis_id, _axis_name, axis_vals) in [
                     (ce.cx_id, "X", &x_vals),
                     (ce.cy_id, "Y", &y_vals),
                     (ce.cz_id, "Z", &z_vals),
                 ] {
-                    self.line(&format!("AnimationCurve: {axis_id}, \"AnimCurve::\", \"\"  {{"))?;
+                    self.line(&format!(
+                        "AnimationCurve: {axis_id}, \"AnimCurve::\", \"\"  {{"
+                    ))?;
                     self.indent += 1;
                     self.line("Default: 0")?;
                     self.line(&format!("KeyTime: *{} {{", key_times_fbx.len()))?;
@@ -298,10 +393,17 @@ impl<'w> FbxWriter<'w> {
                     self.line(&format!("a: {}", kt_str.join(",")))?;
                     self.indent -= 1;
                     self.line("}")?;
-                    let kv_str: Vec<String> = axis_vals.iter().map(|v| {
-                        let s = format!("{v}");
-                        if s.contains('.') || s.contains('e') || s.contains('E') { s } else { format!("{v}.0") }
-                    }).collect();
+                    let kv_str: Vec<String> = axis_vals
+                        .iter()
+                        .map(|v| {
+                            let s = format!("{v}");
+                            if s.contains('.') || s.contains('e') || s.contains('E') {
+                                s
+                            } else {
+                                format!("{v}.0")
+                            }
+                        })
+                        .collect();
                     self.line(&format!("KeyValueFloat: *{} {{", axis_vals.len()))?;
                     self.indent += 1;
                     self.line(&format!("a: {}", kv_str.join(",")))?;
@@ -322,8 +424,12 @@ impl<'w> FbxWriter<'w> {
         self.line("Connections:  {")?;
         self.indent += 1;
 
-        let node_id_to_vec: std::collections::HashMap<u32, usize> = scene.nodes
-            .iter().enumerate().map(|(i, n)| (n.id.0, i)).collect();
+        let node_id_to_vec: std::collections::HashMap<u32, usize> = scene
+            .nodes
+            .iter()
+            .enumerate()
+            .map(|(i, n)| (n.id.0, i))
+            .collect();
 
         for (ni, node) in scene.nodes.iter().enumerate() {
             let nid = node_ids[ni];
@@ -360,7 +466,8 @@ impl<'w> FbxWriter<'w> {
             }
 
             // Model → parent (or scene root = 0)
-            let parent_id = node.parent
+            let parent_id = node
+                .parent
                 .and_then(|pid| node_id_to_vec.get(&pid.0))
                 .map(|&vi| node_ids[vi])
                 .unwrap_or(0);
@@ -372,12 +479,14 @@ impl<'w> FbxWriter<'w> {
             let mid = mat_ids[mi];
             if let Some(tr) = &mat.base_color_texture {
                 self.line(&format!(
-                    "C: \"OP\",{},{},\"DiffuseColor\"", tex_ids[tr.texture_index], mid
+                    "C: \"OP\",{},{},\"DiffuseColor\"",
+                    tex_ids[tr.texture_index], mid
                 ))?;
             }
             if let Some(tr) = &mat.normal_texture {
                 self.line(&format!(
-                    "C: \"OP\",{},{},\"NormalMap\"", tex_ids[tr.texture_index], mid
+                    "C: \"OP\",{},{},\"NormalMap\"",
+                    tex_ids[tr.texture_index], mid
                 ))?;
             }
         }
@@ -402,16 +511,28 @@ impl<'w> FbxWriter<'w> {
                 self.line(&format!("C: \"OO\",{},{}", ce.curve_node_id, ae.layer_id))?;
                 let (target_node_id, prop_name_full) = match &chan.target {
                     AnimationTarget::Translation(nid) => (*nid, "Lcl Translation"),
-                    AnimationTarget::Rotation(nid)    => (*nid, "Lcl Rotation"),
-                    AnimationTarget::Scale(nid)        => (*nid, "Lcl Scaling"),
+                    AnimationTarget::Rotation(nid) => (*nid, "Lcl Rotation"),
+                    AnimationTarget::Scale(nid) => (*nid, "Lcl Scaling"),
                     _ => continue,
                 };
                 if let Some(mi) = scene.nodes.iter().position(|n| n.id == target_node_id) {
-                    self.line(&format!("C: \"OP\",{},{},\"{}\"", ce.curve_node_id, node_ids[mi], prop_name_full))?;
+                    self.line(&format!(
+                        "C: \"OP\",{},{},\"{}\"",
+                        ce.curve_node_id, node_ids[mi], prop_name_full
+                    ))?;
                 }
-                self.line(&format!("C: \"OP\",{},{},\"d|X\"", ce.cx_id, ce.curve_node_id))?;
-                self.line(&format!("C: \"OP\",{},{},\"d|Y\"", ce.cy_id, ce.curve_node_id))?;
-                self.line(&format!("C: \"OP\",{},{},\"d|Z\"", ce.cz_id, ce.curve_node_id))?;
+                self.line(&format!(
+                    "C: \"OP\",{},{},\"d|X\"",
+                    ce.cx_id, ce.curve_node_id
+                ))?;
+                self.line(&format!(
+                    "C: \"OP\",{},{},\"d|Y\"",
+                    ce.cy_id, ce.curve_node_id
+                ))?;
+                self.line(&format!(
+                    "C: \"OP\",{},{},\"d|Z\"",
+                    ce.cz_id, ce.curve_node_id
+                ))?;
             }
         }
 
@@ -435,13 +556,22 @@ impl<'w> FbxWriter<'w> {
 
     fn write_geometry(&mut self, id: i64, mesh: &solid_rs::scene::Mesh) -> Result<()> {
         self.line(&format!(
-            "Geometry: {id}, \"{}\", \"Mesh\"  {{", escape(&mesh.name)
+            "Geometry: {id}, \"{}\", \"Mesh\"  {{",
+            escape(&mesh.name)
         ))?;
         self.indent += 1;
 
         // Vertices
-        let verts: Vec<f64> = mesh.vertices.iter()
-            .flat_map(|v| [v.position.x as f64, v.position.y as f64, v.position.z as f64])
+        let verts: Vec<f64> = mesh
+            .vertices
+            .iter()
+            .flat_map(|v| {
+                [
+                    v.position.x as f64,
+                    v.position.y as f64,
+                    v.position.z as f64,
+                ]
+            })
             .collect();
         self.write_f64_array("Vertices", &verts)?;
 
@@ -449,19 +579,26 @@ impl<'w> FbxWriter<'w> {
         let mut pvi: Vec<i32> = Vec::new();
         for prim in &mesh.primitives {
             let idx = &prim.indices;
-            let n   = idx.len();
+            let n = idx.len();
             for (j, &vi) in idx.iter().enumerate() {
-                if j == n - 1 { pvi.push(!(vi as i32)); } else { pvi.push(vi as i32); }
+                if j == n - 1 {
+                    pvi.push(!(vi as i32));
+                } else {
+                    pvi.push(vi as i32);
+                }
             }
         }
         self.write_i32_array("PolygonVertexIndex", &pvi)?;
 
         // Normals
-        let normals: Vec<f64> = mesh.vertices.iter()
+        let normals: Vec<f64> = mesh
+            .vertices
+            .iter()
             .flat_map(|v| {
                 let n = v.normal.unwrap_or(Vec3::Y);
                 [n.x as f64, n.y as f64, n.z as f64]
-            }).collect();
+            })
+            .collect();
         if !normals.is_empty() {
             self.line("LayerElementNormal: 0 {")?;
             self.indent += 1;
@@ -475,12 +612,17 @@ impl<'w> FbxWriter<'w> {
         // Tangents
         let has_tangents = mesh.vertices.iter().any(|v| v.tangent.is_some());
         if has_tangents {
-            let tangent_xyz: Vec<f64> = mesh.vertices.iter()
+            let tangent_xyz: Vec<f64> = mesh
+                .vertices
+                .iter()
                 .flat_map(|v| {
                     let t = v.tangent.unwrap_or(glam::Vec4::new(1.0, 0.0, 0.0, 1.0));
                     [t.x as f64, t.y as f64, t.z as f64]
-                }).collect();
-            let tangent_w: Vec<f64> = mesh.vertices.iter()
+                })
+                .collect();
+            let tangent_w: Vec<f64> = mesh
+                .vertices
+                .iter()
                 .map(|v| v.tangent.map_or(1.0, |t| t.w as f64))
                 .collect();
             self.line("LayerElementTangent: 0 {")?;
@@ -496,11 +638,14 @@ impl<'w> FbxWriter<'w> {
         }
 
         // UVs
-        let uvs: Vec<f64> = mesh.vertices.iter()
+        let uvs: Vec<f64> = mesh
+            .vertices
+            .iter()
             .flat_map(|v| {
                 let uv = v.uvs[0].unwrap_or_default();
                 [uv.x as f64, (1.0 - uv.y) as f64] // flip V back for FBX
-            }).collect();
+            })
+            .collect();
         if !uvs.is_empty() {
             self.line("LayerElementUV: 0 {")?;
             self.indent += 1;
@@ -514,7 +659,9 @@ impl<'w> FbxWriter<'w> {
         // Vertex colours
         let has_colors = mesh.vertices.iter().any(|v| v.colors[0].is_some());
         if has_colors {
-            let color_data: Vec<f64> = mesh.vertices.iter()
+            let color_data: Vec<f64> = mesh
+                .vertices
+                .iter()
                 .flat_map(|v| {
                     let c = v.colors[0].unwrap_or(glam::Vec4::ONE);
                     [c.x as f64, c.y as f64, c.z as f64, c.w as f64]
@@ -531,14 +678,23 @@ impl<'w> FbxWriter<'w> {
 
         // Per-polygon material layer
         let has_multi_mat = mesh.primitives.len() > 1
-            || mesh.primitives.first().and_then(|p| p.material_index).is_some();
+            || mesh
+                .primitives
+                .first()
+                .and_then(|p| p.material_index)
+                .is_some();
         if has_multi_mat {
             // Compute triangle count per primitive
             let (mapping, mat_indices): (&str, Vec<i32>) = if mesh.primitives.len() <= 1 {
-                ("AllSame", vec![mesh.primitives.first()
-                    .and_then(|p| p.material_index)
-                    .map(|_| 0_i32)
-                    .unwrap_or(0)])
+                (
+                    "AllSame",
+                    vec![mesh
+                        .primitives
+                        .first()
+                        .and_then(|p| p.material_index)
+                        .map(|_| 0_i32)
+                        .unwrap_or(0)],
+                )
             } else {
                 let mut poly_mats: Vec<i32> = Vec::new();
                 for (local_idx, prim) in mesh.primitives.iter().enumerate() {
@@ -563,9 +719,16 @@ impl<'w> FbxWriter<'w> {
         self.blank()
     }
 
-    fn write_model(&mut self, id: i64, node: &solid_rs::scene::Node, node_type: &str) -> Result<()> {
+    fn write_model(
+        &mut self,
+        id: i64,
+        node: &solid_rs::scene::Node,
+        node_type: &str,
+    ) -> Result<()> {
         self.line(&format!(
-            "Model: {id}, \"{}\", \"{}\"  {{", escape(&node.name), node_type
+            "Model: {id}, \"{}\", \"{}\"  {{",
+            escape(&node.name),
+            node_type
         ))?;
         self.indent += 1;
         self.line("Version: 232")?;
@@ -581,7 +744,9 @@ impl<'w> FbxWriter<'w> {
         ))?;
         self.line(&format!(
             "P: \"LclRotation\", \"LclRotation\", \"\", \"A\",{},{},{}",
-            rx.to_degrees(), ry.to_degrees(), rz.to_degrees()
+            rx.to_degrees(),
+            ry.to_degrees(),
+            rz.to_degrees()
         ))?;
         self.line(&format!(
             "P: \"LclScaling\", \"LclScaling\", \"\", \"A\",{},{},{}",
@@ -597,7 +762,8 @@ impl<'w> FbxWriter<'w> {
 
     fn write_material(&mut self, id: i64, mat: &solid_rs::scene::Material) -> Result<()> {
         self.line(&format!(
-            "Material: {id}, \"{}\", \"\"  {{", escape(&mat.name)
+            "Material: {id}, \"{}\", \"\"  {{",
+            escape(&mat.name)
         ))?;
         self.indent += 1;
         self.line("ShadingModel: \"phong\"")?;
@@ -608,10 +774,12 @@ impl<'w> FbxWriter<'w> {
         let e = mat.emissive_factor;
 
         self.line(&format!(
-            "P: \"DiffuseColor\", \"Color\", \"\", \"A\",{},{},{}", c.x, c.y, c.z
+            "P: \"DiffuseColor\", \"Color\", \"\", \"A\",{},{},{}",
+            c.x, c.y, c.z
         ))?;
         self.line(&format!(
-            "P: \"EmissiveColor\", \"Color\", \"\", \"A\",{},{},{}", e.x, e.y, e.z
+            "P: \"EmissiveColor\", \"Color\", \"\", \"A\",{},{},{}",
+            e.x, e.y, e.z
         ))?;
         // Always write EmissiveFactor = 1 since emissive_factor is already baked in
         self.line("P: \"EmissiveFactor\", \"Number\", \"\", \"A+\",1")?;
@@ -627,13 +795,12 @@ impl<'w> FbxWriter<'w> {
         ))?;
 
         self.line(&format!(
-            "P: \"Metalness\", \"Number\", \"\", \"A+\",{}", mat.metallic_factor
+            "P: \"Metalness\", \"Number\", \"\", \"A+\",{}",
+            mat.metallic_factor
         ))?;
 
         if mat.alpha_mode == AlphaMode::Blend {
-            self.line(&format!(
-                "P: \"Opacity\", \"Number\", \"\", \"A+\",{}", c.w
-            ))?;
+            self.line(&format!("P: \"Opacity\", \"Number\", \"\", \"A+\",{}", c.w))?;
         }
 
         self.indent -= 1;
@@ -644,9 +811,7 @@ impl<'w> FbxWriter<'w> {
     }
 
     fn write_texture(&mut self, id: i64, name: &str, uri: &str) -> Result<()> {
-        self.line(&format!(
-            "Texture: {id}, \"{}\", \"\"  {{", escape(name)
-        ))?;
+        self.line(&format!("Texture: {id}, \"{}\", \"\"  {{", escape(name)))?;
         self.indent += 1;
         self.line(&format!("FileName: \"{uri}\""))?;
         self.line(&format!("RelativeFilename: \"{uri}\""))?;
@@ -657,7 +822,8 @@ impl<'w> FbxWriter<'w> {
 
     fn write_camera_attribute(&mut self, id: i64, cam: &Camera) -> Result<()> {
         self.line(&format!(
-            "NodeAttribute: {id}, \"{}\", \"Camera\"  {{", escape(&cam.name)
+            "NodeAttribute: {id}, \"{}\", \"Camera\"  {{",
+            escape(&cam.name)
         ))?;
         self.indent += 1;
         self.line("Properties70:  {")?;
@@ -669,7 +835,8 @@ impl<'w> FbxWriter<'w> {
                 "P: \"FieldOfView\", \"FieldOfView\", \"Number\", \"A+\",{fov_deg}"
             ))?;
             self.line(&format!(
-                "P: \"NearPlane\", \"double\", \"Number\", \"\",{}", p.z_near
+                "P: \"NearPlane\", \"double\", \"Number\", \"\",{}",
+                p.z_near
             ))?;
             if let Some(far) = p.z_far {
                 self.line(&format!(
@@ -679,13 +846,16 @@ impl<'w> FbxWriter<'w> {
         } else if let Projection::Orthographic(o) = &cam.projection {
             self.line("P: \"CameraProjectionType\", \"enum\", \"\", \"\",1")?;
             self.line(&format!(
-                "P: \"OrthoZoom\", \"double\", \"Number\", \"\",{}", o.x_mag
+                "P: \"OrthoZoom\", \"double\", \"Number\", \"\",{}",
+                o.x_mag
             ))?;
             self.line(&format!(
-                "P: \"NearPlane\", \"double\", \"Number\", \"\",{}", o.z_near
+                "P: \"NearPlane\", \"double\", \"Number\", \"\",{}",
+                o.z_near
             ))?;
             self.line(&format!(
-                "P: \"FarPlane\", \"double\", \"Number\", \"\",{}", o.z_far
+                "P: \"FarPlane\", \"double\", \"Number\", \"\",{}",
+                o.z_far
             ))?;
         }
 
@@ -698,17 +868,18 @@ impl<'w> FbxWriter<'w> {
 
     fn write_light_attribute(&mut self, id: i64, light: &Light) -> Result<()> {
         self.line(&format!(
-            "NodeAttribute: {id}, \"{}\", \"Light\"  {{", escape(light.name())
+            "NodeAttribute: {id}, \"{}\", \"Light\"  {{",
+            escape(light.name())
         ))?;
         self.indent += 1;
         self.line("Properties70:  {")?;
         self.indent += 1;
 
         let light_type: i32 = match light {
-            Light::Point(_)       => 0,
+            Light::Point(_) => 0,
             Light::Directional(_) => 1,
-            Light::Spot(_)        => 2,
-            Light::Area(_)        => 3,
+            Light::Spot(_) => 2,
+            Light::Area(_) => 3,
         };
         self.line(&format!(
             "P: \"LightType\", \"enum\", \"\", \"\",{light_type}"
@@ -716,7 +887,8 @@ impl<'w> FbxWriter<'w> {
 
         let c = light.color();
         self.line(&format!(
-            "P: \"Color\", \"Color\", \"\", \"A\",{},{},{}", c.x, c.y, c.z
+            "P: \"Color\", \"Color\", \"\", \"A\",{},{},{}",
+            c.x, c.y, c.z
         ))?;
 
         let intensity_100 = light.intensity() * 100.0;
@@ -752,11 +924,18 @@ impl<'w> FbxWriter<'w> {
     fn write_f64_array(&mut self, name: &str, data: &[f64]) -> Result<()> {
         self.line(&format!("{name}: *{} {{", data.len()))?;
         self.indent += 1;
-        let items: Vec<String> = data.iter().map(|v| {
-            let s = format!("{v}");
-            // Always include a decimal point so the ASCII parser creates ArrFloat64
-            if s.contains('.') || s.contains('e') || s.contains('E') { s } else { format!("{v}.0") }
-        }).collect();
+        let items: Vec<String> = data
+            .iter()
+            .map(|v| {
+                let s = format!("{v}");
+                // Always include a decimal point so the ASCII parser creates ArrFloat64
+                if s.contains('.') || s.contains('e') || s.contains('E') {
+                    s
+                } else {
+                    format!("{v}.0")
+                }
+            })
+            .collect();
         self.line(&format!("a: {}", items.join(",")))?;
         self.indent -= 1;
         self.line("}")
@@ -791,8 +970,8 @@ fn escape(s: &str) -> String {
 
 /// A node in the in-memory binary FBX tree.
 struct BinNode {
-    name:     String,
-    props:    Vec<BinProp>,
+    name: String,
+    props: Vec<BinProp>,
     children: Vec<BinNode>,
 }
 
@@ -808,7 +987,11 @@ enum BinProp {
 
 impl BinNode {
     fn leaf(name: &str, props: Vec<BinProp>) -> Self {
-        Self { name: name.to_string(), props, children: vec![] }
+        Self {
+            name: name.to_string(),
+            props,
+            children: vec![],
+        }
     }
 }
 
@@ -816,14 +999,30 @@ impl BinNode {
 struct BinBuf(Vec<u8>);
 
 impl BinBuf {
-    fn new() -> Self { Self(Vec::new()) }
-    fn pos(&self) -> u32 { self.0.len() as u32 }
-    fn push_u8(&mut self, v: u8) { self.0.push(v); }
-    fn push_u32(&mut self, v: u32) { self.0.extend_from_slice(&v.to_le_bytes()); }
-    fn push_i32(&mut self, v: i32) { self.0.extend_from_slice(&v.to_le_bytes()); }
-    fn push_i64(&mut self, v: i64) { self.0.extend_from_slice(&v.to_le_bytes()); }
-    fn push_f64(&mut self, v: f64) { self.0.extend_from_slice(&v.to_le_bytes()); }
-    fn push_bytes(&mut self, v: &[u8]) { self.0.extend_from_slice(v); }
+    fn new() -> Self {
+        Self(Vec::new())
+    }
+    fn pos(&self) -> u32 {
+        self.0.len() as u32
+    }
+    fn push_u8(&mut self, v: u8) {
+        self.0.push(v);
+    }
+    fn push_u32(&mut self, v: u32) {
+        self.0.extend_from_slice(&v.to_le_bytes());
+    }
+    fn push_i32(&mut self, v: i32) {
+        self.0.extend_from_slice(&v.to_le_bytes());
+    }
+    fn push_i64(&mut self, v: i64) {
+        self.0.extend_from_slice(&v.to_le_bytes());
+    }
+    fn push_f64(&mut self, v: f64) {
+        self.0.extend_from_slice(&v.to_le_bytes());
+    }
+    fn push_bytes(&mut self, v: &[u8]) {
+        self.0.extend_from_slice(v);
+    }
     fn patch_u32(&mut self, pos: usize, v: u32) {
         self.0[pos..pos + 4].copy_from_slice(&v.to_le_bytes());
     }
@@ -831,9 +1030,18 @@ impl BinBuf {
 
 fn bin_write_prop(buf: &mut BinBuf, prop: &BinProp) {
     match prop {
-        BinProp::Int32(v)  => { buf.push_u8(b'I'); buf.push_i32(*v); }
-        BinProp::Int64(v)  => { buf.push_u8(b'L'); buf.push_i64(*v); }
-        BinProp::Float64(v) => { buf.push_u8(b'D'); buf.push_f64(*v); }
+        BinProp::Int32(v) => {
+            buf.push_u8(b'I');
+            buf.push_i32(*v);
+        }
+        BinProp::Int64(v) => {
+            buf.push_u8(b'L');
+            buf.push_i64(*v);
+        }
+        BinProp::Float64(v) => {
+            buf.push_u8(b'D');
+            buf.push_f64(*v);
+        }
         BinProp::Str(s) => {
             buf.push_u8(b'S');
             let b = s.as_bytes();
@@ -845,14 +1053,18 @@ fn bin_write_prop(buf: &mut BinBuf, prop: &BinProp) {
             buf.push_u32(arr.len() as u32);
             buf.push_u32(0); // encoding = raw
             buf.push_u32((arr.len() * 8) as u32);
-            for &v in arr { buf.push_f64(v); }
+            for &v in arr {
+                buf.push_f64(v);
+            }
         }
         BinProp::I32Arr(arr) => {
             buf.push_u8(b'i');
             buf.push_u32(arr.len() as u32);
             buf.push_u32(0); // encoding = raw
             buf.push_u32((arr.len() * 4) as u32);
-            for &v in arr { buf.push_i32(v); }
+            for &v in arr {
+                buf.push_i32(v);
+            }
         }
     }
 }
@@ -869,11 +1081,15 @@ fn bin_write_node(buf: &mut BinBuf, node: &BinNode) {
     buf.push_bytes(name_bytes);
 
     let props_start = buf.pos() as usize;
-    for prop in &node.props { bin_write_prop(buf, prop); }
+    for prop in &node.props {
+        bin_write_prop(buf, prop);
+    }
     let prop_list_len = (buf.pos() as usize - props_start) as u32;
     buf.patch_u32(prop_len_pos, prop_list_len);
 
-    for child in &node.children { bin_write_node(buf, child); }
+    for child in &node.children {
+        bin_write_node(buf, child);
+    }
 
     if !node.children.is_empty() {
         buf.push_bytes(&[0u8; 13]); // null sentinel after child list
@@ -885,49 +1101,83 @@ fn bin_write_node(buf: &mut BinBuf, node: &BinNode) {
 fn bin_build_geometry(id: i64, mesh: &solid_rs::scene::Mesh) -> BinNode {
     let obj_name = format!("{}\x00\x01Geometry", mesh.name);
 
-    let verts: Vec<f64> = mesh.vertices.iter()
-        .flat_map(|v| [v.position.x as f64, v.position.y as f64, v.position.z as f64])
+    let verts: Vec<f64> = mesh
+        .vertices
+        .iter()
+        .flat_map(|v| {
+            [
+                v.position.x as f64,
+                v.position.y as f64,
+                v.position.z as f64,
+            ]
+        })
         .collect();
 
     let mut pvi: Vec<i32> = Vec::new();
     for prim in &mesh.primitives {
         let idx = &prim.indices;
-        let n   = idx.len();
+        let n = idx.len();
         for (j, &vi) in idx.iter().enumerate() {
-            if j == n - 1 { pvi.push(!(vi as i32)); } else { pvi.push(vi as i32); }
+            if j == n - 1 {
+                pvi.push(!(vi as i32));
+            } else {
+                pvi.push(vi as i32);
+            }
         }
     }
 
     let mut children = vec![
-        BinNode::leaf("Vertices",            vec![BinProp::F64Arr(verts)]),
-        BinNode::leaf("PolygonVertexIndex",  vec![BinProp::I32Arr(pvi)]),
+        BinNode::leaf("Vertices", vec![BinProp::F64Arr(verts)]),
+        BinNode::leaf("PolygonVertexIndex", vec![BinProp::I32Arr(pvi)]),
     ];
 
-    let normals: Vec<f64> = mesh.vertices.iter()
-        .flat_map(|v| { let n = v.normal.unwrap_or(Vec3::Y); [n.x as f64, n.y as f64, n.z as f64] })
+    let normals: Vec<f64> = mesh
+        .vertices
+        .iter()
+        .flat_map(|v| {
+            let n = v.normal.unwrap_or(Vec3::Y);
+            [n.x as f64, n.y as f64, n.z as f64]
+        })
         .collect();
     if !normals.is_empty() {
         children.push(BinNode {
             name: "LayerElementNormal".to_string(),
             props: vec![BinProp::Int32(0)],
             children: vec![
-                BinNode::leaf("MappingInformationType", vec![BinProp::Str("ByPolygonVertex".to_string())]),
-                BinNode::leaf("ReferenceInformationType", vec![BinProp::Str("Direct".to_string())]),
+                BinNode::leaf(
+                    "MappingInformationType",
+                    vec![BinProp::Str("ByPolygonVertex".to_string())],
+                ),
+                BinNode::leaf(
+                    "ReferenceInformationType",
+                    vec![BinProp::Str("Direct".to_string())],
+                ),
                 BinNode::leaf("Normals", vec![BinProp::F64Arr(normals)]),
             ],
         });
     }
 
-    let uvs: Vec<f64> = mesh.vertices.iter()
-        .flat_map(|v| { let uv = v.uvs[0].unwrap_or_default(); [uv.x as f64, (1.0 - uv.y) as f64] })
+    let uvs: Vec<f64> = mesh
+        .vertices
+        .iter()
+        .flat_map(|v| {
+            let uv = v.uvs[0].unwrap_or_default();
+            [uv.x as f64, (1.0 - uv.y) as f64]
+        })
         .collect();
     if !uvs.is_empty() {
         children.push(BinNode {
             name: "LayerElementUV".to_string(),
             props: vec![BinProp::Int32(0)],
             children: vec![
-                BinNode::leaf("MappingInformationType", vec![BinProp::Str("ByPolygonVertex".to_string())]),
-                BinNode::leaf("ReferenceInformationType", vec![BinProp::Str("Direct".to_string())]),
+                BinNode::leaf(
+                    "MappingInformationType",
+                    vec![BinProp::Str("ByPolygonVertex".to_string())],
+                ),
+                BinNode::leaf(
+                    "ReferenceInformationType",
+                    vec![BinProp::Str("Direct".to_string())],
+                ),
                 BinNode::leaf("UV", vec![BinProp::F64Arr(uvs)]),
             ],
         });
@@ -960,42 +1210,51 @@ fn bin_build_model(id: i64, node: &solid_rs::scene::Node) -> BinNode {
             name: "Properties70".to_string(),
             props: vec![],
             children: vec![
-                BinNode::leaf("P", vec![
-                    BinProp::Str("Lcl Translation".to_string()),
-                    BinProp::Str("Lcl Translation".to_string()),
-                    BinProp::Str(String::new()),
-                    BinProp::Str("A".to_string()),
-                    BinProp::Float64(t.translation.x as f64),
-                    BinProp::Float64(t.translation.y as f64),
-                    BinProp::Float64(t.translation.z as f64),
-                ]),
-                BinNode::leaf("P", vec![
-                    BinProp::Str("Lcl Rotation".to_string()),
-                    BinProp::Str("Lcl Rotation".to_string()),
-                    BinProp::Str(String::new()),
-                    BinProp::Str("A".to_string()),
-                    BinProp::Float64(rx.to_degrees() as f64),
-                    BinProp::Float64(ry.to_degrees() as f64),
-                    BinProp::Float64(rz.to_degrees() as f64),
-                ]),
-                BinNode::leaf("P", vec![
-                    BinProp::Str("Lcl Scaling".to_string()),
-                    BinProp::Str("Lcl Scaling".to_string()),
-                    BinProp::Str(String::new()),
-                    BinProp::Str("A".to_string()),
-                    BinProp::Float64(t.scale.x as f64),
-                    BinProp::Float64(t.scale.y as f64),
-                    BinProp::Float64(t.scale.z as f64),
-                ]),
+                BinNode::leaf(
+                    "P",
+                    vec![
+                        BinProp::Str("Lcl Translation".to_string()),
+                        BinProp::Str("Lcl Translation".to_string()),
+                        BinProp::Str(String::new()),
+                        BinProp::Str("A".to_string()),
+                        BinProp::Float64(t.translation.x as f64),
+                        BinProp::Float64(t.translation.y as f64),
+                        BinProp::Float64(t.translation.z as f64),
+                    ],
+                ),
+                BinNode::leaf(
+                    "P",
+                    vec![
+                        BinProp::Str("Lcl Rotation".to_string()),
+                        BinProp::Str("Lcl Rotation".to_string()),
+                        BinProp::Str(String::new()),
+                        BinProp::Str("A".to_string()),
+                        BinProp::Float64(rx.to_degrees() as f64),
+                        BinProp::Float64(ry.to_degrees() as f64),
+                        BinProp::Float64(rz.to_degrees() as f64),
+                    ],
+                ),
+                BinNode::leaf(
+                    "P",
+                    vec![
+                        BinProp::Str("Lcl Scaling".to_string()),
+                        BinProp::Str("Lcl Scaling".to_string()),
+                        BinProp::Str(String::new()),
+                        BinProp::Str("A".to_string()),
+                        BinProp::Float64(t.scale.x as f64),
+                        BinProp::Float64(t.scale.y as f64),
+                        BinProp::Float64(t.scale.z as f64),
+                    ],
+                ),
             ],
         }],
     }
 }
 
 fn bin_build_material(id: i64, mat: &solid_rs::scene::Material) -> BinNode {
-    let obj_name  = format!("{}\x00\x01Material", mat.name);
-    let c         = mat.base_color_factor;
-    let e         = mat.emissive_factor;
+    let obj_name = format!("{}\x00\x01Material", mat.name);
+    let c = mat.base_color_factor;
+    let e = mat.emissive_factor;
     let shininess = if mat.roughness_factor > 0.0 {
         (2.0_f64 / (mat.roughness_factor as f64).powi(2) - 2.0).max(0.0)
     } else {
@@ -1015,31 +1274,40 @@ fn bin_build_material(id: i64, mat: &solid_rs::scene::Material) -> BinNode {
                 name: "Properties70".to_string(),
                 props: vec![],
                 children: vec![
-                    BinNode::leaf("P", vec![
-                        BinProp::Str("DiffuseColor".to_string()),
-                        BinProp::Str("Color".to_string()),
-                        BinProp::Str(String::new()),
-                        BinProp::Str("A".to_string()),
-                        BinProp::Float64(c.x as f64),
-                        BinProp::Float64(c.y as f64),
-                        BinProp::Float64(c.z as f64),
-                    ]),
-                    BinNode::leaf("P", vec![
-                        BinProp::Str("EmissiveColor".to_string()),
-                        BinProp::Str("Color".to_string()),
-                        BinProp::Str(String::new()),
-                        BinProp::Str("A".to_string()),
-                        BinProp::Float64(e.x as f64),
-                        BinProp::Float64(e.y as f64),
-                        BinProp::Float64(e.z as f64),
-                    ]),
-                    BinNode::leaf("P", vec![
-                        BinProp::Str("Shininess".to_string()),
-                        BinProp::Str("Number".to_string()),
-                        BinProp::Str(String::new()),
-                        BinProp::Str("A".to_string()),
-                        BinProp::Float64(shininess),
-                    ]),
+                    BinNode::leaf(
+                        "P",
+                        vec![
+                            BinProp::Str("DiffuseColor".to_string()),
+                            BinProp::Str("Color".to_string()),
+                            BinProp::Str(String::new()),
+                            BinProp::Str("A".to_string()),
+                            BinProp::Float64(c.x as f64),
+                            BinProp::Float64(c.y as f64),
+                            BinProp::Float64(c.z as f64),
+                        ],
+                    ),
+                    BinNode::leaf(
+                        "P",
+                        vec![
+                            BinProp::Str("EmissiveColor".to_string()),
+                            BinProp::Str("Color".to_string()),
+                            BinProp::Str(String::new()),
+                            BinProp::Str("A".to_string()),
+                            BinProp::Float64(e.x as f64),
+                            BinProp::Float64(e.y as f64),
+                            BinProp::Float64(e.z as f64),
+                        ],
+                    ),
+                    BinNode::leaf(
+                        "P",
+                        vec![
+                            BinProp::Str("Shininess".to_string()),
+                            BinProp::Str("Number".to_string()),
+                            BinProp::Str(String::new()),
+                            BinProp::Str("A".to_string()),
+                            BinProp::Float64(shininess),
+                        ],
+                    ),
                 ],
             },
         ],
@@ -1048,11 +1316,14 @@ fn bin_build_material(id: i64, mat: &solid_rs::scene::Material) -> BinNode {
 
 fn bin_build_scene(scene: &Scene) -> Vec<BinNode> {
     let mut id_counter: i64 = 0;
-    let mut next = || { id_counter += 1000; id_counter };
+    let mut next = || {
+        id_counter += 1000;
+        id_counter
+    };
 
-    let geom_ids:  Vec<i64> = (0..scene.meshes.len()).map(|_| next()).collect();
+    let geom_ids: Vec<i64> = (0..scene.meshes.len()).map(|_| next()).collect();
     let model_ids: Vec<i64> = (0..scene.nodes.len()).map(|_| next()).collect();
-    let mat_ids:   Vec<i64> = (0..scene.materials.len()).map(|_| next()).collect();
+    let mat_ids: Vec<i64> = (0..scene.materials.len()).map(|_| next()).collect();
 
     let total = scene.meshes.len() + scene.nodes.len() + scene.materials.len();
 
@@ -1061,7 +1332,7 @@ fn bin_build_scene(scene: &Scene) -> Vec<BinNode> {
         props: vec![],
         children: vec![
             BinNode::leaf("FBXVersion", vec![BinProp::Int32(7400)]),
-            BinNode::leaf("Creator",    vec![BinProp::Str("SolidRS".to_string())]),
+            BinNode::leaf("Creator", vec![BinProp::Str("SolidRS".to_string())]),
         ],
     };
 
@@ -1073,17 +1344,26 @@ fn bin_build_scene(scene: &Scene) -> Vec<BinNode> {
             BinNode {
                 name: "ObjectType".to_string(),
                 props: vec![BinProp::Str("Model".to_string())],
-                children: vec![BinNode::leaf("Count", vec![BinProp::Int32(scene.nodes.len() as i32)])],
+                children: vec![BinNode::leaf(
+                    "Count",
+                    vec![BinProp::Int32(scene.nodes.len() as i32)],
+                )],
             },
             BinNode {
                 name: "ObjectType".to_string(),
                 props: vec![BinProp::Str("Geometry".to_string())],
-                children: vec![BinNode::leaf("Count", vec![BinProp::Int32(scene.meshes.len() as i32)])],
+                children: vec![BinNode::leaf(
+                    "Count",
+                    vec![BinProp::Int32(scene.meshes.len() as i32)],
+                )],
             },
             BinNode {
                 name: "ObjectType".to_string(),
                 props: vec![BinProp::Str("Material".to_string())],
-                children: vec![BinNode::leaf("Count", vec![BinProp::Int32(scene.materials.len() as i32)])],
+                children: vec![BinNode::leaf(
+                    "Count",
+                    vec![BinProp::Int32(scene.materials.len() as i32)],
+                )],
             },
         ],
     };
@@ -1098,9 +1378,15 @@ fn bin_build_scene(scene: &Scene) -> Vec<BinNode> {
     for (i, mat) in scene.materials.iter().enumerate() {
         obj_children.push(bin_build_material(mat_ids[i], mat));
     }
-    let objects = BinNode { name: "Objects".to_string(), props: vec![], children: obj_children };
+    let objects = BinNode {
+        name: "Objects".to_string(),
+        props: vec![],
+        children: obj_children,
+    };
 
-    let node_id_map: std::collections::HashMap<u32, usize> = scene.nodes.iter()
+    let node_id_map: std::collections::HashMap<u32, usize> = scene
+        .nodes
+        .iter()
         .enumerate()
         .map(|(i, n)| (n.id.0, i))
         .collect();
@@ -1111,39 +1397,53 @@ fn bin_build_scene(scene: &Scene) -> Vec<BinNode> {
 
         if let Some(mi) = node.mesh {
             if mi < geom_ids.len() {
-                conn_children.push(BinNode::leaf("C", vec![
-                    BinProp::Str("OO".to_string()),
-                    BinProp::Int64(geom_ids[mi]),
-                    BinProp::Int64(nid),
-                ]));
+                conn_children.push(BinNode::leaf(
+                    "C",
+                    vec![
+                        BinProp::Str("OO".to_string()),
+                        BinProp::Int64(geom_ids[mi]),
+                        BinProp::Int64(nid),
+                    ],
+                ));
             }
             if mi < scene.meshes.len() {
                 let mut written: std::collections::HashSet<usize> = Default::default();
                 for prim in &scene.meshes[mi].primitives {
                     if let Some(mat_idx) = prim.material_index {
                         if written.insert(mat_idx) && mat_idx < mat_ids.len() {
-                            conn_children.push(BinNode::leaf("C", vec![
-                                BinProp::Str("OO".to_string()),
-                                BinProp::Int64(mat_ids[mat_idx]),
-                                BinProp::Int64(nid),
-                            ]));
+                            conn_children.push(BinNode::leaf(
+                                "C",
+                                vec![
+                                    BinProp::Str("OO".to_string()),
+                                    BinProp::Int64(mat_ids[mat_idx]),
+                                    BinProp::Int64(nid),
+                                ],
+                            ));
                         }
                     }
                 }
             }
         }
 
-        let parent_id = node.parent
+        let parent_id = node
+            .parent
             .and_then(|pid| node_id_map.get(&pid.0))
             .map(|&vi| model_ids[vi])
             .unwrap_or(0);
-        conn_children.push(BinNode::leaf("C", vec![
-            BinProp::Str("OO".to_string()),
-            BinProp::Int64(nid),
-            BinProp::Int64(parent_id),
-        ]));
+        conn_children.push(BinNode::leaf(
+            "C",
+            vec![
+                BinProp::Str("OO".to_string()),
+                BinProp::Int64(nid),
+                BinProp::Int64(parent_id),
+            ],
+        ));
     }
-    let connections = BinNode { name: "Connections".to_string(), props: vec![], children: conn_children };
+    let connections = BinNode {
+        name: "Connections".to_string(),
+        props: vec![],
+        children: conn_children,
+    };
 
     vec![header_ext, definitions, objects, connections]
 }

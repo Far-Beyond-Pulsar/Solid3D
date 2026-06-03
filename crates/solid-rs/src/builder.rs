@@ -38,19 +38,25 @@ use crate::scene::{
 
 /// Incrementally constructs a [`Scene`].
 pub struct SceneBuilder {
-    scene:        Scene,
+    scene: Scene,
     next_node_id: u32,
 }
 
 impl SceneBuilder {
     /// Creates a builder for an unnamed scene.
     pub fn new() -> Self {
-        Self { scene: Scene::new(), next_node_id: 0 }
+        Self {
+            scene: Scene::new(),
+            next_node_id: 0,
+        }
     }
 
     /// Creates a builder whose scene will carry the given name.
     pub fn named(name: impl Into<String>) -> Self {
-        Self { scene: Scene::named(name), next_node_id: 0 }
+        Self {
+            scene: Scene::named(name),
+            next_node_id: 0,
+        }
     }
 
     // ── Node management ──────────────────────────────────────────────────────
@@ -63,7 +69,7 @@ impl SceneBuilder {
 
     /// Adds a root-level node and returns its [`NodeId`].
     pub fn add_root_node(&mut self, name: impl Into<String>) -> NodeId {
-        let id   = self.alloc_id();
+        let id = self.alloc_id();
         let node = Node::new(id, name);
         self.scene.nodes.push(node);
         self.scene.roots.push(id);
@@ -72,7 +78,7 @@ impl SceneBuilder {
 
     /// Adds a child node under `parent` and returns the child's [`NodeId`].
     pub fn add_child_node(&mut self, parent: NodeId, name: impl Into<String>) -> NodeId {
-        let id   = self.alloc_id();
+        let id = self.alloc_id();
         let mut node = Node::new(id, name);
         node.parent = Some(parent);
         self.scene.nodes.push(node);

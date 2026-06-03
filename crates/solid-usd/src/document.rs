@@ -95,8 +95,8 @@ pub enum Specifier {
 impl Specifier {
     pub fn as_str(self) -> &'static str {
         match self {
-            Self::Def   => "def",
-            Self::Over  => "over",
+            Self::Def => "def",
+            Self::Over => "over",
             Self::Class => "class",
         }
     }
@@ -199,10 +199,10 @@ impl UsdDoc {
         let path = path.trim_start_matches('/');
         let mut parts = path.splitn(2, '/');
         let first = parts.next()?;
-        let rest  = parts.next();
+        let rest = parts.next();
         let top = self.root_prims.iter().find(|p| p.name == first)?;
         match rest {
-            None       => Some(top),
+            None => Some(top),
             Some(tail) => prim_at_tail(top, tail),
         }
     }
@@ -211,10 +211,10 @@ impl UsdDoc {
 fn prim_at_tail<'a>(parent: &'a Prim, tail: &str) -> Option<&'a Prim> {
     let mut parts = tail.splitn(2, '/');
     let first = parts.next()?;
-    let rest  = parts.next();
+    let rest = parts.next();
     let child = parent.children.iter().find(|c| c.name == first)?;
     match rest {
-        None       => Some(child),
+        None => Some(child),
         Some(next) => prim_at_tail(child, next),
     }
 }

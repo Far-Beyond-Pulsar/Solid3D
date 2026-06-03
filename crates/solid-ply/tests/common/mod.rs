@@ -2,9 +2,9 @@
 
 #![allow(dead_code)]
 
+use glam::{Vec2, Vec3, Vec4};
 use solid_ply::{PlyLoader, PlySaver};
 use solid_rs::prelude::*;
-use glam::{Vec2, Vec3, Vec4};
 use std::io::Cursor;
 
 // ── Scene factories ───────────────────────────────────────────────────────────
@@ -134,20 +134,28 @@ pub fn normal_scene() -> Scene {
 
 pub fn ascii_round_trip(scene: &Scene) -> Scene {
     let mut buf = Vec::new();
-    PlySaver.save(scene, &mut buf, &SaveOptions::default()).unwrap();
-    PlyLoader.load(&mut Cursor::new(buf), &LoadOptions::default()).unwrap()
+    PlySaver
+        .save(scene, &mut buf, &SaveOptions::default())
+        .unwrap();
+    PlyLoader
+        .load(&mut Cursor::new(buf), &LoadOptions::default())
+        .unwrap()
 }
 
 pub fn binary_le_round_trip(scene: &Scene) -> Scene {
     let mut buf = Vec::new();
     PlySaver::save_binary_le(scene, &mut buf, &SaveOptions::default()).unwrap();
-    PlyLoader.load(&mut Cursor::new(buf), &LoadOptions::default()).unwrap()
+    PlyLoader
+        .load(&mut Cursor::new(buf), &LoadOptions::default())
+        .unwrap()
 }
 
 pub fn binary_be_round_trip(scene: &Scene) -> Scene {
     let mut buf = Vec::new();
     PlySaver::save_binary_be(scene, &mut buf, &SaveOptions::default()).unwrap();
-    PlyLoader.load(&mut Cursor::new(buf), &LoadOptions::default()).unwrap()
+    PlyLoader
+        .load(&mut Cursor::new(buf), &LoadOptions::default())
+        .unwrap()
 }
 
 // ── Binary test utilities ─────────────────────────────────────────────────────

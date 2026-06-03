@@ -4,8 +4,8 @@
 //! its loader.  This example builds a scene in-memory to show the same
 //! inspection code.
 
-use solid_rs::prelude::*;
 use glam::Vec3;
+use solid_rs::prelude::*;
 
 fn main() -> Result<()> {
     // ── 1. Build a registry and register format crates ────────────────────
@@ -17,10 +17,12 @@ fn main() -> Result<()> {
     println!("Registered loaders:");
     let mut any = false;
     for info in registry.loader_infos() {
-        println!("  [{id}]  {name}  ({exts})",
-            id   = info.id,
+        println!(
+            "  [{id}]  {name}  ({exts})",
+            id = info.id,
             name = info.name,
-            exts = info.extensions.join(", "));
+            exts = info.extensions.join(", ")
+        );
         any = true;
     }
     if !any {
@@ -50,7 +52,8 @@ fn main() -> Result<()> {
 fn print_node(scene: &solid_rs::Scene, id: NodeId, depth: usize) {
     let indent = "  ".repeat(depth);
     let node = scene.node(id).unwrap();
-    let mesh_info = node.mesh
+    let mesh_info = node
+        .mesh
         .map(|i| format!("  [mesh: {}]", scene.meshes[i].name))
         .unwrap_or_default();
     println!("{}▸ {}{}", indent, node.name, mesh_info);
@@ -67,17 +70,17 @@ fn build_demo_scene() -> solid_rs::Scene {
     // Mesh: a simple triangle.
     let mut tri = Mesh::new("Triangle");
     tri.vertices = vec![
-        Vertex::new(Vec3::new( 0.0,  1.0, 0.0)).with_normal(Vec3::Z),
+        Vertex::new(Vec3::new(0.0, 1.0, 0.0)).with_normal(Vec3::Z),
         Vertex::new(Vec3::new(-1.0, -1.0, 0.0)).with_normal(Vec3::Z),
-        Vertex::new(Vec3::new( 1.0, -1.0, 0.0)).with_normal(Vec3::Z),
+        Vertex::new(Vec3::new(1.0, -1.0, 0.0)).with_normal(Vec3::Z),
     ];
     tri.primitives = vec![Primitive::triangles(vec![0, 1, 2], None)];
     let tri_idx = b.push_mesh(tri);
 
     // Node hierarchy: Root → Pivot → Triangle.
-    let root  = b.add_root_node("Root");
+    let root = b.add_root_node("Root");
     let pivot = b.add_child_node(root, "Pivot");
-    let leaf  = b.add_child_node(pivot, "TriangleNode");
+    let leaf = b.add_child_node(pivot, "TriangleNode");
     b.attach_mesh(leaf, tri_idx);
 
     b.build()

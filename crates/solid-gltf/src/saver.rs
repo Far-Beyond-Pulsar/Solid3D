@@ -1,9 +1,9 @@
 //! glTF 2.0 / GLB file saver.
 
 use crate::{convert, document::GltfRoot, GLTF_FORMAT};
+use solid_rs::scene::scene::Scene;
 use solid_rs::traits::{FormatInfo, SaveOptions, Saver};
 use solid_rs::{Result, SolidError};
-use solid_rs::scene::scene::Scene;
 use std::io::Write;
 
 pub struct GltfSaver;
@@ -49,8 +49,8 @@ impl GltfSaver {
 }
 
 fn write_glb(root: &GltfRoot, bin: &[u8], writer: &mut dyn Write) -> Result<()> {
-    let json = serde_json::to_string(root)
-        .map_err(|e| SolidError::parse(format!("GLB JSON: {e}")))?;
+    let json =
+        serde_json::to_string(root).map_err(|e| SolidError::parse(format!("GLB JSON: {e}")))?;
 
     // Pad JSON chunk to 4-byte boundary with spaces (0x20).
     let json_bytes = json.as_bytes();
@@ -59,29 +59,49 @@ fn write_glb(root: &GltfRoot, bin: &[u8], writer: &mut dyn Write) -> Result<()> 
 
     // Pad BIN chunk to 4-byte boundary with zeros.
     let bin_pad = (4 - bin.len() % 4) % 4;
-    let bin_len = if bin.is_empty() { 0 } else { bin.len() + bin_pad };
+    let bin_len = if bin.is_empty() {
+        0
+    } else {
+        bin.len() + bin_pad
+    };
 
-    let total = 12
-        + 8 + json_len
-        + if bin_len > 0 { 8 + bin_len } else { 0 };
+    let total = 12 + 8 + json_len + if bin_len > 0 { 8 + bin_len } else { 0 };
 
     // Header
-    writer.write_all(&0x46546C67u32.to_le_bytes()).map_err(SolidError::Io)?; // "glTF"
-    writer.write_all(&2u32.to_le_bytes()).map_err(SolidError::Io)?;          // version 2
-    writer.write_all(&(total as u32).to_le_bytes()).map_err(SolidError::Io)?;
+    writer
+        .write_all(&0x46546C67u32.to_le_bytes())
+        .map_err(SolidError::Io)?; // "glTF"
+    writer
+        .write_all(&2u32.to_le_bytes())
+        .map_err(SolidError::Io)?; // version 2
+    writer
+        .write_all(&(total as u32).to_le_bytes())
+        .map_err(SolidError::Io)?;
 
     // JSON chunk
-    writer.write_all(&(json_len as u32).to_le_bytes()).map_err(SolidError::Io)?;
-    writer.write_all(&0x4E4F534Au32.to_le_bytes()).map_err(SolidError::Io)?; // "JSON"
+    writer
+        .write_all(&(json_len as u32).to_le_bytes())
+        .map_err(SolidError::Io)?;
+    writer
+        .write_all(&0x4E4F534Au32.to_le_bytes())
+        .map_err(SolidError::Io)?; // "JSON"
     writer.write_all(json_bytes).map_err(SolidError::Io)?;
-    writer.write_all(&vec![0x20u8; json_pad]).map_err(SolidError::Io)?;
+    writer
+        .write_all(&vec![0x20u8; json_pad])
+        .map_err(SolidError::Io)?;
 
     // BIN chunk (optional)
     if bin_len > 0 {
-        writer.write_all(&(bin_len as u32).to_le_bytes()).map_err(SolidError::Io)?;
-        writer.write_all(&0x004E4942u32.to_le_bytes()).map_err(SolidError::Io)?; // "BIN\0"
+        writer
+            .write_all(&(bin_len as u32).to_le_bytes())
+            .map_err(SolidError::Io)?;
+        writer
+            .write_all(&0x004E4942u32.to_le_bytes())
+            .map_err(SolidError::Io)?; // "BIN\0"
         writer.write_all(bin).map_err(SolidError::Io)?;
-        writer.write_all(&vec![0u8; bin_pad]).map_err(SolidError::Io)?;
+        writer
+            .write_all(&vec![0u8; bin_pad])
+            .map_err(SolidError::Io)?;
     }
 
     Ok(())

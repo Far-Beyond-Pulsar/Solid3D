@@ -6,6 +6,8 @@ members  = [
     "crates/solid-stl",
     "crates/solid-gltf",
     "crates/solid-ply",
+    "crates/solid-blend",
+    "crates/solid-x",
     "crates/solid-usd",
     "examples/fbx-to-obj",
 ]

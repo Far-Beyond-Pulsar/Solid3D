@@ -41,10 +41,10 @@
 //! registry.save_file(&scene, "out.fbx").unwrap();
 //! ```
 
-pub mod document;
-pub(crate) mod binary;
 pub(crate) mod ascii;
+pub(crate) mod binary;
 pub(crate) mod convert;
+pub mod document;
 pub mod loader;
 pub mod saver;
 
@@ -55,11 +55,11 @@ use solid_rs::traits::FormatInfo;
 
 /// Metadata for the FBX format.
 pub static FBX_FORMAT: FormatInfo = FormatInfo {
-    name:         "Autodesk FBX",
-    id:           "fbx",
-    extensions:   &["fbx"],
-    mime_types:   &["application/octet-stream"],
-    can_load:     true,
-    can_save:     true,
+    name: "Autodesk FBX",
+    id: "fbx",
+    extensions: &["fbx"],
+    mime_types: &["application/octet-stream"],
+    can_load: true,
+    can_save: true,
     spec_version: Some("7.4"),
 };

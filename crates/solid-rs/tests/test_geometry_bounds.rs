@@ -1,6 +1,6 @@
 mod common;
-use solid_rs::prelude::*;
 use glam::Vec3;
+use solid_rs::prelude::*;
 
 // ── Aabb::new ─────────────────────────────────────────────────────────────────
 
@@ -35,9 +35,9 @@ fn aabb_from_points_single_point() {
 #[test]
 fn aabb_from_points_two_points() {
     let pts = vec![Vec3::new(1.0, 1.0, 1.0), Vec3::new(-1.0, -1.0, -1.0)];
-    let a   = Aabb::from_points(pts.into_iter()).unwrap();
+    let a = Aabb::from_points(pts.into_iter()).unwrap();
     assert_eq!(a.min, Vec3::splat(-1.0));
-    assert_eq!(a.max, Vec3::splat( 1.0));
+    assert_eq!(a.max, Vec3::splat(1.0));
 }
 
 #[test]
@@ -57,7 +57,7 @@ fn aabb_from_points_mixed() {
     ];
     let a = Aabb::from_points(pts.into_iter()).unwrap();
     assert_eq!(a.min, Vec3::new(-2.0, -1.0, -3.0));
-    assert_eq!(a.max, Vec3::new( 3.0,  5.0,  1.0));
+    assert_eq!(a.max, Vec3::new(3.0, 5.0, 1.0));
 }
 
 // ── center ────────────────────────────────────────────────────────────────────
@@ -137,10 +137,10 @@ fn aabb_does_not_contain_outside_negative() {
 #[test]
 fn aabb_union_of_two_non_overlapping() {
     let a = Aabb::new(Vec3::new(-3.0, -3.0, -3.0), Vec3::new(-1.0, -1.0, -1.0));
-    let b = Aabb::new(Vec3::new( 1.0,  1.0,  1.0), Vec3::new( 3.0,  3.0,  3.0));
+    let b = Aabb::new(Vec3::new(1.0, 1.0, 1.0), Vec3::new(3.0, 3.0, 3.0));
     let u = a.union(&b);
     assert_eq!(u.min, Vec3::splat(-3.0));
-    assert_eq!(u.max, Vec3::splat( 3.0));
+    assert_eq!(u.max, Vec3::splat(3.0));
 }
 
 #[test]
@@ -153,7 +153,7 @@ fn aabb_union_of_identical_is_same() {
 #[test]
 fn aabb_union_subsumes_inner() {
     let outer = Aabb::new(Vec3::splat(-10.0), Vec3::splat(10.0));
-    let inner = Aabb::new(Vec3::splat(-1.0),  Vec3::splat(1.0));
+    let inner = Aabb::new(Vec3::splat(-1.0), Vec3::splat(1.0));
     let u = outer.union(&inner);
     assert_eq!(u.min, outer.min);
     assert_eq!(u.max, outer.max);
@@ -164,7 +164,7 @@ fn aabb_union_subsumes_inner() {
 #[test]
 fn aabb_intersects_overlapping_boxes() {
     let a = Aabb::new(Vec3::ZERO, Vec3::new(2.0, 2.0, 2.0));
-    let b = Aabb::new(Vec3::ONE,  Vec3::new(3.0, 3.0, 3.0));
+    let b = Aabb::new(Vec3::ONE, Vec3::new(3.0, 3.0, 3.0));
     assert!(a.intersects(&b));
 }
 

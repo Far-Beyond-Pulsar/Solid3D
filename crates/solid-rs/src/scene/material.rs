@@ -19,7 +19,11 @@ pub struct TextureRef {
 impl TextureRef {
     /// Creates a plain texture reference with no UV transform.
     pub fn new(texture_index: usize) -> Self {
-        Self { texture_index, uv_channel: 0, transform: None }
+        Self {
+            texture_index,
+            uv_channel: 0,
+            transform: None,
+        }
     }
 }
 
@@ -36,7 +40,11 @@ pub struct TextureTransform {
 
 impl Default for TextureTransform {
     fn default() -> Self {
-        Self { offset: Vec2::ZERO, rotation: 0.0, scale: Vec2::ONE }
+        Self {
+            offset: Vec2::ZERO,
+            rotation: 0.0,
+            scale: Vec2::ONE,
+        }
     }
 }
 
@@ -56,7 +64,7 @@ pub enum AlphaMode {
 }
 
 /// A canonical physically based material description.
-/// 
+///
 /// The schema keeps the widely-used metallic/roughness controls while also
 /// carrying explicit dielectric specular and IOR terms. That additive shape is
 /// deliberate groundwork for AAA renderers that need a canonical source of
@@ -170,11 +178,18 @@ impl Default for Material {
 impl Material {
     /// Creates a default material with the given name.
     pub fn new(name: impl Into<String>) -> Self {
-        Self { name: name.into(), ..Default::default() }
+        Self {
+            name: name.into(),
+            ..Default::default()
+        }
     }
 
     /// Creates a simple untextured material with the given base colour.
     pub fn solid_color(name: impl Into<String>, color: Vec4) -> Self {
-        Self { name: name.into(), base_color_factor: color, ..Default::default() }
+        Self {
+            name: name.into(),
+            base_color_factor: color,
+            ..Default::default()
+        }
     }
 }

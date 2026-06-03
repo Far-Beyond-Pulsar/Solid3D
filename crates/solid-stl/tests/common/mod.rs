@@ -22,7 +22,12 @@ pub fn write_u16_le(buf: &mut Vec<u8>, v: u16) {
 }
 
 pub fn read_f32_le(data: &[u8], offset: usize) -> f32 {
-    f32::from_le_bytes([data[offset], data[offset + 1], data[offset + 2], data[offset + 3]])
+    f32::from_le_bytes([
+        data[offset],
+        data[offset + 1],
+        data[offset + 2],
+        data[offset + 3],
+    ])
 }
 
 pub fn read_vec3(data: &[u8], offset: usize) -> Vec3 {
@@ -43,7 +48,7 @@ pub fn read_u16_le(data: &[u8], offset: usize) -> u16 {
 pub fn single_triangle_binary() -> Vec<u8> {
     let mut buf = vec![0u8; 80]; // header
     write_u32_le(&mut buf, 1); // 1 triangle
-    // face normal
+                               // face normal
     write_f32_le(&mut buf, 0.0);
     write_f32_le(&mut buf, 0.0);
     write_f32_le(&mut buf, 1.0);

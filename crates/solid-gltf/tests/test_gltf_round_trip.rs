@@ -4,10 +4,10 @@ mod common;
 
 use common::*;
 use glam::{Vec3, Vec4};
+use solid_rs::builder::SceneBuilder;
+use solid_rs::geometry::{Primitive, Vertex};
 use solid_rs::prelude::*;
 use solid_rs::scene::{AlphaMode, Projection};
-use solid_rs::geometry::{Primitive, Vertex};
-use solid_rs::builder::SceneBuilder;
 
 // ── Vertex geometry ───────────────────────────────────────────────────────────
 
@@ -15,12 +15,22 @@ use solid_rs::builder::SceneBuilder;
 fn round_trip_positions() {
     let original = triangle_scene();
     let loaded = gltf_round_trip(&original);
-    let orig_pos: Vec<Vec3> = original.meshes[0].vertices.iter().map(|v| v.position).collect();
-    let load_pos: Vec<Vec3> = loaded.meshes[0].vertices.iter().map(|v| v.position).collect();
+    let orig_pos: Vec<Vec3> = original.meshes[0]
+        .vertices
+        .iter()
+        .map(|v| v.position)
+        .collect();
+    let load_pos: Vec<Vec3> = loaded.meshes[0]
+        .vertices
+        .iter()
+        .map(|v| v.position)
+        .collect();
     assert_eq!(orig_pos.len(), load_pos.len());
     for (o, l) in orig_pos.iter().zip(load_pos.iter()) {
-        assert!((o.x - l.x).abs() < 1e-5 && (o.y - l.y).abs() < 1e-5 && (o.z - l.z).abs() < 1e-5,
-            "position mismatch: {o:?} vs {l:?}");
+        assert!(
+            (o.x - l.x).abs() < 1e-5 && (o.y - l.y).abs() < 1e-5 && (o.z - l.z).abs() < 1e-5,
+            "position mismatch: {o:?} vs {l:?}"
+        );
     }
 }
 
@@ -29,10 +39,16 @@ fn round_trip_normals() {
     let original = triangle_scene();
     let loaded = gltf_round_trip(&original);
     let verts = &loaded.meshes[0].vertices;
-    assert!(verts.iter().all(|v| v.normal.is_some()), "normals should survive round-trip");
+    assert!(
+        verts.iter().all(|v| v.normal.is_some()),
+        "normals should survive round-trip"
+    );
     for v in verts {
         let n = v.normal.unwrap();
-        assert!((n - Vec3::Z).length() < 1e-5, "normal should be Vec3::Z, got {n:?}");
+        assert!(
+            (n - Vec3::Z).length() < 1e-5,
+            "normal should be Vec3::Z, got {n:?}"
+        );
     }
 }
 
@@ -40,11 +56,21 @@ fn round_trip_normals() {
 fn round_trip_uvs() {
     let original = pbr_material_scene();
     let loaded = gltf_round_trip(&original);
-    let orig_uvs: Vec<_> = original.meshes[0].vertices.iter().map(|v| v.uvs[0].unwrap()).collect();
-    let load_uvs: Vec<_> = loaded.meshes[0].vertices.iter().map(|v| v.uvs[0].unwrap()).collect();
+    let orig_uvs: Vec<_> = original.meshes[0]
+        .vertices
+        .iter()
+        .map(|v| v.uvs[0].unwrap())
+        .collect();
+    let load_uvs: Vec<_> = loaded.meshes[0]
+        .vertices
+        .iter()
+        .map(|v| v.uvs[0].unwrap())
+        .collect();
     for (o, l) in orig_uvs.iter().zip(load_uvs.iter()) {
-        assert!((o.x - l.x).abs() < 1e-5 && (o.y - l.y).abs() < 1e-5,
-            "UV mismatch: {o:?} vs {l:?}");
+        assert!(
+            (o.x - l.x).abs() < 1e-5 && (o.y - l.y).abs() < 1e-5,
+            "UV mismatch: {o:?} vs {l:?}"
+        );
     }
 }
 
@@ -79,10 +105,16 @@ fn round_trip_tangents() {
 fn round_trip_vertex_colors() {
     let original = pbr_material_scene();
     let loaded = gltf_round_trip(&original);
-    let orig_colors: Vec<Vec4> = original.meshes[0].vertices.iter()
-        .map(|v| v.colors[0].unwrap()).collect();
-    let load_colors: Vec<Vec4> = loaded.meshes[0].vertices.iter()
-        .map(|v| v.colors[0].unwrap()).collect();
+    let orig_colors: Vec<Vec4> = original.meshes[0]
+        .vertices
+        .iter()
+        .map(|v| v.colors[0].unwrap())
+        .collect();
+    let load_colors: Vec<Vec4> = loaded.meshes[0]
+        .vertices
+        .iter()
+        .map(|v| v.colors[0].unwrap())
+        .collect();
     for (o, l) in orig_colors.iter().zip(load_colors.iter()) {
         assert!((o.x - l.x).abs() < 1e-5, "color.r mismatch: {o:?} vs {l:?}");
     }
@@ -106,7 +138,10 @@ fn round_trip_material_roughness() {
     let loaded = gltf_round_trip(&original);
     let o = original.materials[0].roughness_factor;
     let l = loaded.materials[0].roughness_factor;
-    assert!((o - l).abs() < 1e-5, "roughness_factor mismatch: {o} vs {l}");
+    assert!(
+        (o - l).abs() < 1e-5,
+        "roughness_factor mismatch: {o} vs {l}"
+    );
 }
 
 #[test]
@@ -124,7 +159,10 @@ fn round_trip_material_emissive() {
     let loaded = gltf_round_trip(&original);
     let o = original.materials[0].emissive_factor;
     let l = loaded.materials[0].emissive_factor;
-    assert!((o.x - l.x).abs() < 1e-5, "emissive R mismatch: {o:?} vs {l:?}");
+    assert!(
+        (o.x - l.x).abs() < 1e-5,
+        "emissive R mismatch: {o:?} vs {l:?}"
+    );
 }
 
 #[test]
@@ -171,8 +209,11 @@ fn round_trip_alpha_mask() {
     let original = b.build();
     let loaded = gltf_round_trip(&original);
     assert_eq!(loaded.materials[0].alpha_mode, AlphaMode::Mask);
-    assert!((loaded.materials[0].alpha_cutoff - 0.3).abs() < 1e-5,
-        "alpha_cutoff mismatch: {}", loaded.materials[0].alpha_cutoff);
+    assert!(
+        (loaded.materials[0].alpha_cutoff - 0.3).abs() < 1e-5,
+        "alpha_cutoff mismatch: {}",
+        loaded.materials[0].alpha_cutoff
+    );
 }
 
 // ── Cameras ───────────────────────────────────────────────────────────────────
@@ -183,7 +224,11 @@ fn round_trip_perspective_camera_fov() {
     let loaded = gltf_round_trip(&original);
     match &loaded.cameras[0].projection {
         Projection::Perspective(p) => {
-            assert!((p.fov_y - 0.785398).abs() < 1e-4, "fov_y mismatch: {}", p.fov_y);
+            assert!(
+                (p.fov_y - 0.785398).abs() < 1e-4,
+                "fov_y mismatch: {}",
+                p.fov_y
+            );
         }
         _ => panic!("expected perspective projection"),
     }
@@ -218,7 +263,11 @@ fn round_trip_node_hierarchy() {
 fn round_trip_skin_joint_count() {
     let original = skinned_scene();
     let loaded = gltf_round_trip(&original);
-    assert_eq!(loaded.skins[0].joints.len(), 2, "skin joint count should round-trip");
+    assert_eq!(
+        loaded.skins[0].joints.len(),
+        2,
+        "skin joint count should round-trip"
+    );
 }
 
 #[test]
@@ -245,7 +294,11 @@ fn round_trip_skin_ibp_matrices() {
 fn round_trip_animation_channel_count() {
     let original = animated_scene();
     let loaded = gltf_round_trip(&original);
-    assert_eq!(loaded.animations[0].channels.len(), 2, "animation channel count should round-trip");
+    assert_eq!(
+        loaded.animations[0].channels.len(),
+        2,
+        "animation channel count should round-trip"
+    );
 }
 
 #[test]
@@ -264,7 +317,11 @@ fn round_trip_animation_times() {
 fn round_trip_morph_target_count() {
     let original = morph_target_scene();
     let loaded = gltf_round_trip(&original);
-    assert_eq!(loaded.meshes[0].morph_targets.len(), 2, "morph target count should round-trip");
+    assert_eq!(
+        loaded.meshes[0].morph_targets.len(),
+        2,
+        "morph target count should round-trip"
+    );
 }
 
 #[test]
@@ -272,9 +329,17 @@ fn round_trip_morph_target_positions() {
     let original = morph_target_scene();
     let loaded = gltf_round_trip(&original);
     let deltas = &loaded.meshes[0].morph_targets[0].position_deltas;
-    assert_eq!(deltas.len(), 3, "morph target should have 3 position deltas");
+    assert_eq!(
+        deltas.len(),
+        3,
+        "morph target should have 3 position deltas"
+    );
     for d in deltas {
-        assert!((d.y - 0.1).abs() < 1e-5, "smile delta.y should be ~0.1, got {}", d.y);
+        assert!(
+            (d.y - 0.1).abs() < 1e-5,
+            "smile delta.y should be ~0.1, got {}",
+            d.y
+        );
     }
 }
 
@@ -296,9 +361,16 @@ fn round_trip_khr_lights_point() {
     let original = lights_scene();
     let loaded = gltf_round_trip(&original);
     let point_light = loaded.lights.iter().find(|l| matches!(l, Light::Point(_)));
-    assert!(point_light.is_some(), "point light should survive round-trip");
+    assert!(
+        point_light.is_some(),
+        "point light should survive round-trip"
+    );
     if let Some(Light::Point(pl)) = point_light {
-        assert!((pl.base.intensity - 200.0).abs() < 1e-3, "intensity mismatch: {}", pl.base.intensity);
+        assert!(
+            (pl.base.intensity - 200.0).abs() < 1e-3,
+            "intensity mismatch: {}",
+            pl.base.intensity
+        );
     }
 }
 
@@ -307,8 +379,14 @@ fn round_trip_khr_lights_directional() {
     use solid_rs::scene::Light;
     let original = lights_scene();
     let loaded = gltf_round_trip(&original);
-    let dir_light = loaded.lights.iter().find(|l| matches!(l, Light::Directional(_)));
-    assert!(dir_light.is_some(), "directional light should survive round-trip");
+    let dir_light = loaded
+        .lights
+        .iter()
+        .find(|l| matches!(l, Light::Directional(_)));
+    assert!(
+        dir_light.is_some(),
+        "directional light should survive round-trip"
+    );
 }
 
 // ── GLB binary round-trip ─────────────────────────────────────────────────────
@@ -317,12 +395,22 @@ fn round_trip_khr_lights_directional() {
 fn round_trip_glb_positions() {
     let original = triangle_scene();
     let loaded = glb_round_trip(&original);
-    let orig_pos: Vec<Vec3> = original.meshes[0].vertices.iter().map(|v| v.position).collect();
-    let load_pos: Vec<Vec3> = loaded.meshes[0].vertices.iter().map(|v| v.position).collect();
+    let orig_pos: Vec<Vec3> = original.meshes[0]
+        .vertices
+        .iter()
+        .map(|v| v.position)
+        .collect();
+    let load_pos: Vec<Vec3> = loaded.meshes[0]
+        .vertices
+        .iter()
+        .map(|v| v.position)
+        .collect();
     assert_eq!(orig_pos.len(), load_pos.len());
     for (o, l) in orig_pos.iter().zip(load_pos.iter()) {
-        assert!((o.x - l.x).abs() < 1e-5 && (o.y - l.y).abs() < 1e-5 && (o.z - l.z).abs() < 1e-5,
-            "GLB position mismatch: {o:?} vs {l:?}");
+        assert!(
+            (o.x - l.x).abs() < 1e-5 && (o.y - l.y).abs() < 1e-5 && (o.z - l.z).abs() < 1e-5,
+            "GLB position mismatch: {o:?} vs {l:?}"
+        );
     }
 }
 
@@ -330,6 +418,9 @@ fn round_trip_glb_positions() {
 fn round_trip_glb_material_count() {
     let original = pbr_material_scene();
     let loaded = glb_round_trip(&original);
-    assert_eq!(loaded.materials.len(), original.materials.len(),
-        "material count should round-trip through GLB");
+    assert_eq!(
+        loaded.materials.len(),
+        original.materials.len(),
+        "material count should round-trip through GLB"
+    );
 }

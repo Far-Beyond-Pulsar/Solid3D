@@ -19,7 +19,10 @@ fn loader_rejects_empty() {
 
 #[test]
 fn loader_rejects_invalid_json() {
-    let result = GltfLoader.load(&mut Cursor::new(b"not json at all!!!"), &LoadOptions::default());
+    let result = GltfLoader.load(
+        &mut Cursor::new(b"not json at all!!!"),
+        &LoadOptions::default(),
+    );
     assert!(result.is_err(), "expected error for invalid JSON");
 }
 
@@ -53,7 +56,10 @@ fn loader_triangle_indices_correct() {
 fn loader_normals_loaded() {
     let scene = gltf_round_trip(&triangle_scene());
     let verts = &scene.meshes[0].vertices;
-    assert!(verts.iter().all(|v| v.normal.is_some()), "normals should be present after round-trip");
+    assert!(
+        verts.iter().all(|v| v.normal.is_some()),
+        "normals should be present after round-trip"
+    );
     assert!(
         verts.iter().all(|v| {
             let n = v.normal.unwrap();
@@ -67,7 +73,10 @@ fn loader_normals_loaded() {
 fn loader_uvs_loaded() {
     let scene = gltf_round_trip(&pbr_material_scene());
     let verts = &scene.meshes[0].vertices;
-    assert!(verts.iter().all(|v| v.uvs[0].is_some()), "UV channel 0 should be present");
+    assert!(
+        verts.iter().all(|v| v.uvs[0].is_some()),
+        "UV channel 0 should be present"
+    );
 }
 
 #[test]
@@ -95,7 +104,10 @@ fn loader_tangents_loaded() {
 
     let loaded = gltf_round_trip(&original);
     assert!(
-        loaded.meshes[0].vertices.iter().all(|v| v.tangent.is_some()),
+        loaded.meshes[0]
+            .vertices
+            .iter()
+            .all(|v| v.tangent.is_some()),
         "tangents should survive round-trip"
     );
 }
@@ -104,7 +116,10 @@ fn loader_tangents_loaded() {
 fn loader_vertex_colors_loaded() {
     let scene = gltf_round_trip(&pbr_material_scene());
     let verts = &scene.meshes[0].vertices;
-    assert!(verts.iter().all(|v| v.colors[0].is_some()), "vertex colors should be present");
+    assert!(
+        verts.iter().all(|v| v.colors[0].is_some()),
+        "vertex colors should be present"
+    );
 }
 
 // ── Material properties ───────────────────────────────────────────────────────
@@ -113,8 +128,16 @@ fn loader_vertex_colors_loaded() {
 fn loader_material_base_color() {
     let scene = gltf_round_trip(&pbr_material_scene());
     let c = scene.materials[0].base_color_factor;
-    assert!((c.x - 0.8).abs() < 1e-5, "base color R should be ~0.8, got {}", c.x);
-    assert!((c.y - 0.2).abs() < 1e-5, "base color G should be ~0.2, got {}", c.y);
+    assert!(
+        (c.x - 0.8).abs() < 1e-5,
+        "base color R should be ~0.8, got {}",
+        c.x
+    );
+    assert!(
+        (c.y - 0.2).abs() < 1e-5,
+        "base color G should be ~0.2, got {}",
+        c.y
+    );
 }
 
 #[test]
@@ -199,7 +222,10 @@ fn loader_material_alpha_mode_blend() {
 #[test]
 fn loader_material_double_sided() {
     let scene = gltf_round_trip(&pbr_material_scene());
-    assert!(scene.materials[0].double_sided, "double_sided should round-trip");
+    assert!(
+        scene.materials[0].double_sided,
+        "double_sided should round-trip"
+    );
 }
 
 // ── Node hierarchy & transforms ───────────────────────────────────────────────
@@ -219,9 +245,16 @@ fn loader_node_translation() {
     use solid_rs::geometry::Transform;
     let mut b = SceneBuilder::named("Trans");
     let r = b.add_root_node("R");
-    b.set_transform(r, Transform::IDENTITY.with_translation(glam::Vec3::new(1.0, 2.0, 3.0)));
+    b.set_transform(
+        r,
+        Transform::IDENTITY.with_translation(glam::Vec3::new(1.0, 2.0, 3.0)),
+    );
     let loaded = gltf_round_trip(&b.build());
-    let t = loaded.node(*loaded.roots.first().unwrap()).unwrap().transform.translation;
+    let t = loaded
+        .node(*loaded.roots.first().unwrap())
+        .unwrap()
+        .transform
+        .translation;
     assert!((t.x - 1.0).abs() < 1e-5);
     assert!((t.y - 2.0).abs() < 1e-5);
     assert!((t.z - 3.0).abs() < 1e-5);
@@ -235,7 +268,11 @@ fn loader_perspective_camera() {
     let cam = &scene.cameras[0];
     match &cam.projection {
         Projection::Perspective(p) => {
-            assert!((p.fov_y - 0.785398).abs() < 1e-4, "fov_y mismatch: {}", p.fov_y);
+            assert!(
+                (p.fov_y - 0.785398).abs() < 1e-4,
+                "fov_y mismatch: {}",
+                p.fov_y
+            );
         }
         _ => panic!("expected perspective camera"),
     }
@@ -258,7 +295,9 @@ fn loader_orthographic_camera() {
 #[test]
 fn loader_glb_magic_detected() {
     let mut buf = Vec::<u8>::new();
-    solid_gltf::GltfSaver.save_glb(&triangle_scene(), &mut buf).unwrap();
+    solid_gltf::GltfSaver
+        .save_glb(&triangle_scene(), &mut buf)
+        .unwrap();
     assert_eq!(&buf[0..4], b"glTF", "GLB magic bytes mismatch");
 }
 

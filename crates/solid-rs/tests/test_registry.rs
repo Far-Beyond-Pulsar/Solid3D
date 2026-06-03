@@ -42,9 +42,9 @@ fn registry_register_saver_adds_one() {
 fn registry_register_chaining() {
     let mut r = Registry::new();
     r.register_loader(MockLoader)
-     .register_saver(MockSaver)
-     .register_loader(XyzLoader)
-     .register_saver(XyzSaver);
+        .register_saver(MockSaver)
+        .register_loader(XyzLoader)
+        .register_saver(XyzSaver);
     assert_eq!(r.loader_infos().count(), 2);
     assert_eq!(r.saver_infos().count(), 2);
 }
@@ -151,7 +151,10 @@ fn load_file_unregistered_extension_returns_error() {
     let r = Registry::new();
     let result = r.load_file("model.fbx");
     assert!(result.is_err());
-    assert!(matches!(result.unwrap_err(), SolidError::UnsupportedFormat(_)));
+    assert!(matches!(
+        result.unwrap_err(),
+        SolidError::UnsupportedFormat(_)
+    ));
 }
 
 // ── save_file errors ──────────────────────────────────────────────────────────
@@ -162,7 +165,10 @@ fn save_file_unregistered_extension_returns_error() {
     let s = Scene::new();
     let result = r.save_file(&s, "out.fbx");
     assert!(result.is_err());
-    assert!(matches!(result.unwrap_err(), SolidError::UnsupportedFormat(_)));
+    assert!(matches!(
+        result.unwrap_err(),
+        SolidError::UnsupportedFormat(_)
+    ));
 }
 
 #[test]
@@ -178,8 +184,10 @@ fn save_file_no_extension_returns_error() {
 fn load_from_known_format_succeeds() {
     let mut r = Registry::new();
     r.register_loader(XyzLoader);
-    let data   = b"0 0 0\n1 0 0\n0 1 0\n";
-    let scene  = r.load_from(Cursor::new(data), "xyz", &LoadOptions::default()).unwrap();
+    let data = b"0 0 0\n1 0 0\n0 1 0\n";
+    let scene = r
+        .load_from(Cursor::new(data), "xyz", &LoadOptions::default())
+        .unwrap();
     assert_eq!(scene.meshes[0].vertex_count(), 3);
 }
 

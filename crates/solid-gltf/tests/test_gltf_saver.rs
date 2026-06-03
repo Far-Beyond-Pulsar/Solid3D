@@ -8,13 +8,17 @@ use solid_rs::prelude::*;
 
 fn save_json(scene: &Scene) -> serde_json::Value {
     let mut buf = Vec::<u8>::new();
-    GltfSaver.save(scene, &mut buf, &SaveOptions::default()).expect("save failed");
+    GltfSaver
+        .save(scene, &mut buf, &SaveOptions::default())
+        .expect("save failed");
     serde_json::from_slice(&buf).expect("output is not valid JSON")
 }
 
 fn save_glb(scene: &Scene) -> Vec<u8> {
     let mut buf = Vec::<u8>::new();
-    GltfSaver.save_glb(scene, &mut buf).expect("save_glb failed");
+    GltfSaver
+        .save_glb(scene, &mut buf)
+        .expect("save_glb failed");
     buf
 }
 
@@ -41,7 +45,11 @@ fn saver_triangle_accessor_count() {
     let json = save_json(&triangle_scene());
     // At minimum: POSITION accessor + INDICES accessor
     let accessors = json["accessors"].as_array().unwrap();
-    assert!(accessors.len() >= 2, "expected at least 2 accessors, got {}", accessors.len());
+    assert!(
+        accessors.len() >= 2,
+        "expected at least 2 accessors, got {}",
+        accessors.len()
+    );
 }
 
 #[test]
@@ -49,11 +57,13 @@ fn saver_positions_in_buffer() {
     let json = save_json(&triangle_scene());
     // POSITION accessor must have count = 3
     let accessors = json["accessors"].as_array().unwrap();
-    let pos_acc = accessors.iter().find(|a| {
-        a["type"].as_str() == Some("VEC3")
-            && a["count"].as_u64() == Some(3)
-    });
-    assert!(pos_acc.is_some(), "should have a VEC3 accessor with count=3 for positions");
+    let pos_acc = accessors
+        .iter()
+        .find(|a| a["type"].as_str() == Some("VEC3") && a["count"].as_u64() == Some(3));
+    assert!(
+        pos_acc.is_some(),
+        "should have a VEC3 accessor with count=3 for positions"
+    );
 }
 
 #[test]
@@ -61,14 +71,20 @@ fn saver_normals_in_buffer() {
     let json = save_json(&triangle_scene());
     // Should have a NORMAL attribute in the primitive's attributes
     let prim = &json["meshes"][0]["primitives"][0];
-    assert!(prim["attributes"]["NORMAL"].is_number(), "NORMAL accessor index should be present");
+    assert!(
+        prim["attributes"]["NORMAL"].is_number(),
+        "NORMAL accessor index should be present"
+    );
 }
 
 #[test]
 fn saver_uvs_in_buffer() {
     let json = save_json(&pbr_material_scene());
     let prim = &json["meshes"][0]["primitives"][0];
-    assert!(prim["attributes"]["TEXCOORD_0"].is_number(), "TEXCOORD_0 should be present");
+    assert!(
+        prim["attributes"]["TEXCOORD_0"].is_number(),
+        "TEXCOORD_0 should be present"
+    );
 }
 
 // ── Material serialisation ────────────────────────────────────────────────────
@@ -79,7 +95,10 @@ fn saver_material_base_color_factor() {
     let factor = &json["materials"][0]["pbrMetallicRoughness"]["baseColorFactor"];
     let arr = factor.as_array().unwrap();
     let r = arr[0].as_f64().unwrap() as f32;
-    assert!((r - 0.8).abs() < 1e-5, "base color R should be ~0.8, got {r}");
+    assert!(
+        (r - 0.8).abs() < 1e-5,
+        "base color R should be ~0.8, got {r}"
+    );
 }
 
 #[test]
@@ -88,7 +107,10 @@ fn saver_material_roughness_factor() {
     let roughness = json["materials"][0]["pbrMetallicRoughness"]["roughnessFactor"]
         .as_f64()
         .unwrap() as f32;
-    assert!((roughness - 0.7).abs() < 1e-5, "roughnessFactor should be ~0.7, got {roughness}");
+    assert!(
+        (roughness - 0.7).abs() < 1e-5,
+        "roughnessFactor should be ~0.7, got {roughness}"
+    );
 }
 
 #[test]
@@ -97,7 +119,10 @@ fn saver_material_metallic_factor() {
     let metallic = json["materials"][0]["pbrMetallicRoughness"]["metallicFactor"]
         .as_f64()
         .unwrap() as f32;
-    assert!((metallic - 0.3).abs() < 1e-5, "metallicFactor should be ~0.3, got {metallic}");
+    assert!(
+        (metallic - 0.3).abs() < 1e-5,
+        "metallicFactor should be ~0.3, got {metallic}"
+    );
 }
 
 #[test]
@@ -106,11 +131,15 @@ fn saver_material_specular_ior_extensions() {
 
     let extensions_used = json["extensionsUsed"].as_array().unwrap();
     assert!(
-        extensions_used.iter().any(|ext| ext.as_str() == Some("KHR_materials_specular")),
+        extensions_used
+            .iter()
+            .any(|ext| ext.as_str() == Some("KHR_materials_specular")),
         "KHR_materials_specular should be advertised in extensionsUsed"
     );
     assert!(
-        extensions_used.iter().any(|ext| ext.as_str() == Some("KHR_materials_ior")),
+        extensions_used
+            .iter()
+            .any(|ext| ext.as_str() == Some("KHR_materials_ior")),
         "KHR_materials_ior should be advertised in extensionsUsed"
     );
 
@@ -149,10 +178,7 @@ fn saver_material_alpha_mode_blend() {
     b.push_material(mat);
     b.add_root_node("R");
     let json = save_json(&b.build());
-    assert_eq!(
-        json["materials"][0]["alphaMode"].as_str().unwrap(),
-        "BLEND"
-    );
+    assert_eq!(json["materials"][0]["alphaMode"].as_str().unwrap(), "BLEND");
 }
 
 // ── Node structure ────────────────────────────────────────────────────────────
@@ -162,9 +188,9 @@ fn saver_node_children_structure() {
     let json = save_json(&camera_scene());
     // Root node ("World") should list 2 children
     let nodes = json["nodes"].as_array().unwrap();
-    let root_node = nodes.iter().find(|n| {
-        n["children"].as_array().map_or(false, |c| c.len() == 2)
-    });
+    let root_node = nodes
+        .iter()
+        .find(|n| n["children"].as_array().map_or(false, |c| c.len() == 2));
     assert!(root_node.is_some(), "expected a node with 2 children");
 }
 
@@ -174,7 +200,9 @@ fn saver_node_children_structure() {
 fn saver_camera_perspective() {
     let json = save_json(&camera_scene());
     let cameras = json["cameras"].as_array().unwrap();
-    let persp = cameras.iter().find(|c| c["type"].as_str() == Some("perspective"));
+    let persp = cameras
+        .iter()
+        .find(|c| c["type"].as_str() == Some("perspective"));
     assert!(persp.is_some(), "expected a perspective camera in JSON");
     let yfov = persp.unwrap()["perspective"]["yfov"].as_f64().unwrap() as f32;
     assert!((yfov - 0.785398).abs() < 1e-4, "yfov mismatch: {yfov}");
@@ -184,7 +212,9 @@ fn saver_camera_perspective() {
 fn saver_camera_orthographic() {
     let json = save_json(&camera_scene());
     let cameras = json["cameras"].as_array().unwrap();
-    let ortho = cameras.iter().find(|c| c["type"].as_str() == Some("orthographic"));
+    let ortho = cameras
+        .iter()
+        .find(|c| c["type"].as_str() == Some("orthographic"));
     assert!(ortho.is_some(), "expected an orthographic camera in JSON");
     let xmag = ortho.unwrap()["orthographic"]["xmag"].as_f64().unwrap() as f32;
     assert!((xmag - 5.0).abs() < 1e-5, "xmag mismatch: {xmag}");
@@ -204,7 +234,10 @@ fn saver_glb_json_chunk_present() {
     // After 12-byte header: chunk0 length (4 bytes) + chunk type JSON = 0x4E4F534A
     assert!(buf.len() >= 20, "GLB too short");
     let chunk_type = u32::from_le_bytes(buf[16..20].try_into().unwrap());
-    assert_eq!(chunk_type, 0x4E4F534A, "first chunk must be JSON (0x4E4F534A)");
+    assert_eq!(
+        chunk_type, 0x4E4F534A,
+        "first chunk must be JSON (0x4E4F534A)"
+    );
 }
 
 #[test]
@@ -215,7 +248,10 @@ fn saver_glb_bin_chunk_present() {
     let bin_start = 12 + 8 + json_chunk_len;
     assert!(buf.len() > bin_start + 8, "GLB should have a BIN chunk");
     let bin_type = u32::from_le_bytes(buf[bin_start + 4..bin_start + 8].try_into().unwrap());
-    assert_eq!(bin_type, 0x004E4942, "second chunk must be BIN (0x004E4942)");
+    assert_eq!(
+        bin_type, 0x004E4942,
+        "second chunk must be BIN (0x004E4942)"
+    );
 }
 
 // ── Edge cases ────────────────────────────────────────────────────────────────

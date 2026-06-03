@@ -12,15 +12,14 @@ use std::collections::HashMap;
 use glam::{Mat4, Quat, Vec2, Vec3, Vec4};
 
 use solid_rs::{
-    SolidError,
     builder::SceneBuilder,
     geometry::{Primitive, SkinWeights, Transform, Vertex},
     scene::{
-        AlphaMode, Animation, AnimationChannel, AnimationTarget, Camera, DirectionalLight,
-        Image, ImageSource, Interpolation, Light, LightBase, Material, Mesh,
-        OrthographicCamera, PerspectiveCamera, PointLight,
-        Projection, Scene, Skin, SpotLight, Texture,
+        AlphaMode, Animation, AnimationChannel, AnimationTarget, Camera, DirectionalLight, Image,
+        ImageSource, Interpolation, Light, LightBase, Material, Mesh, OrthographicCamera,
+        PerspectiveCamera, PointLight, Projection, Scene, Skin, SpotLight, Texture,
     },
+    SolidError,
 };
 
 use crate::document::{Attribute, Prim, Relationship, Specifier, StageMeta, UsdDoc, UsdValue};
@@ -54,7 +53,10 @@ pub fn doc_to_scene(doc: &UsdDoc) -> Result<Scene, SolidError> {
     let mut scene = ctx.builder.build();
     scene.metadata.source_format = Some("USDA 1.0".into());
     if let Some(axis) = &doc.meta.up_axis {
-        scene.metadata.extra.insert("upAxis".into(), solid_rs::value::Value::String(axis.clone()));
+        scene.metadata.extra.insert(
+            "upAxis".into(),
+            solid_rs::value::Value::String(axis.clone()),
+        );
     }
 
     Ok(scene)
@@ -63,10 +65,10 @@ pub fn doc_to_scene(doc: &UsdDoc) -> Result<Scene, SolidError> {
 // ── Loading context ───────────────────────────────────────────────────────────
 
 struct LoadCtx {
-    builder:         SceneBuilder,
+    builder: SceneBuilder,
     mat_path_to_idx: HashMap<String, usize>,
     img_path_to_idx: HashMap<String, usize>,
-    tex_count:       usize,
+    tex_count: usize,
 }
 
 // ── Material collection ───────────────────────────────────────────────────────
@@ -104,37 +106,47 @@ fn build_material(prim: &Prim, _path: &str, ctx: &mut LoadCtx) -> Material {
             }
         }
         if let Some(attr) = shader.attr("inputs:roughness") {
-            if let Some(v) = attr_as_f32(attr) { mat.roughness_factor = v; }
+            if let Some(v) = attr_as_f32(attr) {
+                mat.roughness_factor = v;
+            }
         }
         if let Some(attr) = shader.attr("inputs:metallic") {
-            if let Some(v) = attr_as_f32(attr) { mat.metallic_factor = v; }
+            if let Some(v) = attr_as_f32(attr) {
+                mat.metallic_factor = v;
+            }
         }
         if let Some(attr) = shader.attr("inputs:opacity") {
             let opacity = attr_as_f32(attr).unwrap_or(1.0);
-            if opacity < 1.0 { mat.alpha_mode = AlphaMode::Blend; }
+            if opacity < 1.0 {
+                mat.alpha_mode = AlphaMode::Blend;
+            }
         }
         if let Some(attr) = shader.attr("inputs:doubleSided") {
-            if let Some(UsdValue::Bool(v)) = &attr.value { mat.double_sided = *v; }
+            if let Some(UsdValue::Bool(v)) = &attr.value {
+                mat.double_sided = *v;
+            }
         }
         // Diffuse texture via a UVTexture shader child
-        if let Some(tex_shader) = prim.children.iter()
+        if let Some(tex_shader) = prim
+            .children
+            .iter()
             .find(|c| c.type_name == "Shader" && c.name != shader.name)
         {
             if let Some(file_attr) = tex_shader.attr("inputs:file") {
                 if let Some(UsdValue::Asset(path)) = &file_attr.value {
                     let img_idx = *ctx.img_path_to_idx.entry(path.clone()).or_insert_with(|| {
                         let img = Image {
-                            name:       path.clone(),
-                            source:     ImageSource::Uri(path.clone()),
+                            name: path.clone(),
+                            source: ImageSource::Uri(path.clone()),
                             extensions: Default::default(),
                         };
                         ctx.builder.push_image(img)
                     });
                     let tex = Texture {
-                        name:        path.clone(),
+                        name: path.clone(),
                         image_index: img_idx,
-                        sampler:     Default::default(),
-                        extensions:  Default::default(),
+                        sampler: Default::default(),
+                        extensions: Default::default(),
                     };
                     let tex_idx = ctx.builder.push_texture(tex);
                     ctx.tex_count += 1;
@@ -150,10 +162,10 @@ fn build_material(prim: &Prim, _path: &str, ctx: &mut LoadCtx) -> Material {
 // ── Prim visitor ─────────────────────────────────────────────────────────────
 
 fn visit_prim(
-    prim:        &Prim,
+    prim: &Prim,
     parent_path: &str,
-    parent_id:   Option<solid_rs::scene::NodeId>,
-    ctx:         &mut LoadCtx,
+    parent_id: Option<solid_rs::scene::NodeId>,
+    ctx: &mut LoadCtx,
 ) -> Result<(), SolidError> {
     let path = prim.path(parent_path);
 
@@ -163,7 +175,7 @@ fn visit_prim(
     }
 
     let node_id = match parent_id {
-        None    => ctx.builder.add_root_node(prim.name.clone()),
+        None => ctx.builder.add_root_node(prim.name.clone()),
         Some(p) => ctx.builder.add_child_node(p, prim.name.clone()),
     };
 
@@ -213,32 +225,59 @@ fn build_mesh(prim: &Prim, path: &str, ctx: &mut LoadCtx) -> Result<Option<Mesh>
         None => return Ok(None),
     };
 
-    let face_counts = prim.attr("faceVertexCounts")
-        .and_then(|a| if let Some(UsdValue::IntArray(v)) = &a.value { Some(v.clone()) } else { None })
+    let face_counts = prim
+        .attr("faceVertexCounts")
+        .and_then(|a| {
+            if let Some(UsdValue::IntArray(v)) = &a.value {
+                Some(v.clone())
+            } else {
+                None
+            }
+        })
         .unwrap_or_default();
 
-    let face_indices = prim.attr("faceVertexIndices")
-        .and_then(|a| if let Some(UsdValue::IntArray(v)) = &a.value { Some(v.clone()) } else { None })
+    let face_indices = prim
+        .attr("faceVertexIndices")
+        .and_then(|a| {
+            if let Some(UsdValue::IntArray(v)) = &a.value {
+                Some(v.clone())
+            } else {
+                None
+            }
+        })
         .unwrap_or_default();
 
     // Optional per-vertex attributes
-    let normals   = extract_vec3_array(prim, "normals");
-    let uvs       = extract_vec2_array(prim, "primvars:st")
+    let normals = extract_vec3_array(prim, "normals");
+    let uvs = extract_vec2_array(prim, "primvars:st")
         .or_else(|| extract_vec2_array(prim, "primvars:UVMap"))
         .or_else(|| extract_vec2_array(prim, "primvars:uv"));
-    let uv_indices = prim.attr("primvars:st:indices")
+    let uv_indices = prim
+        .attr("primvars:st:indices")
         .or_else(|| prim.attr("primvars:UVMap:indices"))
         .or_else(|| prim.attr("primvars:uv:indices"))
-        .and_then(|a| if let Some(UsdValue::IntArray(v)) = &a.value { Some(v.clone()) } else { None });
+        .and_then(|a| {
+            if let Some(UsdValue::IntArray(v)) = &a.value {
+                Some(v.clone())
+            } else {
+                None
+            }
+        });
 
-    let normal_indices = prim.attr("normals:indices")
-        .and_then(|a| if let Some(UsdValue::IntArray(v)) = &a.value { Some(v.clone()) } else { None });
+    let normal_indices = prim.attr("normals:indices").and_then(|a| {
+        if let Some(UsdValue::IntArray(v)) = &a.value {
+            Some(v.clone())
+        } else {
+            None
+        }
+    });
 
     // Build interleaved vertex buffer by expanding per-face indices
     let mut mesh = Mesh::new(prim.name.clone());
 
     // Determine material binding
-    let mat_idx = prim.rel("material:binding")
+    let mat_idx = prim
+        .rel("material:binding")
         .and_then(|r| r.target.as_deref())
         .and_then(|p| ctx.mat_path_to_idx.get(p))
         .copied();
@@ -257,20 +296,28 @@ fn build_mesh(prim: &Prim, path: &str, ctx: &mut LoadCtx) -> Result<Option<Mesh>
         for i in 1..(count - 1) {
             for &vi in &[0, i, i + 1] {
                 let geom_idx = face_verts[vi];
-                let normal   = normals.as_ref().map(|ns| {
-                    let idx = normal_indices.as_ref().map_or(face_start + vi, |ni| ni[face_start + vi] as usize);
+                let normal = normals.as_ref().map(|ns| {
+                    let idx = normal_indices
+                        .as_ref()
+                        .map_or(face_start + vi, |ni| ni[face_start + vi] as usize);
                     let n = ns.get(idx).copied().unwrap_or([0.0, 1.0, 0.0]);
                     Vec3::new(n[0] as f32, n[1] as f32, n[2] as f32)
                 });
                 let uv = uvs.as_ref().and_then(|us| {
-                    let idx = uv_indices.as_ref().map_or(face_start + vi, |ui| ui[face_start + vi] as usize);
+                    let idx = uv_indices
+                        .as_ref()
+                        .map_or(face_start + vi, |ui| ui[face_start + vi] as usize);
                     us.get(idx).map(|u| Vec2::new(u[0] as f32, u[1] as f32))
                 });
 
                 let pos = points.get(geom_idx).copied().unwrap_or([0.0, 0.0, 0.0]);
                 let mut v = Vertex::new(Vec3::new(pos[0] as f32, pos[1] as f32, pos[2] as f32));
-                if let Some(n) = normal { v.normal = Some(n); }
-                if let Some(u) = uv     { v.uvs[0] = Some(u); }
+                if let Some(n) = normal {
+                    v.normal = Some(n);
+                }
+                if let Some(u) = uv {
+                    v.uvs[0] = Some(u);
+                }
 
                 let vert_idx = mesh.vertices.len() as u32;
                 mesh.vertices.push(v);
@@ -282,7 +329,8 @@ fn build_mesh(prim: &Prim, path: &str, ctx: &mut LoadCtx) -> Result<Option<Mesh>
     }
 
     if !flat_indices.is_empty() {
-        mesh.primitives.push(Primitive::triangles(flat_indices, mat_idx));
+        mesh.primitives
+            .push(Primitive::triangles(flat_indices, mat_idx));
     }
 
     // Warn but don't fail on empty meshes — USD allows placeholder prims
@@ -297,18 +345,25 @@ fn build_mesh(prim: &Prim, path: &str, ctx: &mut LoadCtx) -> Result<Option<Mesh>
 // ── Camera ────────────────────────────────────────────────────────────────────
 
 fn build_camera(prim: &Prim) -> Option<Camera> {
-    let projection_type = prim.attr("projection")
-        .and_then(|a| if let Some(UsdValue::Token(t)) = &a.value { Some(t.as_str()) } else { None })
+    let projection_type = prim
+        .attr("projection")
+        .and_then(|a| {
+            if let Some(UsdValue::Token(t)) = &a.value {
+                Some(t.as_str())
+            } else {
+                None
+            }
+        })
         .unwrap_or("perspective");
 
     let projection = if projection_type == "orthographic" {
         let h_aperture = attr_f64(prim, "horizontalAperture").unwrap_or(20.955);
         let v_aperture = attr_f64(prim, "verticalAperture").unwrap_or(15.2908);
         Projection::Orthographic(OrthographicCamera {
-            x_mag:  h_aperture as f32,
-            y_mag:  v_aperture as f32,
+            x_mag: h_aperture as f32,
+            y_mag: v_aperture as f32,
             z_near: attr_f64(prim, "clippingRange").map_or(0.1, |v| v) as f32,
-            z_far:  100.0,
+            z_far: 100.0,
         })
     } else {
         let fov = attr_f64(prim, "fov")
@@ -320,15 +375,15 @@ fn build_camera(prim: &Prim) -> Option<Camera> {
             })
             .unwrap_or(0.785398) as f32;
         Projection::Perspective(PerspectiveCamera {
-            fov_y:        fov,
+            fov_y: fov,
             aspect_ratio: None,
-            z_near:       0.1,
-            z_far:        Some(1000.0),
+            z_near: 0.1,
+            z_far: Some(1000.0),
         })
     };
 
     Some(Camera {
-        name:       prim.name.clone(),
+        name: prim.name.clone(),
         projection,
         extensions: Default::default(),
     })
@@ -343,12 +398,16 @@ fn build_light(prim: &Prim) -> Option<Light> {
     let intensity = attr_f64(prim, "inputs:intensity")
         .or_else(|| attr_f64(prim, "intensity"))
         .unwrap_or(1.0) as f32;
-    let base = LightBase { name: prim.name.clone(), color, intensity };
+    let base = LightBase {
+        name: prim.name.clone(),
+        color,
+        intensity,
+    };
 
     let light = match prim.type_name.as_str() {
         "PointLight" | "SphereLight" => Light::Point(PointLight {
             base,
-            range:      attr_f64(prim, "inputs:radius").map(|r| r as f32),
+            range: attr_f64(prim, "inputs:radius").map(|r| r as f32),
             extensions: Default::default(),
         }),
         "DistantLight" => Light::Directional(DirectionalLight {
@@ -357,18 +416,23 @@ fn build_light(prim: &Prim) -> Option<Light> {
         }),
         "SpotLight" => {
             let inner = attr_f64(prim, "inputs:shaping:cone:softness")
-                .map(|v| v as f32).unwrap_or(0.0);
+                .map(|v| v as f32)
+                .unwrap_or(0.0);
             let outer = attr_f64(prim, "inputs:shaping:cone:angle")
-                .map(|v| v.to_radians() as f32).unwrap_or(std::f32::consts::FRAC_PI_4);
+                .map(|v| v.to_radians() as f32)
+                .unwrap_or(std::f32::consts::FRAC_PI_4);
             Light::Spot(solid_rs::scene::SpotLight {
                 base,
-                range:             None,
-                inner_cone_angle:  inner,
-                outer_cone_angle:  outer,
-                extensions:        Default::default(),
+                range: None,
+                inner_cone_angle: inner,
+                outer_cone_angle: outer,
+                extensions: Default::default(),
             })
         }
-        _ => Light::Directional(DirectionalLight { base, extensions: Default::default() }),
+        _ => Light::Directional(DirectionalLight {
+            base,
+            extensions: Default::default(),
+        }),
     };
 
     Some(light)
@@ -394,7 +458,11 @@ fn extract_xform(prim: &Prim) -> Transform {
         })
         .unwrap_or(Quat::IDENTITY);
 
-    Transform { translation, rotation, scale }
+    Transform {
+        translation,
+        rotation,
+        scale,
+    }
 }
 
 // ── scene → doc ───────────────────────────────────────────────────────────────
@@ -405,11 +473,15 @@ pub fn scene_to_doc(scene: &Scene) -> Result<UsdDoc, SolidError> {
 
     // Stage metadata
     doc.meta = StageMeta {
-        up_axis:         Some("Y".into()),
+        up_axis: Some("Y".into()),
         meters_per_unit: Some(1.0),
-        default_prim:    if scene.name.is_empty() { Some("Root".into()) } else { Some(scene.name.clone()) },
-        doc:             None,
-        extra:           HashMap::new(),
+        default_prim: if scene.name.is_empty() {
+            Some("Root".into())
+        } else {
+            Some(scene.name.clone())
+        },
+        doc: None,
+        extra: HashMap::new(),
     };
 
     // ── Materials ────────────────────────────────────────────────────────
@@ -419,7 +491,11 @@ pub fn scene_to_doc(scene: &Scene) -> Result<UsdDoc, SolidError> {
     }
 
     // ── Scene-graph prim ─────────────────────────────────────────────────
-    let root_name = if scene.name.is_empty() { "Root" } else { &scene.name };
+    let root_name = if scene.name.is_empty() {
+        "Root"
+    } else {
+        &scene.name
+    };
     let mut root_prim = Prim::new(Specifier::Def, "Xform", root_name);
 
     // Embed materials under root
@@ -452,30 +528,42 @@ fn build_material_prim(mat: &Material, idx: usize, scene: &Scene) -> Prim {
     let shader_name = format!("{mat_name}_Shader");
     let mut shader = Prim::new(Specifier::Def, "Shader", &shader_name);
 
-    shader.attributes.push(Attribute::new("info:id", "token", UsdValue::Token("UsdPreviewSurface".into())).uniform());
+    shader.attributes.push(
+        Attribute::new(
+            "info:id",
+            "token",
+            UsdValue::Token("UsdPreviewSurface".into()),
+        )
+        .uniform(),
+    );
 
     let [r, g, b, _] = mat.base_color_factor.to_array();
     shader.attributes.push(Attribute::new(
-        "inputs:diffuseColor", "color3f",
+        "inputs:diffuseColor",
+        "color3f",
         UsdValue::Vec3f([r as f64, g as f64, b as f64]),
     ));
 
     let [er, eg, eb] = mat.emissive_factor.to_array();
     shader.attributes.push(Attribute::new(
-        "inputs:emissiveColor", "color3f",
+        "inputs:emissiveColor",
+        "color3f",
         UsdValue::Vec3f([er as f64, eg as f64, eb as f64]),
     ));
 
     shader.attributes.push(Attribute::new(
-        "inputs:roughness", "float",
+        "inputs:roughness",
+        "float",
         UsdValue::Float(mat.roughness_factor as f64),
     ));
     shader.attributes.push(Attribute::new(
-        "inputs:metallic", "float",
+        "inputs:metallic",
+        "float",
         UsdValue::Float(mat.metallic_factor as f64),
     ));
     shader.attributes.push(Attribute::new(
-        "inputs:doubleSided", "bool",
+        "inputs:doubleSided",
+        "bool",
         UsdValue::Bool(mat.double_sided),
     ));
 
@@ -484,15 +572,20 @@ fn build_material_prim(mat: &Material, idx: usize, scene: &Scene) -> Prim {
         if let Some(tex) = scene.textures.get(tex_ref.texture_index) {
             if let Some(img) = scene.images.get(tex.image_index) {
                 let uri = match &img.source {
-                    ImageSource::Uri(u)  => u.clone(),
+                    ImageSource::Uri(u) => u.clone(),
                     ImageSource::Embedded { .. } => format!("{}_{}.png", mat_name, tex.image_index),
                 };
                 let tex_shader_name = format!("{mat_name}_DiffuseTex");
                 let mut tex_shader = Prim::new(Specifier::Def, "Shader", &tex_shader_name);
                 tex_shader.attributes.push(
-                    Attribute::new("info:id", "token", UsdValue::Token("UsdUVTexture".into())).uniform()
+                    Attribute::new("info:id", "token", UsdValue::Token("UsdUVTexture".into()))
+                        .uniform(),
                 );
-                tex_shader.attributes.push(Attribute::new("inputs:file", "asset", UsdValue::Asset(uri)));
+                tex_shader.attributes.push(Attribute::new(
+                    "inputs:file",
+                    "asset",
+                    UsdValue::Asset(uri),
+                ));
                 mat_prim.children.push(tex_shader);
             }
         }
@@ -502,7 +595,7 @@ fn build_material_prim(mat: &Material, idx: usize, scene: &Scene) -> Prim {
 
     // surface output
     mat_prim.relationships.push(Relationship {
-        name:   "outputs:surface".into(),
+        name: "outputs:surface".into(),
         target: Some(format!("/Root/{mat_name}/{shader_name}.outputs:surface")),
     });
 
@@ -523,7 +616,8 @@ fn build_node_prim(node: &solid_rs::scene::Node, scene: &Scene) -> Prim {
     let tf = &node.transform;
     if !tf.is_identity() {
         prim.attributes.push(Attribute::new(
-            "xformOp:translate", "double3",
+            "xformOp:translate",
+            "double3",
             UsdValue::Vec3f([
                 tf.translation.x as f64,
                 tf.translation.y as f64,
@@ -532,7 +626,8 @@ fn build_node_prim(node: &solid_rs::scene::Node, scene: &Scene) -> Prim {
         ));
         let (ax, ay, az) = tf.rotation.to_euler(glam::EulerRot::XYZ);
         prim.attributes.push(Attribute::new(
-            "xformOp:rotateXYZ", "float3",
+            "xformOp:rotateXYZ",
+            "float3",
             UsdValue::Vec3f([
                 ax.to_degrees() as f64,
                 ay.to_degrees() as f64,
@@ -540,11 +635,13 @@ fn build_node_prim(node: &solid_rs::scene::Node, scene: &Scene) -> Prim {
             ]),
         ));
         prim.attributes.push(Attribute::new(
-            "xformOp:scale", "float3",
+            "xformOp:scale",
+            "float3",
             UsdValue::Vec3f([tf.scale.x as f64, tf.scale.y as f64, tf.scale.z as f64]),
         ));
         prim.attributes.push(Attribute::new(
-            "xformOpOrder", "token[]",
+            "xformOpOrder",
+            "token[]",
             UsdValue::TokenArray(vec![
                 "xformOp:translate".into(),
                 "xformOp:rotateXYZ".into(),
@@ -572,41 +669,74 @@ fn build_node_prim(node: &solid_rs::scene::Node, scene: &Scene) -> Prim {
 
 fn write_mesh_attrs(prim: &mut Prim, mesh: &Mesh, scene: &Scene) {
     // Points
-    let points: Vec<[f64; 3]> = mesh.vertices.iter()
-        .map(|v| [v.position.x as f64, v.position.y as f64, v.position.z as f64])
+    let points: Vec<[f64; 3]> = mesh
+        .vertices
+        .iter()
+        .map(|v| {
+            [
+                v.position.x as f64,
+                v.position.y as f64,
+                v.position.z as f64,
+            ]
+        })
         .collect();
-    prim.attributes.push(Attribute::new("points", "point3f[]", UsdValue::Vec3fArray(points)));
+    prim.attributes.push(Attribute::new(
+        "points",
+        "point3f[]",
+        UsdValue::Vec3fArray(points),
+    ));
 
     // Normals
     let has_normals = mesh.vertices.iter().any(|v| v.normal.is_some());
     if has_normals {
-        let normals: Vec<[f64; 3]> = mesh.vertices.iter()
+        let normals: Vec<[f64; 3]> = mesh
+            .vertices
+            .iter()
             .map(|v| {
                 let n = v.normal.unwrap_or(Vec3::Y);
                 [n.x as f64, n.y as f64, n.z as f64]
             })
             .collect();
-        prim.attributes.push(Attribute::new("normals", "normal3f[]", UsdValue::Vec3fArray(normals)));
+        prim.attributes.push(Attribute::new(
+            "normals",
+            "normal3f[]",
+            UsdValue::Vec3fArray(normals),
+        ));
     }
 
     // UVs
     let has_uvs = mesh.vertices.iter().any(|v| v.uvs[0].is_some());
     if has_uvs {
-        let uvs: Vec<[f64; 3]> = mesh.vertices.iter()
+        let uvs: Vec<[f64; 3]> = mesh
+            .vertices
+            .iter()
             .map(|v| {
                 let uv = v.uvs[0].unwrap_or(Vec2::ZERO);
                 [uv.x as f64, uv.y as f64, 0.0]
             })
             .collect();
-        prim.attributes.push(Attribute::new("primvars:st", "texCoord2f[]", UsdValue::Vec3fArray(uvs)));
+        prim.attributes.push(Attribute::new(
+            "primvars:st",
+            "texCoord2f[]",
+            UsdValue::Vec3fArray(uvs),
+        ));
     }
 
     // Face topology — reconstruct from flat index buffer
     let (face_counts, face_indices, mat_rel) = mesh_to_faces(mesh);
-    prim.attributes.push(Attribute::new("faceVertexCounts", "int[]", UsdValue::IntArray(face_counts)));
-    prim.attributes.push(Attribute::new("faceVertexIndices", "int[]", UsdValue::IntArray(face_indices)));
     prim.attributes.push(Attribute::new(
-        "subdivisionScheme", "token",
+        "faceVertexCounts",
+        "int[]",
+        UsdValue::IntArray(face_counts),
+    ));
+    prim.attributes.push(Attribute::new(
+        "faceVertexIndices",
+        "int[]",
+        UsdValue::IntArray(face_indices),
+    ));
+    prim.attributes.push(Attribute::new(
+        "subdivisionScheme",
+        "token",
         UsdValue::Token("none".into()),
     ));
 
@@ -621,7 +751,7 @@ fn write_mesh_attrs(prim: &mut Prim, mesh: &Mesh, scene: &Scene) {
             // Assuming root prim is "Root"
             let root_name = "Root";
             prim.relationships.push(Relationship {
-                name:   "material:binding".into(),
+                name: "material:binding".into(),
                 target: Some(format!("/{root_name}/{mat_name}")),
             });
         }
@@ -631,9 +761,9 @@ fn write_mesh_attrs(prim: &mut Prim, mesh: &Mesh, scene: &Scene) {
 /// Reconstruct face topology from a flat triangle list.
 /// Returns (faceVertexCounts, faceVertexIndices, optional_material_index).
 fn mesh_to_faces(mesh: &Mesh) -> (Vec<i64>, Vec<i64>, Option<usize>) {
-    let mut face_counts  = Vec::new();
+    let mut face_counts = Vec::new();
     let mut face_indices = Vec::new();
-    let mut mat_idx      = None;
+    let mut mat_idx = None;
 
     for prim in &mesh.primitives {
         if mat_idx.is_none() {
@@ -643,9 +773,9 @@ fn mesh_to_faces(mesh: &Mesh) -> (Vec<i64>, Vec<i64>, Option<usize>) {
         let mut i = 0;
         while i + 2 < prim.indices.len() {
             face_counts.push(3);
-            face_indices.push(prim.indices[i]   as i64);
-            face_indices.push(prim.indices[i+1] as i64);
-            face_indices.push(prim.indices[i+2] as i64);
+            face_indices.push(prim.indices[i] as i64);
+            face_indices.push(prim.indices[i + 1] as i64);
+            face_indices.push(prim.indices[i + 2] as i64);
             i += 3;
         }
     }
@@ -683,7 +813,7 @@ fn extract_vec3(prim: &Prim, name: &str) -> Option<[f64; 3]> {
 fn attr_as_f32(attr: &Attribute) -> Option<f32> {
     match &attr.value {
         Some(UsdValue::Float(f)) => Some(*f as f32),
-        Some(UsdValue::Int(i))   => Some(*i as f32),
+        Some(UsdValue::Int(i)) => Some(*i as f32),
         _ => None,
     }
 }
@@ -691,7 +821,7 @@ fn attr_as_f32(attr: &Attribute) -> Option<f32> {
 fn attr_f64(prim: &Prim, name: &str) -> Option<f64> {
     match prim.attr(name).and_then(|a| a.value.as_ref()) {
         Some(UsdValue::Float(f)) => Some(*f),
-        Some(UsdValue::Int(i))   => Some(*i as f64),
+        Some(UsdValue::Int(i)) => Some(*i as f64),
         Some(UsdValue::Vec2f(v)) => Some(v[0]), // e.g. clippingRange takes near
         _ => None,
     }
@@ -708,6 +838,12 @@ fn extract_color(prim: &Prim, name: &str) -> Option<Vec3> {
 /// Replace characters that are invalid in USD prim names.
 fn sanitise_name(s: String) -> String {
     s.chars()
-        .map(|c| if c.is_alphanumeric() || c == '_' { c } else { '_' })
+        .map(|c| {
+            if c.is_alphanumeric() || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect()
 }

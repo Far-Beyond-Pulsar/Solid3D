@@ -13,19 +13,19 @@ pub(crate) struct ObjData {
     /// Source positions   (`v`)
     pub positions: Vec<[f32; 3]>,
     /// Source normals      (`vn`)
-    pub normals:   Vec<[f32; 3]>,
+    pub normals: Vec<[f32; 3]>,
     /// Source UV coords    (`vt`)
-    pub uvs:       Vec<[f32; 2]>,
+    pub uvs: Vec<[f32; 2]>,
     /// Groups / objects, each becoming one mesh in the scene
-    pub groups:    Vec<ObjGroup>,
+    pub groups: Vec<ObjGroup>,
     /// `mtllib` lines (relative file names)
-    pub mtllibs:   Vec<String>,
+    pub mtllibs: Vec<String>,
 }
 
 /// A named object / group inside an OBJ file.
 #[derive(Debug)]
 pub(crate) struct ObjGroup {
-    pub name:      String,
+    pub name: String,
     /// Ordered list of face runs; each run may switch material mid-group
     pub face_runs: Vec<FaceRun>,
 }
@@ -35,7 +35,7 @@ pub(crate) struct ObjGroup {
 pub(crate) struct FaceRun {
     /// Material name from `usemtl` (empty string = no material)
     pub material: String,
-    pub faces:    Vec<ObjFace>,
+    pub faces: Vec<ObjFace>,
 }
 
 /// A single polygon (3-or-more vertex references).
@@ -59,55 +59,55 @@ pub(crate) struct MtlData {
 
 #[derive(Debug, Clone)]
 pub(crate) struct MtlMaterial {
-    pub name:        String,
+    pub name: String,
     /// Ambient colour (`Ka`)
-    pub ka:          [f32; 3],
+    pub ka: [f32; 3],
     /// Diffuse colour (`Kd`) — mapped to `base_color_factor`
-    pub kd:          [f32; 3],
+    pub kd: [f32; 3],
     /// Specular colour (`Ks`)
-    pub ks:          [f32; 3],
+    pub ks: [f32; 3],
     /// Emissive colour (`Ke`)
-    pub ke:          [f32; 3],
+    pub ke: [f32; 3],
     /// Dissolve / opacity (`d`) — 1.0 = fully opaque
-    pub dissolve:    f32,
+    pub dissolve: f32,
     /// Specular exponent (`Ns`) — 0 … 1000
-    pub ns:          f32,
+    pub ns: f32,
     /// PBR roughness scalar (`Pr`)
-    pub pr:          Option<f32>,
+    pub pr: Option<f32>,
     /// PBR metallic scalar (`Pm`)
-    pub pm:          Option<f32>,
+    pub pm: Option<f32>,
     /// Diffuse texture (`map_Kd`)
-    pub map_kd:      Option<String>,
+    pub map_kd: Option<String>,
     /// Specular texture (`map_Ks`)
-    pub map_ks:      Option<String>,
+    pub map_ks: Option<String>,
     /// Normal / bump map (`map_bump`, `bump`, `norm`)
-    pub map_bump:    Option<String>,
+    pub map_bump: Option<String>,
     /// Roughness map (`map_Ns` or `map_Pr`)
     pub map_roughness: Option<String>,
     /// Metallic texture (`map_Pm`)
-    pub map_pm:      Option<String>,
+    pub map_pm: Option<String>,
     /// Emissive texture (`map_Ke`)
-    pub map_ke:      Option<String>,
+    pub map_ke: Option<String>,
 }
 
 impl Default for MtlMaterial {
     fn default() -> Self {
         Self {
-            name:          String::new(),
-            ka:            [0.2; 3],
-            kd:            [0.8; 3],
-            ks:            [0.0; 3],
-            ke:            [0.0; 3],
-            dissolve:      1.0,
-            ns:            32.0,
-            pr:            None,
-            pm:            None,
-            map_kd:        None,
-            map_ks:        None,
-            map_bump:      None,
+            name: String::new(),
+            ka: [0.2; 3],
+            kd: [0.8; 3],
+            ks: [0.0; 3],
+            ke: [0.0; 3],
+            dissolve: 1.0,
+            ns: 32.0,
+            pr: None,
+            pm: None,
+            map_kd: None,
+            map_ks: None,
+            map_bump: None,
             map_roughness: None,
-            map_pm:        None,
-            map_ke:        None,
+            map_pm: None,
+            map_ke: None,
         }
     }
 }
@@ -117,28 +117,39 @@ impl Default for MtlMaterial {
 /// Parse a Wavefront OBJ text string into [`ObjData`].
 pub(crate) fn parse_obj(src: &str) -> ObjData {
     let mut data = ObjData::default();
-    let mut current_group = ObjGroup { name: String::from("default"), face_runs: Vec::new() };
+    let mut current_group = ObjGroup {
+        name: String::from("default"),
+        face_runs: Vec::new(),
+    };
     let mut current_material = String::new();
     let mut current_faces: Vec<ObjFace> = Vec::new();
     let mut current_smoothing_group: u32 = 0;
 
     for raw_line in src.lines() {
         let line = raw_line.trim();
-        if line.is_empty() || line.starts_with('#') { continue; }
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
 
         let mut tokens = line.splitn(2, |c: char| c.is_whitespace());
         let keyword = tokens.next().unwrap_or("").to_ascii_lowercase();
-        let rest    = tokens.next().unwrap_or("").trim();
+        let rest = tokens.next().unwrap_or("").trim();
 
         match keyword.as_str() {
             "v" => {
-                if let Some(p) = parse_vec3(rest) { data.positions.push(p); }
+                if let Some(p) = parse_vec3(rest) {
+                    data.positions.push(p);
+                }
             }
             "vn" => {
-                if let Some(n) = parse_vec3(rest) { data.normals.push(n); }
+                if let Some(n) = parse_vec3(rest) {
+                    data.normals.push(n);
+                }
             }
             "vt" => {
-                if let Some(uv) = parse_vec2(rest) { data.uvs.push(uv); }
+                if let Some(uv) = parse_vec2(rest) {
+                    data.uvs.push(uv);
+                }
             }
             "f" => {
                 if let Some(face) = parse_face(rest, &data, current_smoothing_group) {
@@ -156,7 +167,7 @@ pub(crate) fn parse_obj(src: &str) -> ObjData {
                 if !current_faces.is_empty() {
                     current_group.face_runs.push(FaceRun {
                         material: current_material.clone(),
-                        faces:    std::mem::take(&mut current_faces),
+                        faces: std::mem::take(&mut current_faces),
                     });
                 }
                 current_material = rest.to_owned();
@@ -166,14 +177,21 @@ pub(crate) fn parse_obj(src: &str) -> ObjData {
                 if !current_faces.is_empty() {
                     current_group.face_runs.push(FaceRun {
                         material: current_material.clone(),
-                        faces:    std::mem::take(&mut current_faces),
+                        faces: std::mem::take(&mut current_faces),
                     });
                 }
                 if !current_group.face_runs.is_empty() {
                     data.groups.push(current_group);
                 }
-                let name = if rest.is_empty() { "group".to_owned() } else { rest.to_owned() };
-                current_group = ObjGroup { name, face_runs: Vec::new() };
+                let name = if rest.is_empty() {
+                    "group".to_owned()
+                } else {
+                    rest.to_owned()
+                };
+                current_group = ObjGroup {
+                    name,
+                    face_runs: Vec::new(),
+                };
             }
             "mtllib" => {
                 for lib in rest.split_whitespace() {
@@ -188,7 +206,7 @@ pub(crate) fn parse_obj(src: &str) -> ObjData {
     if !current_faces.is_empty() {
         current_group.face_runs.push(FaceRun {
             material: current_material,
-            faces:    current_faces,
+            faces: current_faces,
         });
     }
     if !current_group.face_runs.is_empty() || data.groups.is_empty() {
@@ -202,46 +220,64 @@ pub(crate) fn parse_obj(src: &str) -> ObjData {
 
 /// Parse a Wavefront MTL text string into [`MtlData`].
 pub(crate) fn parse_mtl(src: &str) -> MtlData {
-    let mut out  = MtlData::default();
+    let mut out = MtlData::default();
     let mut cur: Option<MtlMaterial> = None;
 
     for raw_line in src.lines() {
         let line = raw_line.trim();
-        if line.is_empty() || line.starts_with('#') { continue; }
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
 
         let mut tokens = line.splitn(2, |c: char| c.is_whitespace());
         let keyword = tokens.next().unwrap_or("").to_ascii_lowercase();
-        let rest    = tokens.next().unwrap_or("").trim();
+        let rest = tokens.next().unwrap_or("").trim();
 
         match keyword.as_str() {
             "newmtl" => {
-                if let Some(m) = cur.take() { out.materials.insert(m.name.clone(), m); }
+                if let Some(m) = cur.take() {
+                    out.materials.insert(m.name.clone(), m);
+                }
                 let mut m = MtlMaterial::default();
                 m.name = rest.to_owned();
                 cur = Some(m);
             }
             _ if cur.is_none() => {}
             "ka" => {
-                if let Some(v) = parse_vec3(rest) { cur.as_mut().unwrap().ka = v; }
+                if let Some(v) = parse_vec3(rest) {
+                    cur.as_mut().unwrap().ka = v;
+                }
             }
             "kd" => {
-                if let Some(v) = parse_vec3(rest) { cur.as_mut().unwrap().kd = v; }
+                if let Some(v) = parse_vec3(rest) {
+                    cur.as_mut().unwrap().kd = v;
+                }
             }
             "ks" => {
-                if let Some(v) = parse_vec3(rest) { cur.as_mut().unwrap().ks = v; }
+                if let Some(v) = parse_vec3(rest) {
+                    cur.as_mut().unwrap().ks = v;
+                }
             }
             "ke" => {
-                if let Some(v) = parse_vec3(rest) { cur.as_mut().unwrap().ke = v; }
+                if let Some(v) = parse_vec3(rest) {
+                    cur.as_mut().unwrap().ke = v;
+                }
             }
             "d" => {
-                if let Ok(v) = rest.parse::<f32>() { cur.as_mut().unwrap().dissolve = v; }
+                if let Ok(v) = rest.parse::<f32>() {
+                    cur.as_mut().unwrap().dissolve = v;
+                }
             }
             "tr" => {
                 // Tr = 1 - d
-                if let Ok(v) = rest.parse::<f32>() { cur.as_mut().unwrap().dissolve = 1.0 - v; }
+                if let Ok(v) = rest.parse::<f32>() {
+                    cur.as_mut().unwrap().dissolve = 1.0 - v;
+                }
             }
             "ns" => {
-                if let Ok(v) = rest.parse::<f32>() { cur.as_mut().unwrap().ns = v; }
+                if let Ok(v) = rest.parse::<f32>() {
+                    cur.as_mut().unwrap().ns = v;
+                }
             }
             "map_kd" => {
                 cur.as_mut().unwrap().map_kd = Some(tex_path(rest));
@@ -266,10 +302,14 @@ pub(crate) fn parse_mtl(src: &str) -> MtlData {
                 cur.as_mut().unwrap().map_roughness = Some(tex_path(rest));
             }
             "pr" => {
-                if let Ok(v) = rest.parse::<f32>() { cur.as_mut().unwrap().pr = Some(v); }
+                if let Ok(v) = rest.parse::<f32>() {
+                    cur.as_mut().unwrap().pr = Some(v);
+                }
             }
             "pm" => {
-                if let Ok(v) = rest.parse::<f32>() { cur.as_mut().unwrap().pm = Some(v); }
+                if let Ok(v) = rest.parse::<f32>() {
+                    cur.as_mut().unwrap().pm = Some(v);
+                }
             }
             "map_pm" => {
                 cur.as_mut().unwrap().map_pm = Some(tex_path(rest));
@@ -280,7 +320,9 @@ pub(crate) fn parse_mtl(src: &str) -> MtlData {
             _ => {}
         }
     }
-    if let Some(m) = cur { out.materials.insert(m.name.clone(), m); }
+    if let Some(m) = cur {
+        out.materials.insert(m.name.clone(), m);
+    }
     out
 }
 
@@ -303,13 +345,19 @@ fn parse_vec2(s: &str) -> Option<[f32; 2]> {
 
 /// Resolve a 1-based OBJ index (may be negative) to a 0-based index.
 fn resolve_idx(raw: i64, len: usize) -> Option<usize> {
-    if raw == 0 { return None; }
+    if raw == 0 {
+        return None;
+    }
     let idx = if raw < 0 {
         (len as i64 + raw) as usize
     } else {
         (raw - 1) as usize
     };
-    if idx < len { Some(idx) } else { None }
+    if idx < len {
+        Some(idx)
+    } else {
+        None
+    }
 }
 
 /// Parse an OBJ face line like `1/2/3 4//5 6`.
@@ -317,9 +365,15 @@ fn parse_face(rest: &str, data: &ObjData, smoothing_group: u32) -> Option<ObjFac
     let mut refs = Vec::new();
     for token in rest.split_whitespace() {
         let mut parts = token.splitn(3, '/');
-        let vi_raw: i64  = parts.next()?.parse().ok()?;
-        let vt_raw: Option<i64> = parts.next().and_then(|s| if s.is_empty() { None } else { s.parse().ok() });
-        let vn_raw: Option<i64> = parts.next().and_then(|s| if s.is_empty() { None } else { s.parse().ok() });
+        let vi_raw: i64 = parts.next()?.parse().ok()?;
+        let vt_raw: Option<i64> =
+            parts
+                .next()
+                .and_then(|s| if s.is_empty() { None } else { s.parse().ok() });
+        let vn_raw: Option<i64> =
+            parts
+                .next()
+                .and_then(|s| if s.is_empty() { None } else { s.parse().ok() });
 
         let vi = resolve_idx(vi_raw, data.positions.len())?;
         let vt = vt_raw.and_then(|i| resolve_idx(i, data.uvs.len()));
@@ -327,7 +381,14 @@ fn parse_face(rest: &str, data: &ObjData, smoothing_group: u32) -> Option<ObjFac
 
         refs.push((vi, vt, vn));
     }
-    if refs.len() >= 3 { Some(ObjFace { refs, smoothing_group }) } else { None }
+    if refs.len() >= 3 {
+        Some(ObjFace {
+            refs,
+            smoothing_group,
+        })
+    } else {
+        None
+    }
 }
 
 /// Strip leading option flags (`-bm 1.0`, `-s 1 1`, etc.) from a texture path.

@@ -6,10 +6,10 @@ use glam::{Mat4, Quat, Vec2, Vec3, Vec4};
 use solid_rs::builder::SceneBuilder;
 use solid_rs::geometry::{Primitive, SkinWeights, Transform, Vertex};
 use solid_rs::scene::{
-    AlphaMode, Animation, AnimationChannel, AnimationTarget, Camera,
-    DirectionalLight, Image, ImageSource, Interpolation, Light, LightBase,
-    Material, Mesh, MorphTarget, NodeId, OrthographicCamera, PerspectiveCamera,
-    PointLight, Projection, Skin, SpotLight, Texture, TextureRef,
+    AlphaMode, Animation, AnimationChannel, AnimationTarget, Camera, DirectionalLight, Image,
+    ImageSource, Interpolation, Light, LightBase, Material, Mesh, MorphTarget, NodeId,
+    OrthographicCamera, PerspectiveCamera, PointLight, Projection, Skin, SpotLight, Texture,
+    TextureRef,
 };
 use solid_rs::{Result, SolidError};
 use std::path::Path;
@@ -35,9 +35,9 @@ pub fn gltf_to_scene(
         let name = img.name.clone().unwrap_or_default();
         let solid_img = if let Some(uri) = &img.uri {
             if let Some(b64) = uri.strip_prefix("data:") {
-                let comma = b64.find(',').ok_or_else(|| {
-                    SolidError::parse("image data URI missing comma")
-                })?;
+                let comma = b64
+                    .find(',')
+                    .ok_or_else(|| SolidError::parse("image data URI missing comma"))?;
                 let mime = b64[..comma].split(';').next().unwrap_or("image/png");
                 use base64::Engine;
                 let data = base64::engine::general_purpose::STANDARD
@@ -73,7 +73,7 @@ pub fn gltf_to_scene(
             if let Some(f) = pbr.base_color_factor {
                 m.base_color_factor = Vec4::from(f);
             }
-            m.metallic_factor  = pbr.metallic_factor.unwrap_or(1.0);
+            m.metallic_factor = pbr.metallic_factor.unwrap_or(1.0);
             m.roughness_factor = pbr.roughness_factor.unwrap_or(1.0);
             if let Some(ti) = &pbr.base_color_texture {
                 m.base_color_texture = Some(TextureRef {
@@ -148,9 +148,9 @@ pub fn gltf_to_scene(
             }
         }
         m.alpha_mode = match mat.alpha_mode.as_deref() {
-            Some("MASK")  => AlphaMode::Mask,
+            Some("MASK") => AlphaMode::Mask,
             Some("BLEND") => AlphaMode::Blend,
-            _             => AlphaMode::Opaque,
+            _ => AlphaMode::Opaque,
         };
         m.alpha_cutoff = mat.alpha_cutoff.unwrap_or(0.5);
         m.double_sided = mat.double_sided.unwrap_or(false);
@@ -164,21 +164,27 @@ pub fn gltf_to_scene(
             let pos_acc = prim.attributes.get("POSITION").copied();
             let positions: Vec<Vec3> = if let Some(idx) = pos_acc {
                 let flat = buffer::read_f32(root, &buffers, idx)?;
-                flat.chunks_exact(3).map(|c| Vec3::new(c[0], c[1], c[2])).collect()
+                flat.chunks_exact(3)
+                    .map(|c| Vec3::new(c[0], c[1], c[2]))
+                    .collect()
             } else {
                 vec![]
             };
 
             let normals: Vec<Vec3> = if let Some(&idx) = prim.attributes.get("NORMAL") {
                 let flat = buffer::read_f32(root, &buffers, idx)?;
-                flat.chunks_exact(3).map(|c| Vec3::new(c[0], c[1], c[2])).collect()
+                flat.chunks_exact(3)
+                    .map(|c| Vec3::new(c[0], c[1], c[2]))
+                    .collect()
             } else {
                 vec![]
             };
 
             let tangents: Vec<Vec4> = if let Some(&idx) = prim.attributes.get("TANGENT") {
                 let flat = buffer::read_f32(root, &buffers, idx)?;
-                flat.chunks_exact(4).map(|c| Vec4::new(c[0], c[1], c[2], c[3])).collect()
+                flat.chunks_exact(4)
+                    .map(|c| Vec4::new(c[0], c[1], c[2], c[3]))
+                    .collect()
             } else {
                 vec![]
             };
@@ -188,8 +194,11 @@ pub fn gltf_to_scene(
                 let key = format!("TEXCOORD_{ch}");
                 if let Some(&idx) = prim.attributes.get(&key) {
                     let flat = buffer::read_f32(root, &buffers, idx)?;
-                    uv_channels
-                        .push(flat.chunks_exact(2).map(|c| Vec2::new(c[0], c[1])).collect());
+                    uv_channels.push(
+                        flat.chunks_exact(2)
+                            .map(|c| Vec2::new(c[0], c[1]))
+                            .collect(),
+                    );
                 } else {
                     break;
                 }
@@ -198,38 +207,50 @@ pub fn gltf_to_scene(
             let colors: Vec<Vec4> = if let Some(&idx) = prim.attributes.get("COLOR_0") {
                 let flat = buffer::read_f32(root, &buffers, idx)?;
                 if flat.len() % 4 == 0 {
-                    flat.chunks_exact(4).map(|c| Vec4::new(c[0], c[1], c[2], c[3])).collect()
+                    flat.chunks_exact(4)
+                        .map(|c| Vec4::new(c[0], c[1], c[2], c[3]))
+                        .collect()
                 } else {
-                    flat.chunks_exact(3).map(|c| Vec4::new(c[0], c[1], c[2], 1.0)).collect()
+                    flat.chunks_exact(3)
+                        .map(|c| Vec4::new(c[0], c[1], c[2], 1.0))
+                        .collect()
                 }
             } else {
                 vec![]
             };
 
-            let joints_data: Vec<[u16; 4]> =
-                if let Some(&idx) = prim.attributes.get("JOINTS_0") {
-                    buffer::read_u16_vec4(root, &buffers, idx)?
-                } else {
-                    vec![]
-                };
+            let joints_data: Vec<[u16; 4]> = if let Some(&idx) = prim.attributes.get("JOINTS_0") {
+                buffer::read_u16_vec4(root, &buffers, idx)?
+            } else {
+                vec![]
+            };
 
-            let weights_data: Vec<[f32; 4]> =
-                if let Some(&idx) = prim.attributes.get("WEIGHTS_0") {
-                    let flat = buffer::read_f32(root, &buffers, idx)?;
-                    flat.chunks_exact(4).map(|c| [c[0], c[1], c[2], c[3]]).collect()
-                } else {
-                    vec![]
-                };
+            let weights_data: Vec<[f32; 4]> = if let Some(&idx) = prim.attributes.get("WEIGHTS_0") {
+                let flat = buffer::read_f32(root, &buffers, idx)?;
+                flat.chunks_exact(4)
+                    .map(|c| [c[0], c[1], c[2], c[3]])
+                    .collect()
+            } else {
+                vec![]
+            };
 
             let n = positions.len();
             let vertices: Vec<Vertex> = (0..n)
                 .map(|i| {
                     let mut v = Vertex::new(positions[i]);
-                    if i < normals.len()  { v.normal  = Some(normals[i]); }
-                    if i < tangents.len() { v.tangent = Some(tangents[i]); }
-                    if i < colors.len()   { v.colors[0] = Some(colors[i]); }
+                    if i < normals.len() {
+                        v.normal = Some(normals[i]);
+                    }
+                    if i < tangents.len() {
+                        v.tangent = Some(tangents[i]);
+                    }
+                    if i < colors.len() {
+                        v.colors[0] = Some(colors[i]);
+                    }
                     for (ch, uvs) in uv_channels.iter().enumerate() {
-                        if i < uvs.len() { v.uvs[ch] = Some(uvs[i]); }
+                        if i < uvs.len() {
+                            v.uvs[ch] = Some(uvs[i]);
+                        }
                     }
                     if i < joints_data.len() && i < weights_data.len() {
                         v.skin_weights = Some(SkinWeights {
@@ -257,7 +278,12 @@ pub fn gltf_to_scene(
         }
 
         // --- Morph targets (second pass over primitives, concatenating per-prim deltas) ---
-        let n_targets = gmesh.primitives.iter().map(|p| p.targets.len()).max().unwrap_or(0);
+        let n_targets = gmesh
+            .primitives
+            .iter()
+            .map(|p| p.targets.len())
+            .max()
+            .unwrap_or(0);
         if n_targets > 0 {
             let mut morph_targets: Vec<MorphTarget> = (0..n_targets)
                 .map(|i| MorphTarget {
@@ -272,26 +298,26 @@ pub fn gltf_to_scene(
                     }
                     if let Some(&pos_idx) = tgt_map.get("POSITION") {
                         let flat = buffer::read_f32(root, &buffers, pos_idx)?;
-                        morph_targets[ti].position_deltas.extend(
-                            flat.chunks_exact(3).map(|c| Vec3::new(c[0], c[1], c[2])),
-                        );
+                        morph_targets[ti]
+                            .position_deltas
+                            .extend(flat.chunks_exact(3).map(|c| Vec3::new(c[0], c[1], c[2])));
                     }
                     if let Some(&nor_idx) = tgt_map.get("NORMAL") {
                         let flat = buffer::read_f32(root, &buffers, nor_idx)?;
-                        morph_targets[ti].normal_deltas.extend(
-                            flat.chunks_exact(3).map(|c| Vec3::new(c[0], c[1], c[2])),
-                        );
+                        morph_targets[ti]
+                            .normal_deltas
+                            .extend(flat.chunks_exact(3).map(|c| Vec3::new(c[0], c[1], c[2])));
                     }
                     if let Some(&tan_idx) = tgt_map.get("TANGENT") {
                         let flat = buffer::read_f32(root, &buffers, tan_idx)?;
-                        morph_targets[ti].tangent_deltas.extend(
-                            flat.chunks_exact(3).map(|c| Vec3::new(c[0], c[1], c[2])),
-                        );
+                        morph_targets[ti]
+                            .tangent_deltas
+                            .extend(flat.chunks_exact(3).map(|c| Vec3::new(c[0], c[1], c[2])));
                     }
                 }
             }
             mesh.morph_targets = morph_targets;
-            mesh.morph_weights  = gmesh.weights.clone();
+            mesh.morph_weights = gmesh.weights.clone();
         }
 
         b.push_mesh(mesh);
@@ -358,8 +384,12 @@ pub fn gltf_to_scene(
         };
         gltf_to_node_map.insert(gi, node_id);
         b.set_transform(node_id, node_transform(gn));
-        if let Some(mi) = gn.mesh   { b.attach_mesh(node_id, mi); }
-        if let Some(ci) = gn.camera { b.attach_camera(node_id, ci); }
+        if let Some(mi) = gn.mesh {
+            b.attach_mesh(node_id, mi);
+        }
+        if let Some(ci) = gn.camera {
+            b.attach_camera(node_id, ci);
+        }
         for &child in &gn.children {
             queue.push_back((child, Some(node_id)));
         }
@@ -368,7 +398,9 @@ pub fn gltf_to_scene(
     // --- Skins ---
     for gskin in &root.skins {
         let mut skin = Skin::new(gskin.name.clone().unwrap_or_default());
-        skin.skeleton_root = gskin.skeleton.and_then(|si| gltf_to_node_map.get(&si).copied());
+        skin.skeleton_root = gskin
+            .skeleton
+            .and_then(|si| gltf_to_node_map.get(&si).copied());
         for &ji in &gskin.joints {
             if let Some(&nid) = gltf_to_node_map.get(&ji) {
                 skin.joints.push(nid);
@@ -404,12 +436,12 @@ pub fn gltf_to_scene(
                 continue;
             }
             let sampler = &ganim.samplers[gch.sampler];
-            let times  = buffer::read_f32(root, &buffers, sampler.input)?;
+            let times = buffer::read_f32(root, &buffers, sampler.input)?;
             let values = buffer::read_f32(root, &buffers, sampler.output)?;
             let interpolation = match sampler.interpolation.as_deref() {
-                Some("STEP")        => Interpolation::Step,
+                Some("STEP") => Interpolation::Step,
                 Some("CUBICSPLINE") => Interpolation::CubicSpline,
-                _                   => Interpolation::Linear,
+                _ => Interpolation::Linear,
             };
             let target_gi = match gch.target.node {
                 Some(ni) => ni,
@@ -421,12 +453,20 @@ pub fn gltf_to_scene(
             };
             let target = match gch.target.path.as_str() {
                 "translation" => AnimationTarget::Translation(node_id),
-                "rotation"    => AnimationTarget::Rotation(node_id),
-                "scale"       => AnimationTarget::Scale(node_id),
-                "weights"     => AnimationTarget::MorphWeight { node_id, target_index: 0 },
+                "rotation" => AnimationTarget::Rotation(node_id),
+                "scale" => AnimationTarget::Scale(node_id),
+                "weights" => AnimationTarget::MorphWeight {
+                    node_id,
+                    target_index: 0,
+                },
                 _ => continue,
             };
-            anim.channels.push(AnimationChannel { target, interpolation, times, values });
+            anim.channels.push(AnimationChannel {
+                target,
+                interpolation,
+                times,
+                values,
+            });
         }
         b.push_animation(anim);
     }
@@ -457,7 +497,11 @@ pub fn gltf_to_scene(
 }
 
 fn parse_khr_light(v: &serde_json::Value) -> Light {
-    let name = v.get("name").and_then(|n| n.as_str()).unwrap_or("").to_string();
+    let name = v
+        .get("name")
+        .and_then(|n| n.as_str())
+        .unwrap_or("")
+        .to_string();
     let color = v
         .get("color")
         .and_then(|c| c.as_array())
@@ -474,18 +518,28 @@ fn parse_khr_light(v: &serde_json::Value) -> Light {
         })
         .unwrap_or(Vec3::ONE);
     let intensity = v.get("intensity").and_then(|i| i.as_f64()).unwrap_or(1.0) as f32;
-    let range     = v.get("range").and_then(|r| r.as_f64()).map(|r| r as f32);
-    let base      = LightBase { name, color, intensity };
-    let ext       = solid_rs::extensions::Extensions::new();
+    let range = v.get("range").and_then(|r| r.as_f64()).map(|r| r as f32);
+    let base = LightBase {
+        name,
+        color,
+        intensity,
+    };
+    let ext = solid_rs::extensions::Extensions::new();
 
     match v.get("type").and_then(|t| t.as_str()).unwrap_or("point") {
-        "directional" => Light::Directional(DirectionalLight { base, extensions: ext }),
+        "directional" => Light::Directional(DirectionalLight {
+            base,
+            extensions: ext,
+        }),
         "spot" => {
             let inner = v
-                .get("spot").and_then(|s| s.get("innerConeAngle"))
-                .and_then(|a| a.as_f64()).unwrap_or(0.0) as f32;
+                .get("spot")
+                .and_then(|s| s.get("innerConeAngle"))
+                .and_then(|a| a.as_f64())
+                .unwrap_or(0.0) as f32;
             let outer = v
-                .get("spot").and_then(|s| s.get("outerConeAngle"))
+                .get("spot")
+                .and_then(|s| s.get("outerConeAngle"))
                 .and_then(|a| a.as_f64())
                 .unwrap_or(std::f64::consts::FRAC_PI_4) as f32;
             Light::Spot(SpotLight {
@@ -496,7 +550,11 @@ fn parse_khr_light(v: &serde_json::Value) -> Light {
                 extensions: ext,
             })
         }
-        _ => Light::Point(PointLight { base, range, extensions: ext }),
+        _ => Light::Point(PointLight {
+            base,
+            range,
+            extensions: ext,
+        }),
     }
 }
 
@@ -506,7 +564,8 @@ fn node_transform(gn: &GltfNode) -> Transform {
     } else {
         Transform {
             translation: gn.translation.map(Vec3::from).unwrap_or(Vec3::ZERO),
-            rotation: gn.rotation
+            rotation: gn
+                .rotation
                 .map(|r| Quat::from_xyzw(r[0], r[1], r[2], r[3]))
                 .unwrap_or(Quat::IDENTITY),
             scale: gn.scale.map(Vec3::from).unwrap_or(Vec3::ONE),
@@ -514,9 +573,7 @@ fn node_transform(gn: &GltfNode) -> Transform {
     }
 }
 
-pub fn scene_to_gltf(
-    scene: &solid_rs::scene::scene::Scene,
-) -> Result<(GltfRoot, Vec<u8>)> {
+pub fn scene_to_gltf(scene: &solid_rs::scene::scene::Scene) -> Result<(GltfRoot, Vec<u8>)> {
     let mut gltf = GltfRoot::default();
     gltf.asset = GltfAsset {
         version: "2.0".into(),
@@ -570,36 +627,74 @@ pub fn scene_to_gltf(
     for mat in &scene.materials {
         let base_color_texture = mat.base_color_texture.as_ref().map(|tr| GltfTextureInfo {
             index: tr.texture_index,
-            tex_coord: if tr.uv_channel > 0 { Some(tr.uv_channel) } else { None },
+            tex_coord: if tr.uv_channel > 0 {
+                Some(tr.uv_channel)
+            } else {
+                None
+            },
         });
-        let mr_texture = mat.metallic_roughness_texture.as_ref().map(|tr| GltfTextureInfo {
-            index: tr.texture_index,
-            tex_coord: if tr.uv_channel > 0 { Some(tr.uv_channel) } else { None },
-        });
+        let mr_texture = mat
+            .metallic_roughness_texture
+            .as_ref()
+            .map(|tr| GltfTextureInfo {
+                index: tr.texture_index,
+                tex_coord: if tr.uv_channel > 0 {
+                    Some(tr.uv_channel)
+                } else {
+                    None
+                },
+            });
         let normal_texture = mat.normal_texture.as_ref().map(|tr| GltfNormalTextureInfo {
             index: tr.texture_index,
-            tex_coord: if tr.uv_channel > 0 { Some(tr.uv_channel) } else { None },
-            scale: if (mat.normal_scale - 1.0).abs() > 1e-6 { Some(mat.normal_scale) } else { None },
+            tex_coord: if tr.uv_channel > 0 {
+                Some(tr.uv_channel)
+            } else {
+                None
+            },
+            scale: if (mat.normal_scale - 1.0).abs() > 1e-6 {
+                Some(mat.normal_scale)
+            } else {
+                None
+            },
         });
-        let occlusion_texture = mat.occlusion_texture.as_ref().map(|tr| GltfOcclusionTextureInfo {
-            index: tr.texture_index,
-            tex_coord: if tr.uv_channel > 0 { Some(tr.uv_channel) } else { None },
-            strength: if (mat.occlusion_strength - 1.0).abs() > 1e-6 { Some(mat.occlusion_strength) } else { None },
-        });
+        let occlusion_texture = mat
+            .occlusion_texture
+            .as_ref()
+            .map(|tr| GltfOcclusionTextureInfo {
+                index: tr.texture_index,
+                tex_coord: if tr.uv_channel > 0 {
+                    Some(tr.uv_channel)
+                } else {
+                    None
+                },
+                strength: if (mat.occlusion_strength - 1.0).abs() > 1e-6 {
+                    Some(mat.occlusion_strength)
+                } else {
+                    None
+                },
+            });
         let emissive_texture = mat.emissive_texture.as_ref().map(|tr| GltfTextureInfo {
             index: tr.texture_index,
-            tex_coord: if tr.uv_channel > 0 { Some(tr.uv_channel) } else { None },
+            tex_coord: if tr.uv_channel > 0 {
+                Some(tr.uv_channel)
+            } else {
+                None
+            },
         });
         let ef = mat.emissive_factor;
         let alpha_mode = match mat.alpha_mode {
             AlphaMode::Opaque => None,
-            AlphaMode::Mask   => Some("MASK".into()),
-            AlphaMode::Blend  => Some("BLEND".into()),
+            AlphaMode::Mask => Some("MASK".into()),
+            AlphaMode::Blend => Some("BLEND".into()),
         };
         let f = mat.base_color_factor;
         let material_extensions = build_material_extensions(mat);
         gltf.materials.push(GltfMaterial {
-            name: if mat.name.is_empty() { None } else { Some(mat.name.clone()) },
+            name: if mat.name.is_empty() {
+                None
+            } else {
+                Some(mat.name.clone())
+            },
             pbr_metallic_roughness: Some(GltfPbr {
                 base_color_factor: if f != glam::Vec4::ONE {
                     Some([f.x, f.y, f.z, f.w])
@@ -622,9 +717,17 @@ pub fn scene_to_gltf(
             normal_texture,
             occlusion_texture,
             emissive_texture,
-            emissive_factor: if ef != glam::Vec3::ZERO { Some([ef.x, ef.y, ef.z]) } else { None },
+            emissive_factor: if ef != glam::Vec3::ZERO {
+                Some([ef.x, ef.y, ef.z])
+            } else {
+                None
+            },
             alpha_mode,
-            alpha_cutoff: if mat.alpha_mode == AlphaMode::Mask { Some(mat.alpha_cutoff) } else { None },
+            alpha_cutoff: if mat.alpha_mode == AlphaMode::Mask {
+                Some(mat.alpha_cutoff)
+            } else {
+                None
+            },
             double_sided: if mat.double_sided { Some(true) } else { None },
             extensions: material_extensions,
         });
@@ -638,10 +741,10 @@ pub fn scene_to_gltf(
             let mut attributes = std::collections::HashMap::new();
 
             let n = mesh.vertices.len();
-            let has_normals  = mesh.vertices.iter().any(|v| v.normal.is_some());
+            let has_normals = mesh.vertices.iter().any(|v| v.normal.is_some());
             let has_tangents = mesh.vertices.iter().any(|v| v.tangent.is_some());
-            let has_uv0      = mesh.vertices.iter().any(|v| v.uvs[0].is_some());
-            let has_color0   = mesh.vertices.iter().any(|v| v.colors[0].is_some());
+            let has_uv0 = mesh.vertices.iter().any(|v| v.uvs[0].is_some());
+            let has_color0 = mesh.vertices.iter().any(|v| v.colors[0].is_some());
 
             // POSITION
             let pos_offset = bin.len();
@@ -674,7 +777,7 @@ pub fn scene_to_gltf(
                     bin.extend_from_slice(&nv.y.to_le_bytes());
                     bin.extend_from_slice(&nv.z.to_le_bytes());
                 }
-                let bv  = push_bv(&mut gltf, 0, off, n * 12, None, Some(34962));
+                let bv = push_bv(&mut gltf, 0, off, n * 12, None, Some(34962));
                 let acc = push_acc(&mut gltf, bv, 5126, n, "VEC3", 0);
                 attributes.insert("NORMAL".into(), acc);
             }
@@ -689,7 +792,7 @@ pub fn scene_to_gltf(
                     bin.extend_from_slice(&t.z.to_le_bytes());
                     bin.extend_from_slice(&t.w.to_le_bytes());
                 }
-                let bv  = push_bv(&mut gltf, 0, off, n * 16, None, Some(34962));
+                let bv = push_bv(&mut gltf, 0, off, n * 16, None, Some(34962));
                 let acc = push_acc(&mut gltf, bv, 5126, n, "VEC4", 0);
                 attributes.insert("TANGENT".into(), acc);
             }
@@ -702,7 +805,7 @@ pub fn scene_to_gltf(
                     bin.extend_from_slice(&uv.x.to_le_bytes());
                     bin.extend_from_slice(&uv.y.to_le_bytes());
                 }
-                let bv  = push_bv(&mut gltf, 0, off, n * 8, None, Some(34962));
+                let bv = push_bv(&mut gltf, 0, off, n * 8, None, Some(34962));
                 let acc = push_acc(&mut gltf, bv, 5126, n, "VEC2", 0);
                 attributes.insert("TEXCOORD_0".into(), acc);
             }
@@ -717,7 +820,7 @@ pub fn scene_to_gltf(
                     bin.extend_from_slice(&c.z.to_le_bytes());
                     bin.extend_from_slice(&c.w.to_le_bytes());
                 }
-                let bv  = push_bv(&mut gltf, 0, off, n * 16, None, Some(34962));
+                let bv = push_bv(&mut gltf, 0, off, n * 16, None, Some(34962));
                 let acc = push_acc(&mut gltf, bv, 5126, n, "VEC4", 0);
                 attributes.insert("COLOR_0".into(), acc);
             }
@@ -733,19 +836,23 @@ pub fn scene_to_gltf(
                         bin.extend_from_slice(&ji.to_le_bytes());
                     }
                 }
-                let bv  = push_bv(&mut gltf, 0, off, n * 8, None, Some(34962));
+                let bv = push_bv(&mut gltf, 0, off, n * 8, None, Some(34962));
                 let acc = push_acc(&mut gltf, bv, 5123, n, "VEC4", 0);
                 attributes.insert("JOINTS_0".into(), acc);
 
                 // WEIGHTS_0: VEC4 FLOAT
                 let off = bin.len();
                 for v in &mesh.vertices {
-                    let w = v.skin_weights.as_ref().map(|s| s.weights).unwrap_or([0.0; 4]);
+                    let w = v
+                        .skin_weights
+                        .as_ref()
+                        .map(|s| s.weights)
+                        .unwrap_or([0.0; 4]);
                     for wi in w {
                         bin.extend_from_slice(&wi.to_le_bytes());
                     }
                 }
-                let bv  = push_bv(&mut gltf, 0, off, n * 16, None, Some(34962));
+                let bv = push_bv(&mut gltf, 0, off, n * 16, None, Some(34962));
                 let acc = push_acc(&mut gltf, bv, 5126, n, "VEC4", 0);
                 attributes.insert("WEIGHTS_0".into(), acc);
             }
@@ -759,7 +866,7 @@ pub fn scene_to_gltf(
 
                 // POSITION deltas (required accessor; spec mandates min/max)
                 if !target.position_deltas.is_empty() {
-                    let off   = bin.len();
+                    let off = bin.len();
                     let count = n.min(target.position_deltas.len());
                     for d in target.position_deltas.iter().take(count) {
                         bin.extend_from_slice(&d.x.to_le_bytes());
@@ -769,7 +876,7 @@ pub fn scene_to_gltf(
                     for _ in count..n {
                         bin.extend_from_slice(&[0u8; 12]);
                     }
-                    let bv    = push_bv(&mut gltf, 0, off, n * 12, None, None);
+                    let bv = push_bv(&mut gltf, 0, off, n * 12, None, None);
                     let acc_i = push_acc(&mut gltf, bv, 5126, n, "VEC3", 0);
                     {
                         let acc = gltf.accessors.last_mut().unwrap();
@@ -790,7 +897,7 @@ pub fn scene_to_gltf(
 
                 // NORMAL deltas
                 if !target.normal_deltas.is_empty() {
-                    let off   = bin.len();
+                    let off = bin.len();
                     let count = n.min(target.normal_deltas.len());
                     for d in target.normal_deltas.iter().take(count) {
                         bin.extend_from_slice(&d.x.to_le_bytes());
@@ -800,14 +907,14 @@ pub fn scene_to_gltf(
                     for _ in count..n {
                         bin.extend_from_slice(&[0u8; 12]);
                     }
-                    let bv    = push_bv(&mut gltf, 0, off, n * 12, None, None);
+                    let bv = push_bv(&mut gltf, 0, off, n * 12, None, None);
                     let acc_i = push_acc(&mut gltf, bv, 5126, n, "VEC3", 0);
                     tgt_map.insert("NORMAL".into(), acc_i);
                 }
 
                 // TANGENT deltas (xyz only — morph tangents have no w)
                 if !target.tangent_deltas.is_empty() {
-                    let off   = bin.len();
+                    let off = bin.len();
                     let count = n.min(target.tangent_deltas.len());
                     for d in target.tangent_deltas.iter().take(count) {
                         bin.extend_from_slice(&d.x.to_le_bytes());
@@ -817,7 +924,7 @@ pub fn scene_to_gltf(
                     for _ in count..n {
                         bin.extend_from_slice(&[0u8; 12]);
                     }
-                    let bv    = push_bv(&mut gltf, 0, off, n * 12, None, None);
+                    let bv = push_bv(&mut gltf, 0, off, n * 12, None, None);
                     let acc_i = push_acc(&mut gltf, bv, 5126, n, "VEC3", 0);
                     tgt_map.insert("TANGENT".into(), acc_i);
                 }
@@ -830,7 +937,14 @@ pub fn scene_to_gltf(
             for &i in &prim.indices {
                 bin.extend_from_slice(&i.to_le_bytes());
             }
-            let idx_bv  = push_bv(&mut gltf, 0, idx_off, prim.indices.len() * 4, None, Some(34963));
+            let idx_bv = push_bv(
+                &mut gltf,
+                0,
+                idx_off,
+                prim.indices.len() * 4,
+                None,
+                Some(34963),
+            );
             let idx_acc = push_acc(&mut gltf, idx_bv, 5125, prim.indices.len(), "SCALAR", 0);
 
             gprims.push(GltfPrimitive {
@@ -843,7 +957,11 @@ pub fn scene_to_gltf(
         }
 
         gltf.meshes.push(GltfMesh {
-            name: if mesh.name.is_empty() { None } else { Some(mesh.name.clone()) },
+            name: if mesh.name.is_empty() {
+                None
+            } else {
+                Some(mesh.name.clone())
+            },
             primitives: gprims,
             weights: mesh.morph_weights.clone(),
         });
@@ -874,7 +992,11 @@ pub fn scene_to_gltf(
             ),
         };
         gltf.cameras.push(GltfCamera {
-            name: if cam.name.is_empty() { None } else { Some(cam.name.clone()) },
+            name: if cam.name.is_empty() {
+                None
+            } else {
+                Some(cam.name.clone())
+            },
             type_,
             perspective,
             orthographic,
@@ -884,8 +1006,7 @@ pub fn scene_to_gltf(
     // --- Nodes ---
     let mut gltf_node_map: std::collections::HashMap<NodeId, usize> =
         std::collections::HashMap::new();
-    let mut queue: std::collections::VecDeque<NodeId> =
-        scene.roots.iter().cloned().collect();
+    let mut queue: std::collections::VecDeque<NodeId> = scene.roots.iter().cloned().collect();
     let mut ordered: Vec<NodeId> = Vec::new();
     {
         let mut visited = std::collections::HashSet::new();
@@ -912,23 +1033,34 @@ pub fn scene_to_gltf(
             .iter()
             .filter_map(|c| gltf_node_map.get(c).copied())
             .collect();
-        let translation =
-            if t.translation != Vec3::ZERO { Some(t.translation.to_array()) } else { None };
+        let translation = if t.translation != Vec3::ZERO {
+            Some(t.translation.to_array())
+        } else {
+            None
+        };
         let rotation = if t.rotation != Quat::IDENTITY {
             Some([t.rotation.x, t.rotation.y, t.rotation.z, t.rotation.w])
         } else {
             None
         };
-        let scale = if t.scale != Vec3::ONE { Some(t.scale.to_array()) } else { None };
-        let node_extensions = node.light.map(|li| {
-            serde_json::json!({ "KHR_lights_punctual": { "light": li } })
-        });
+        let scale = if t.scale != Vec3::ONE {
+            Some(t.scale.to_array())
+        } else {
+            None
+        };
+        let node_extensions = node
+            .light
+            .map(|li| serde_json::json!({ "KHR_lights_punctual": { "light": li } }));
         gltf.nodes.push(GltfNode {
-            name: if node.name.is_empty() { None } else { Some(node.name.clone()) },
+            name: if node.name.is_empty() {
+                None
+            } else {
+                Some(node.name.clone())
+            },
             children,
-            mesh:       node.mesh,
-            camera:     node.camera,
-            skin:       node.skin,
+            mesh: node.mesh,
+            camera: node.camera,
+            skin: node.skin,
             translation,
             rotation,
             scale,
@@ -947,20 +1079,26 @@ pub fn scene_to_gltf(
                 }
             }
             let n_joints = skin.inverse_bind_matrices.len();
-            let bv  = push_bv(&mut gltf, 0, off, n_joints * 64, None, None);
+            let bv = push_bv(&mut gltf, 0, off, n_joints * 64, None, None);
             let acc = push_acc(&mut gltf, bv, 5126, n_joints, "MAT4", 0);
             Some(acc)
         } else {
             None
         };
-        let skeleton = skin.skeleton_root.and_then(|nid| gltf_node_map.get(&nid).copied());
+        let skeleton = skin
+            .skeleton_root
+            .and_then(|nid| gltf_node_map.get(&nid).copied());
         let joints: Vec<usize> = skin
             .joints
             .iter()
             .filter_map(|&nid| gltf_node_map.get(&nid).copied())
             .collect();
         gltf.skins.push(GltfSkin {
-            name: if skin.name.is_empty() { None } else { Some(skin.name.clone()) },
+            name: if skin.name.is_empty() {
+                None
+            } else {
+                Some(skin.name.clone())
+            },
             inverse_bind_matrices: ibm_acc,
             skeleton,
             joints,
@@ -970,7 +1108,11 @@ pub fn scene_to_gltf(
     // --- Animations ---
     for anim in &scene.animations {
         let mut ganim = GltfAnimation {
-            name: if anim.name.is_empty() { None } else { Some(anim.name.clone()) },
+            name: if anim.name.is_empty() {
+                None
+            } else {
+                Some(anim.name.clone())
+            },
             ..Default::default()
         };
         for ch in &anim.channels {
@@ -979,7 +1121,7 @@ pub fn scene_to_gltf(
             for &t in &ch.times {
                 bin.extend_from_slice(&t.to_le_bytes());
             }
-            let times_bv  = push_bv(&mut gltf, 0, times_off, ch.times.len() * 4, None, None);
+            let times_bv = push_bv(&mut gltf, 0, times_off, ch.times.len() * 4, None, None);
             let times_acc = push_acc(&mut gltf, times_bv, 5126, ch.times.len(), "SCALAR", 0);
             if !ch.times.is_empty() {
                 let acc = gltf.accessors.last_mut().unwrap();
@@ -994,39 +1136,52 @@ pub fn scene_to_gltf(
                 AnimationTarget::MorphWeight { .. } => "SCALAR",
             };
             let n_comps: usize = match output_type {
-                "VEC3" => 3, "VEC4" => 4, _ => 1,
+                "VEC3" => 3,
+                "VEC4" => 4,
+                _ => 1,
             };
-            let n_keyframes = if n_comps > 0 { ch.values.len() / n_comps } else { 0 };
+            let n_keyframes = if n_comps > 0 {
+                ch.values.len() / n_comps
+            } else {
+                0
+            };
 
             let vals_off = bin.len();
             for &v in &ch.values {
                 bin.extend_from_slice(&v.to_le_bytes());
             }
-            let vals_bv  = push_bv(&mut gltf, 0, vals_off, ch.values.len() * 4, None, None);
+            let vals_bv = push_bv(&mut gltf, 0, vals_off, ch.values.len() * 4, None, None);
             let vals_acc = push_acc(&mut gltf, vals_bv, 5126, n_keyframes, output_type, 0);
 
             let interp = match ch.interpolation {
-                Interpolation::Linear      => "LINEAR",
-                Interpolation::Step        => "STEP",
+                Interpolation::Linear => "LINEAR",
+                Interpolation::Step => "STEP",
                 Interpolation::CubicSpline => "CUBICSPLINE",
             };
 
             let sampler_idx = ganim.samplers.len();
             ganim.samplers.push(GltfAnimationSampler {
-                input:         times_acc,
+                input: times_acc,
                 interpolation: Some(interp.into()),
-                output:        vals_acc,
+                output: vals_acc,
             });
 
             let (target_node, path) = match &ch.target {
-                AnimationTarget::Translation(nid) => (gltf_node_map.get(nid).copied(), "translation"),
-                AnimationTarget::Rotation(nid)    => (gltf_node_map.get(nid).copied(), "rotation"),
-                AnimationTarget::Scale(nid)       => (gltf_node_map.get(nid).copied(), "scale"),
-                AnimationTarget::MorphWeight { node_id, .. } => (gltf_node_map.get(node_id).copied(), "weights"),
+                AnimationTarget::Translation(nid) => {
+                    (gltf_node_map.get(nid).copied(), "translation")
+                }
+                AnimationTarget::Rotation(nid) => (gltf_node_map.get(nid).copied(), "rotation"),
+                AnimationTarget::Scale(nid) => (gltf_node_map.get(nid).copied(), "scale"),
+                AnimationTarget::MorphWeight { node_id, .. } => {
+                    (gltf_node_map.get(node_id).copied(), "weights")
+                }
             };
             ganim.channels.push(GltfAnimationChannel {
                 sampler: sampler_idx,
-                target:  GltfAnimationTarget { node: target_node, path: path.into() },
+                target: GltfAnimationTarget {
+                    node: target_node,
+                    path: path.into(),
+                },
             });
         }
         gltf.animations.push(ganim);
@@ -1036,42 +1191,46 @@ pub fn scene_to_gltf(
     if !scene.lights.is_empty() {
         gltf.extensions_used.push("KHR_lights_punctual".into());
 
-        let lights_json: Vec<serde_json::Value> = scene.lights.iter().map(|light| {
-            let color     = light.color();
-            let intensity = light.intensity();
-            let name      = light.name().to_string();
-            let mut obj = serde_json::json!({
-                "name":      name,
-                "color":     [color.x, color.y, color.z],
-                "intensity": intensity,
-            });
-            match light {
-                Light::Directional(_) => {
-                    obj["type"] = serde_json::Value::String("directional".into());
-                }
-                Light::Point(l) => {
-                    obj["type"] = serde_json::Value::String("point".into());
-                    if let Some(r) = l.range {
-                        obj["range"] = serde_json::Value::from(r);
+        let lights_json: Vec<serde_json::Value> = scene
+            .lights
+            .iter()
+            .map(|light| {
+                let color = light.color();
+                let intensity = light.intensity();
+                let name = light.name().to_string();
+                let mut obj = serde_json::json!({
+                    "name":      name,
+                    "color":     [color.x, color.y, color.z],
+                    "intensity": intensity,
+                });
+                match light {
+                    Light::Directional(_) => {
+                        obj["type"] = serde_json::Value::String("directional".into());
+                    }
+                    Light::Point(l) => {
+                        obj["type"] = serde_json::Value::String("point".into());
+                        if let Some(r) = l.range {
+                            obj["range"] = serde_json::Value::from(r);
+                        }
+                    }
+                    Light::Spot(l) => {
+                        obj["type"] = serde_json::Value::String("spot".into());
+                        if let Some(r) = l.range {
+                            obj["range"] = serde_json::Value::from(r);
+                        }
+                        obj["spot"] = serde_json::json!({
+                            "innerConeAngle": l.inner_cone_angle,
+                            "outerConeAngle": l.outer_cone_angle,
+                        });
+                    }
+                    Light::Area(_) => {
+                        // No standard glTF equivalent; save as point light.
+                        obj["type"] = serde_json::Value::String("point".into());
                     }
                 }
-                Light::Spot(l) => {
-                    obj["type"] = serde_json::Value::String("spot".into());
-                    if let Some(r) = l.range {
-                        obj["range"] = serde_json::Value::from(r);
-                    }
-                    obj["spot"] = serde_json::json!({
-                        "innerConeAngle": l.inner_cone_angle,
-                        "outerConeAngle": l.outer_cone_angle,
-                    });
-                }
-                Light::Area(_) => {
-                    // No standard glTF equivalent; save as point light.
-                    obj["type"] = serde_json::Value::String("point".into());
-                }
-            }
-            obj
-        }).collect();
+                obj
+            })
+            .collect();
 
         gltf.extensions = Some(serde_json::json!({
             "KHR_lights_punctual": { "lights": lights_json }
@@ -1085,14 +1244,22 @@ pub fn scene_to_gltf(
         .filter_map(|r| gltf_node_map.get(r).copied())
         .collect();
     gltf.scenes.push(GltfScene {
-        name: if scene.name.is_empty() { None } else { Some(scene.name.clone()) },
+        name: if scene.name.is_empty() {
+            None
+        } else {
+            Some(scene.name.clone())
+        },
         nodes: root_gltf_indices,
     });
     gltf.scene = Some(0);
 
     // Buffer 0: the binary blob (pushed last so byte_length is final)
     if !bin.is_empty() {
-        gltf.buffers.push(GltfBuffer { byte_length: bin.len(), uri: None, name: None });
+        gltf.buffers.push(GltfBuffer {
+            byte_length: bin.len(),
+            uri: None,
+            name: None,
+        });
     }
 
     Ok((gltf, bin))
@@ -1114,22 +1281,27 @@ fn build_material_extensions(material: &Material) -> Option<GltfMaterialExtensio
         specular_factor: ((material.specular_weight - DEFAULT_GLTF_SPECULAR_WEIGHT).abs()
             > GLTF_FLOAT_EPSILON)
             .then_some(material.specular_weight),
-        specular_texture: material.specular_weight_texture.as_ref().map(|texture| GltfTextureInfo {
-            index: texture.texture_index,
-            tex_coord: (texture.uv_channel > 0).then_some(texture.uv_channel),
+        specular_texture: material.specular_weight_texture.as_ref().map(|texture| {
+            GltfTextureInfo {
+                index: texture.texture_index,
+                tex_coord: (texture.uv_channel > 0).then_some(texture.uv_channel),
+            }
         }),
         specular_color_factor: (material.specular_color != Vec3::ONE).then_some([
             material.specular_color.x,
             material.specular_color.y,
             material.specular_color.z,
         ]),
-        specular_color_texture: material.specular_color_texture.as_ref().map(|texture| GltfTextureInfo {
-            index: texture.texture_index,
-            tex_coord: (texture.uv_channel > 0).then_some(texture.uv_channel),
+        specular_color_texture: material.specular_color_texture.as_ref().map(|texture| {
+            GltfTextureInfo {
+                index: texture.texture_index,
+                tex_coord: (texture.uv_channel > 0).then_some(texture.uv_channel),
+            }
         }),
     });
-    let ior = material_uses_ior_extension(material)
-        .then(|| GltfMaterialsIor { ior: Some(material.ior) });
+    let ior = material_uses_ior_extension(material).then(|| GltfMaterialsIor {
+        ior: Some(material.ior),
+    });
 
     (specular.is_some() || ior.is_some()).then_some(GltfMaterialExtensions {
         khr_materials_specular: specular,
@@ -1147,20 +1319,38 @@ mod tests {
         let root = GltfRoot {
             asset: GltfAsset::default(),
             textures: vec![
-                GltfTexture { source: Some(0), ..Default::default() },
-                GltfTexture { source: Some(1), ..Default::default() },
+                GltfTexture {
+                    source: Some(0),
+                    ..Default::default()
+                },
+                GltfTexture {
+                    source: Some(1),
+                    ..Default::default()
+                },
             ],
             images: vec![
-                GltfImage { uri: Some("specular.png".into()), ..Default::default() },
-                GltfImage { uri: Some("specular-color.png".into()), ..Default::default() },
+                GltfImage {
+                    uri: Some("specular.png".into()),
+                    ..Default::default()
+                },
+                GltfImage {
+                    uri: Some("specular-color.png".into()),
+                    ..Default::default()
+                },
             ],
             materials: vec![GltfMaterial {
                 extensions: Some(GltfMaterialExtensions {
                     khr_materials_specular: Some(GltfMaterialsSpecular {
                         specular_factor: Some(0.6),
-                        specular_texture: Some(GltfTextureInfo { index: 0, tex_coord: Some(1) }),
+                        specular_texture: Some(GltfTextureInfo {
+                            index: 0,
+                            tex_coord: Some(1),
+                        }),
                         specular_color_factor: Some([0.8, 0.7, 0.6]),
-                        specular_color_texture: Some(GltfTextureInfo { index: 1, tex_coord: Some(2) }),
+                        specular_color_texture: Some(GltfTextureInfo {
+                            index: 1,
+                            tex_coord: Some(2),
+                        }),
                     }),
                     khr_materials_ior: Some(GltfMaterialsIor { ior: Some(1.33) }),
                 }),
@@ -1175,8 +1365,20 @@ mod tests {
         assert_eq!(material.specular_color, Vec3::new(0.8, 0.7, 0.6));
         assert!((material.specular_weight - 0.6).abs() < 1.0e-6);
         assert!((material.ior - 1.33).abs() < 1.0e-6);
-        assert_eq!(material.specular_color_texture.as_ref().map(|texture| (texture.texture_index, texture.uv_channel)), Some((1, 2)));
-        assert_eq!(material.specular_weight_texture.as_ref().map(|texture| (texture.texture_index, texture.uv_channel)), Some((0, 1)));
+        assert_eq!(
+            material
+                .specular_color_texture
+                .as_ref()
+                .map(|texture| (texture.texture_index, texture.uv_channel)),
+            Some((1, 2))
+        );
+        assert_eq!(
+            material
+                .specular_weight_texture
+                .as_ref()
+                .map(|texture| (texture.texture_index, texture.uv_channel)),
+            Some((0, 1))
+        );
     }
 
     #[test]
@@ -1200,7 +1402,10 @@ mod tests {
         });
 
         let (gltf, _) = scene_to_gltf(&scene).expect("glTF export should succeed");
-        assert!(gltf.extensions_used.iter().any(|name| name == "KHR_materials_specular"));
+        assert!(gltf
+            .extensions_used
+            .iter()
+            .any(|name| name == "KHR_materials_specular"));
 
         let specular = gltf.materials[0]
             .extensions
@@ -1208,8 +1413,20 @@ mod tests {
             .and_then(|extensions| extensions.khr_materials_specular.as_ref())
             .expect("specular extension should be written");
 
-        assert_eq!(specular.specular_color_texture.as_ref().map(|texture| (texture.index, texture.tex_coord)), Some((1, Some(2))));
-        assert_eq!(specular.specular_texture.as_ref().map(|texture| (texture.index, texture.tex_coord)), Some((0, Some(1))));
+        assert_eq!(
+            specular
+                .specular_color_texture
+                .as_ref()
+                .map(|texture| (texture.index, texture.tex_coord)),
+            Some((1, Some(2)))
+        );
+        assert_eq!(
+            specular
+                .specular_texture
+                .as_ref()
+                .map(|texture| (texture.index, texture.tex_coord)),
+            Some((0, Some(1)))
+        );
     }
 }
 

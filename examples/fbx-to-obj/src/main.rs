@@ -18,9 +18,13 @@ use solid_rs::registry::Registry;
 fn main() {
     // ── Arguments ─────────────────────────────────────────────────────────────
     let mut args = std::env::args().skip(1);
-    let input:  PathBuf = args.next().map(PathBuf::from)
+    let input: PathBuf = args
+        .next()
+        .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from("test.fbx"));
-    let output: PathBuf = args.next().map(PathBuf::from)
+    let output: PathBuf = args
+        .next()
+        .map(PathBuf::from)
         .unwrap_or_else(|| input.with_extension("obj"));
 
     println!("solid-fbx → solid-obj converter");
@@ -48,7 +52,7 @@ fn main() {
 
     println!("Loading …");
     let scene = match registry.load_file_with_options(&input, &load_opts) {
-        Ok(s)  => s,
+        Ok(s) => s,
         Err(e) => {
             eprintln!("ERROR: failed to load '{}': {}", input.display(), e);
             std::process::exit(1);
@@ -60,7 +64,14 @@ fn main() {
     // ── Print scene summary ───────────────────────────────────────────────────
     println!("Loaded in {load_ms} ms");
     println!();
-    println!("  Scene name : {}", if scene.name.is_empty() { "(unnamed)" } else { &scene.name });
+    println!(
+        "  Scene name : {}",
+        if scene.name.is_empty() {
+            "(unnamed)"
+        } else {
+            &scene.name
+        }
+    );
     println!("  Nodes      : {}", scene.nodes.len());
     println!("  Meshes     : {}", scene.meshes.len());
     println!("  Materials  : {}", scene.materials.len());
@@ -68,10 +79,13 @@ fn main() {
     println!("  Cameras    : {}", scene.cameras.len());
     println!("  Lights     : {}", scene.lights.len());
 
-    let total_verts   = scene.total_vertex_count();
+    let total_verts = scene.total_vertex_count();
     let total_indices = scene.total_index_count();
     println!("  Vertices   : {total_verts}");
-    println!("  Indices    : {total_indices}  ({} triangles)", total_indices / 3);
+    println!(
+        "  Indices    : {total_indices}  ({} triangles)",
+        total_indices / 3
+    );
     println!();
 
     // Per-mesh summary
@@ -100,11 +114,13 @@ fn main() {
     }
 
     let save_ms = t1.elapsed().as_millis();
-    let file_size = std::fs::metadata(&output)
-        .map(|m| m.len())
-        .unwrap_or(0);
+    let file_size = std::fs::metadata(&output).map(|m| m.len()).unwrap_or(0);
 
-    println!("Saved  in {save_ms} ms  ({} bytes → {})", file_size, output.display());
+    println!(
+        "Saved  in {save_ms} ms  ({} bytes → {})",
+        file_size,
+        output.display()
+    );
     println!();
     println!("Done ✓");
 }

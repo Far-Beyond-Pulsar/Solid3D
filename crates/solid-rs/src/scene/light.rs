@@ -18,7 +18,11 @@ pub struct LightBase {
 impl LightBase {
     /// Creates a white, 1 cd light with the given name.
     pub fn new(name: impl Into<String>) -> Self {
-        Self { name: name.into(), color: Vec3::ONE, intensity: 1.0 }
+        Self {
+            name: name.into(),
+            color: Vec3::ONE,
+            intensity: 1.0,
+        }
     }
 }
 
@@ -76,9 +80,9 @@ impl Light {
     pub fn name(&self) -> &str {
         match self {
             Self::Directional(l) => &l.base.name,
-            Self::Point(l)       => &l.base.name,
-            Self::Spot(l)        => &l.base.name,
-            Self::Area(l)        => &l.base.name,
+            Self::Point(l) => &l.base.name,
+            Self::Spot(l) => &l.base.name,
+            Self::Area(l) => &l.base.name,
         }
     }
 
@@ -86,9 +90,9 @@ impl Light {
     pub fn color(&self) -> Vec3 {
         match self {
             Self::Directional(l) => l.base.color,
-            Self::Point(l)       => l.base.color,
-            Self::Spot(l)        => l.base.color,
-            Self::Area(l)        => l.base.color,
+            Self::Point(l) => l.base.color,
+            Self::Spot(l) => l.base.color,
+            Self::Area(l) => l.base.color,
         }
     }
 
@@ -96,9 +100,9 @@ impl Light {
     pub fn intensity(&self) -> f32 {
         match self {
             Self::Directional(l) => l.base.intensity,
-            Self::Point(l)       => l.base.intensity,
-            Self::Spot(l)        => l.base.intensity,
-            Self::Area(l)        => l.base.intensity,
+            Self::Point(l) => l.base.intensity,
+            Self::Spot(l) => l.base.intensity,
+            Self::Area(l) => l.base.intensity,
         }
     }
 
@@ -106,9 +110,9 @@ impl Light {
     pub fn base_mut(&mut self) -> &mut LightBase {
         match self {
             Self::Directional(l) => &mut l.base,
-            Self::Point(l)       => &mut l.base,
-            Self::Spot(l)        => &mut l.base,
-            Self::Area(l)        => &mut l.base,
+            Self::Point(l) => &mut l.base,
+            Self::Spot(l) => &mut l.base,
+            Self::Area(l) => &mut l.base,
         }
     }
 }

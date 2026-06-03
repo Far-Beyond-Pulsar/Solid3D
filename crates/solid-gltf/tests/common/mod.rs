@@ -4,15 +4,15 @@
 
 use glam::{Mat4, Vec2, Vec3, Vec4};
 use solid_gltf::{GltfLoader, GltfSaver};
+use solid_rs::builder::SceneBuilder;
 use solid_rs::extensions::Extensions;
 use solid_rs::geometry::{Primitive, SkinWeights, Vertex};
 use solid_rs::prelude::*;
 use solid_rs::scene::{
     AlphaMode, Animation, AnimationChannel, AnimationTarget, Camera, DirectionalLight,
-    Interpolation, Light, LightBase, Material, Mesh, MorphTarget,
-    OrthographicCamera, PerspectiveCamera, PointLight, Projection, Skin, SpotLight,
+    Interpolation, Light, LightBase, Material, Mesh, MorphTarget, OrthographicCamera,
+    PerspectiveCamera, PointLight, Projection, Skin, SpotLight,
 };
-use solid_rs::builder::SceneBuilder;
 use std::io::Cursor;
 
 // ── Scene factories ───────────────────────────────────────────────────────────
@@ -216,16 +216,28 @@ pub fn lights_scene() -> Scene {
     let root = b.add_root_node("LightsRoot");
 
     let point = Light::Point(PointLight {
-        base: LightBase { name: "Sun".into(), color: Vec3::ONE, intensity: 200.0 },
+        base: LightBase {
+            name: "Sun".into(),
+            color: Vec3::ONE,
+            intensity: 200.0,
+        },
         range: Some(50.0),
         extensions: Extensions::new(),
     });
     let dir = Light::Directional(DirectionalLight {
-        base: LightBase { name: "Moon".into(), color: Vec3::new(0.5, 0.5, 1.0), intensity: 1.0 },
+        base: LightBase {
+            name: "Moon".into(),
+            color: Vec3::new(0.5, 0.5, 1.0),
+            intensity: 1.0,
+        },
         extensions: Extensions::new(),
     });
     let spot = Light::Spot(SpotLight {
-        base: LightBase { name: "Flashlight".into(), color: Vec3::new(1.0, 1.0, 0.9), intensity: 500.0 },
+        base: LightBase {
+            name: "Flashlight".into(),
+            color: Vec3::new(1.0, 1.0, 0.9),
+            intensity: 500.0,
+        },
         range: Some(20.0),
         inner_cone_angle: 0.2,
         outer_cone_angle: 0.4,
@@ -249,7 +261,9 @@ pub fn lights_scene() -> Scene {
 /// Save as glTF JSON, then reload.
 pub fn gltf_round_trip(scene: &Scene) -> Scene {
     let mut buf = Vec::<u8>::new();
-    GltfSaver.save(scene, &mut buf, &SaveOptions::default()).expect("gltf save failed");
+    GltfSaver
+        .save(scene, &mut buf, &SaveOptions::default())
+        .expect("gltf save failed");
     GltfLoader
         .load(&mut Cursor::new(&buf), &LoadOptions::default())
         .expect("gltf load failed")
@@ -258,7 +272,9 @@ pub fn gltf_round_trip(scene: &Scene) -> Scene {
 /// Save as GLB, then reload.
 pub fn glb_round_trip(scene: &Scene) -> Scene {
     let mut buf = Vec::<u8>::new();
-    GltfSaver.save_glb(scene, &mut buf).expect("glb save failed");
+    GltfSaver
+        .save_glb(scene, &mut buf)
+        .expect("glb save failed");
     GltfLoader
         .load(&mut Cursor::new(&buf), &LoadOptions::default())
         .expect("glb load failed")

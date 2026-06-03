@@ -66,11 +66,11 @@ impl Node {
             name: name.into(),
             transform: Transform::IDENTITY,
             children: Vec::new(),
-            parent:  None,
-            mesh:   None,
+            parent: None,
+            mesh: None,
             camera: None,
-            light:  None,
-            skin:   None,
+            light: None,
+            skin: None,
             extensions: Extensions::new(),
         }
     }
@@ -85,9 +85,6 @@ impl Node {
     /// (mesh, camera, light, or skin).
     #[inline]
     pub fn has_attachment(&self) -> bool {
-        self.mesh.is_some()
-            || self.camera.is_some()
-            || self.light.is_some()
-            || self.skin.is_some()
+        self.mesh.is_some() || self.camera.is_some() || self.light.is_some() || self.skin.is_some()
     }
 }

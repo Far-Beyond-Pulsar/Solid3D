@@ -82,11 +82,7 @@ pub trait Loader: Send + Sync + 'static {
     ///
     /// `reader` implements both [`Read`] and [`Seek`] via [`ReadSeek`] so
     /// loaders can inspect magic bytes, rewind, or jump to offsets.
-    fn load(
-        &self,
-        reader: &mut dyn ReadSeek,
-        options: &LoadOptions,
-    ) -> Result<Scene>;
+    fn load(&self, reader: &mut dyn ReadSeek, options: &LoadOptions) -> Result<Scene>;
 
     /// Returns static metadata describing the format this loader handles.
     fn format_info(&self) -> &FormatInfo;

@@ -1,8 +1,8 @@
-use std::collections::HashMap;
-use std::io::Read;
 use glam::Vec3;
 use solid_rs::prelude::*;
 use solid_rs::scene::Scene;
+use std::collections::HashMap;
+use std::io::Read;
 
 use crate::parser::{self, StlTriangle};
 use crate::STL_FORMAT;
@@ -36,7 +36,7 @@ fn build_mesh_data(triangles: &[StlTriangle]) -> (Vec<Vertex>, Vec<u32>) {
 
     // Accumulate area-weighted face normals (unnormalized cross product = area weighting).
     let mut normal_accum: Vec<Vec3> = vec![Vec3::ZERO; vertices.len()];
-    let mut normal_count: Vec<u32>  = vec![0; vertices.len()];
+    let mut normal_count: Vec<u32> = vec![0; vertices.len()];
 
     for tri in triangles {
         let v0 = tri.vertices[0];
@@ -88,12 +88,20 @@ impl Loader for StlLoader {
 
         let (vertices, indices) = build_mesh_data(&triangles);
 
-        let mesh_name = if name.is_empty() { "STL Model".to_string() } else { name.clone() };
+        let mesh_name = if name.is_empty() {
+            "STL Model".to_string()
+        } else {
+            name.clone()
+        };
         let mut mesh = Mesh::new(mesh_name.clone());
         mesh.vertices = vertices;
         mesh.primitives.push(Primitive::triangles(indices, None));
 
-        let scene_name = if name.is_empty() { "STL Scene".to_string() } else { name };
+        let scene_name = if name.is_empty() {
+            "STL Scene".to_string()
+        } else {
+            name
+        };
         let mut builder = SceneBuilder::named(scene_name);
         let mesh_idx = builder.push_mesh(mesh);
         let root = builder.add_root_node(mesh_name);

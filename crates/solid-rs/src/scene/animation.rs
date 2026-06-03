@@ -26,7 +26,10 @@ pub enum AnimationTarget {
     /// Animates [`Node::transform.scale`](crate::scene::Node::transform).
     Scale(NodeId),
     /// Animates one morph-target weight on the mesh attached to a node.
-    MorphWeight { node_id: NodeId, target_index: usize },
+    MorphWeight {
+        node_id: NodeId,
+        target_index: usize,
+    },
 }
 
 /// A single animation channel: one animated property with its keyframe data.
@@ -81,7 +84,11 @@ pub struct Animation {
 impl Animation {
     /// Creates an empty animation clip with the given name.
     pub fn new(name: impl Into<String>) -> Self {
-        Self { name: name.into(), channels: Vec::new(), extensions: Extensions::new() }
+        Self {
+            name: name.into(),
+            channels: Vec::new(),
+            extensions: Extensions::new(),
+        }
     }
 
     /// Returns the total duration of the clip in seconds.

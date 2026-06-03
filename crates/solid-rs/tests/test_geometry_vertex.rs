@@ -1,11 +1,17 @@
 mod common;
-use solid_rs::prelude::*;
 use glam::{Vec2, Vec3, Vec4};
+use solid_rs::prelude::*;
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-#[test] fn max_uv_channels_is_8()     { assert_eq!(MAX_UV_CHANNELS,    8); }
-#[test] fn max_color_channels_is_4()  { assert_eq!(MAX_COLOR_CHANNELS, 4); }
+#[test]
+fn max_uv_channels_is_8() {
+    assert_eq!(MAX_UV_CHANNELS, 8);
+}
+#[test]
+fn max_color_channels_is_4() {
+    assert_eq!(MAX_COLOR_CHANNELS, 4);
+}
 
 // ── Vertex::new ───────────────────────────────────────────────────────────────
 
@@ -28,22 +34,32 @@ fn vertex_new_zero_position() {
 }
 
 #[test]
-fn vertex_new_normal_initially_none()      { assert!(Vertex::new(Vec3::ZERO).normal.is_none()); }
+fn vertex_new_normal_initially_none() {
+    assert!(Vertex::new(Vec3::ZERO).normal.is_none());
+}
 #[test]
-fn vertex_new_tangent_initially_none()     { assert!(Vertex::new(Vec3::ZERO).tangent.is_none()); }
+fn vertex_new_tangent_initially_none() {
+    assert!(Vertex::new(Vec3::ZERO).tangent.is_none());
+}
 #[test]
-fn vertex_new_skin_weights_initially_none(){ assert!(Vertex::new(Vec3::ZERO).skin_weights.is_none()); }
+fn vertex_new_skin_weights_initially_none() {
+    assert!(Vertex::new(Vec3::ZERO).skin_weights.is_none());
+}
 
 #[test]
 fn vertex_new_uvs_all_initially_none() {
     let v = Vertex::new(Vec3::ZERO);
-    for ch in 0..MAX_UV_CHANNELS { assert!(v.uvs[ch].is_none(), "channel {ch}"); }
+    for ch in 0..MAX_UV_CHANNELS {
+        assert!(v.uvs[ch].is_none(), "channel {ch}");
+    }
 }
 
 #[test]
 fn vertex_new_colors_all_initially_none() {
     let v = Vertex::new(Vec3::ZERO);
-    for ch in 0..MAX_COLOR_CHANNELS { assert!(v.colors[ch].is_none(), "channel {ch}"); }
+    for ch in 0..MAX_COLOR_CHANNELS {
+        assert!(v.colors[ch].is_none(), "channel {ch}");
+    }
 }
 
 // ── Default ───────────────────────────────────────────────────────────────────
@@ -68,21 +84,25 @@ fn with_normal_sets_normal() {
 
 #[test]
 fn with_normal_replaces_previous() {
-    let v = Vertex::new(Vec3::ZERO).with_normal(Vec3::X).with_normal(Vec3::Y);
+    let v = Vertex::new(Vec3::ZERO)
+        .with_normal(Vec3::X)
+        .with_normal(Vec3::Y);
     assert_eq!(v.normal, Some(Vec3::Y));
 }
 
 #[test]
 fn with_uv_sets_channel_0() {
     let uv = Vec2::new(0.5, 0.25);
-    let v  = Vertex::new(Vec3::ZERO).with_uv(uv);
+    let v = Vertex::new(Vec3::ZERO).with_uv(uv);
     assert_eq!(v.uvs[0], Some(uv));
 }
 
 #[test]
 fn with_uv_does_not_set_other_channels() {
     let v = Vertex::new(Vec3::ZERO).with_uv(Vec2::ONE);
-    for ch in 1..MAX_UV_CHANNELS { assert!(v.uvs[ch].is_none(), "channel {ch} should be None"); }
+    for ch in 1..MAX_UV_CHANNELS {
+        assert!(v.uvs[ch].is_none(), "channel {ch} should be None");
+    }
 }
 
 #[test]
@@ -95,15 +115,20 @@ fn with_color_sets_channel_0() {
 #[test]
 fn with_color_does_not_set_other_channels() {
     let v = Vertex::new(Vec3::ZERO).with_color(Vec4::ONE);
-    for ch in 1..MAX_COLOR_CHANNELS { assert!(v.colors[ch].is_none(), "channel {ch}"); }
+    for ch in 1..MAX_COLOR_CHANNELS {
+        assert!(v.colors[ch].is_none(), "channel {ch}");
+    }
 }
 
 #[test]
 fn with_skin_weights_stores_weights() {
-    let w = SkinWeights { joints: [0, 1, 2, 3], weights: [0.5, 0.3, 0.15, 0.05] };
+    let w = SkinWeights {
+        joints: [0, 1, 2, 3],
+        weights: [0.5, 0.3, 0.15, 0.05],
+    };
     let v = Vertex::new(Vec3::ZERO).with_skin_weights(w.clone());
     let stored = v.skin_weights.as_ref().unwrap();
-    assert_eq!(stored.joints,  w.joints);
+    assert_eq!(stored.joints, w.joints);
     assert_eq!(stored.weights, w.weights);
 }
 
@@ -112,7 +137,7 @@ fn with_skin_weights_stores_weights() {
 #[test]
 fn uv_returns_channel_0() {
     let uv = Vec2::new(0.3, 0.7);
-    let v  = Vertex::new(Vec3::ZERO).with_uv(uv);
+    let v = Vertex::new(Vec3::ZERO).with_uv(uv);
     assert_eq!(v.uv(), Some(uv));
 }
 
@@ -212,7 +237,10 @@ fn skin_weights_default_weights_are_zero() {
 
 #[test]
 fn skin_weights_custom_joints_and_weights() {
-    let w = SkinWeights { joints: [0, 2, 4, 6], weights: [0.5, 0.25, 0.15, 0.1] };
+    let w = SkinWeights {
+        joints: [0, 2, 4, 6],
+        weights: [0.5, 0.25, 0.15, 0.1],
+    };
     assert_eq!(w.joints, [0, 2, 4, 6]);
     let sum: f32 = w.weights.iter().sum();
     assert!((sum - 1.0).abs() < 1e-5);
@@ -220,9 +248,12 @@ fn skin_weights_custom_joints_and_weights() {
 
 #[test]
 fn skin_weights_clone() {
-    let w = SkinWeights { joints: [1, 2, 3, 4], weights: [0.4, 0.3, 0.2, 0.1] };
+    let w = SkinWeights {
+        joints: [1, 2, 3, 4],
+        weights: [0.4, 0.3, 0.2, 0.1],
+    };
     let c = w.clone();
-    assert_eq!(c.joints,  w.joints);
+    assert_eq!(c.joints, w.joints);
     assert_eq!(c.weights, w.weights);
 }
 
@@ -230,7 +261,9 @@ fn skin_weights_clone() {
 
 #[test]
 fn vertex_clone_is_equal() {
-    let v = Vertex::new(Vec3::new(1.0, 2.0, 3.0)).with_normal(Vec3::Y).with_uv(Vec2::ONE);
+    let v = Vertex::new(Vec3::new(1.0, 2.0, 3.0))
+        .with_normal(Vec3::Y)
+        .with_uv(Vec2::ONE);
     assert_eq!(v.clone(), v);
 }
 
@@ -266,11 +299,14 @@ fn vertex_partial_eq_different_uv() {
 
 #[test]
 fn vertex_chain_all_builder_methods() {
-    let pos    = Vec3::new(1.0, 2.0, 3.0);
+    let pos = Vec3::new(1.0, 2.0, 3.0);
     let normal = Vec3::Y;
-    let uv     = Vec2::new(0.5, 0.5);
-    let color  = Vec4::ONE;
-    let w      = SkinWeights { joints: [0,1,2,3], weights: [0.25,0.25,0.25,0.25] };
+    let uv = Vec2::new(0.5, 0.5);
+    let color = Vec4::ONE;
+    let w = SkinWeights {
+        joints: [0, 1, 2, 3],
+        weights: [0.25, 0.25, 0.25, 0.25],
+    };
 
     let v = Vertex::new(pos)
         .with_normal(normal)
@@ -278,17 +314,17 @@ fn vertex_chain_all_builder_methods() {
         .with_color(color)
         .with_skin_weights(w);
 
-    assert_eq!(v.position,  pos);
-    assert_eq!(v.normal,    Some(normal));
-    assert_eq!(v.uv(),      Some(uv));
-    assert_eq!(v.color(),   Some(color));
+    assert_eq!(v.position, pos);
+    assert_eq!(v.normal, Some(normal));
+    assert_eq!(v.uv(), Some(uv));
+    assert_eq!(v.color(), Some(color));
     assert!(v.skin_weights.is_some());
 }
 
 #[test]
 fn vertex_large_position_values() {
     let big = Vec3::new(1e30, -1e30, 1e30);
-    let v   = Vertex::new(big);
+    let v = Vertex::new(big);
     assert_eq!(v.position, big);
 }
 

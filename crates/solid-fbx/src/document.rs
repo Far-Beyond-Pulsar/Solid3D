@@ -85,17 +85,26 @@ impl FbxNode {
     /// This handles ASCII FBX where integer-looking values (0, 1, -1) are stored
     /// as `ArrInt32` rather than `ArrFloat64`.
     pub fn as_f64_vec(&self) -> Vec<f64> {
-        self.properties.first().and_then(FbxProperty::to_f64_vec).unwrap_or_default()
+        self.properties
+            .first()
+            .and_then(FbxProperty::to_f64_vec)
+            .unwrap_or_default()
     }
 
     /// Coerce the first property to a `Vec<i64>`, accepting `ArrInt32` and `ArrInt64`.
     pub fn as_i64_vec(&self) -> Vec<i64> {
-        self.properties.first().and_then(FbxProperty::to_i64_vec).unwrap_or_default()
+        self.properties
+            .first()
+            .and_then(FbxProperty::to_i64_vec)
+            .unwrap_or_default()
     }
 
     /// Coerce the first property to a `Vec<f32>`, accepting any numeric array type.
     pub fn as_f32_vec(&self) -> Vec<f32> {
-        self.properties.first().and_then(FbxProperty::to_f32_vec).unwrap_or_default()
+        self.properties
+            .first()
+            .and_then(FbxProperty::to_f32_vec)
+            .unwrap_or_default()
     }
 }
 
@@ -105,30 +114,30 @@ impl FbxNode {
 #[derive(Debug, Clone)]
 pub(crate) enum FbxProperty {
     // ── Scalar types (FBX type codes) ────────────────────────────────────────
-    Bool(bool),         // 'C'
-    Int16(i16),         // 'Y'
-    Int32(i32),         // 'I'
-    Int64(i64),         // 'L'
-    Float32(f32),       // 'F'
-    Float64(f64),       // 'D'
+    Bool(bool),   // 'C'
+    Int16(i16),   // 'Y'
+    Int32(i32),   // 'I'
+    Int64(i64),   // 'L'
+    Float32(f32), // 'F'
+    Float64(f64), // 'D'
     // ── Array types ──────────────────────────────────────────────────────────
-    ArrBool(Vec<bool>),    // 'b'
-    ArrInt32(Vec<i32>),    // 'i'
-    ArrInt64(Vec<i64>),    // 'l'
-    ArrFloat32(Vec<f32>),  // 'f'
-    ArrFloat64(Vec<f64>),  // 'd'
+    ArrBool(Vec<bool>),   // 'b'
+    ArrInt32(Vec<i32>),   // 'i'
+    ArrInt64(Vec<i64>),   // 'l'
+    ArrFloat32(Vec<f32>), // 'f'
+    ArrFloat64(Vec<f64>), // 'd'
     // ── Blob types ───────────────────────────────────────────────────────────
-    String(String),     // 'S'
-    Bytes(Vec<u8>),     // 'R'
+    String(String), // 'S'
+    Bytes(Vec<u8>), // 'R'
 }
 
 impl FbxProperty {
     pub fn as_i64(&self) -> Option<i64> {
         match self {
-            FbxProperty::Int64(v)   => Some(*v),
-            FbxProperty::Int32(v)   => Some(*v as i64),
-            FbxProperty::Int16(v)   => Some(*v as i64),
-            FbxProperty::Bool(v)    => Some(*v as i64),
+            FbxProperty::Int64(v) => Some(*v),
+            FbxProperty::Int32(v) => Some(*v as i64),
+            FbxProperty::Int16(v) => Some(*v as i64),
+            FbxProperty::Bool(v) => Some(*v as i64),
             _ => None,
         }
     }
@@ -137,9 +146,9 @@ impl FbxProperty {
         match self {
             FbxProperty::Float64(v) => Some(*v),
             FbxProperty::Float32(v) => Some(*v as f64),
-            FbxProperty::Int64(v)   => Some(*v as f64),
-            FbxProperty::Int32(v)   => Some(*v as f64),
-            FbxProperty::Int16(v)   => Some(*v as f64),
+            FbxProperty::Int64(v) => Some(*v as f64),
+            FbxProperty::Int32(v) => Some(*v as f64),
+            FbxProperty::Int16(v) => Some(*v as f64),
             _ => None,
         }
     }
@@ -163,8 +172,8 @@ impl FbxProperty {
         match self {
             FbxProperty::ArrFloat64(v) => Some(v.clone()),
             FbxProperty::ArrFloat32(v) => Some(v.iter().map(|&x| x as f64).collect()),
-            FbxProperty::ArrInt32(v)   => Some(v.iter().map(|&x| x as f64).collect()),
-            FbxProperty::ArrInt64(v)   => Some(v.iter().map(|&x| x as f64).collect()),
+            FbxProperty::ArrInt32(v) => Some(v.iter().map(|&x| x as f64).collect()),
+            FbxProperty::ArrInt64(v) => Some(v.iter().map(|&x| x as f64).collect()),
             _ => None,
         }
     }
@@ -181,8 +190,8 @@ impl FbxProperty {
         match self {
             FbxProperty::ArrFloat32(v) => Some(v.clone()),
             FbxProperty::ArrFloat64(v) => Some(v.iter().map(|&x| x as f32).collect()),
-            FbxProperty::ArrInt32(v)   => Some(v.iter().map(|&x| x as f32).collect()),
-            FbxProperty::ArrInt64(v)   => Some(v.iter().map(|&x| x as f32).collect()),
+            FbxProperty::ArrInt32(v) => Some(v.iter().map(|&x| x as f32).collect()),
+            FbxProperty::ArrInt64(v) => Some(v.iter().map(|&x| x as f32).collect()),
             _ => None,
         }
     }

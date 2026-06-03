@@ -3,9 +3,20 @@ use solid_rs::prelude::*;
 
 // ── Interpolation ─────────────────────────────────────────────────────────────
 
-#[test] fn interpolation_default_is_linear()  { assert_eq!(Interpolation::default(), Interpolation::Linear); }
-#[test] fn interpolation_step_copy()          { let a = Interpolation::Step; let b = a; assert_eq!(a, b); }
-#[test] fn interpolation_cubic_distinct()     { assert_ne!(Interpolation::CubicSpline, Interpolation::Linear); }
+#[test]
+fn interpolation_default_is_linear() {
+    assert_eq!(Interpolation::default(), Interpolation::Linear);
+}
+#[test]
+fn interpolation_step_copy() {
+    let a = Interpolation::Step;
+    let b = a;
+    assert_eq!(a, b);
+}
+#[test]
+fn interpolation_cubic_distinct() {
+    assert_ne!(Interpolation::CubicSpline, Interpolation::Linear);
+}
 
 // ── AnimationTarget ───────────────────────────────────────────────────────────
 
@@ -29,14 +40,29 @@ fn animation_target_scale() {
 
 #[test]
 fn animation_target_morph_weight() {
-    let t = AnimationTarget::MorphWeight { node_id: NodeId(3), target_index: 1 };
-    assert_eq!(t, AnimationTarget::MorphWeight { node_id: NodeId(3), target_index: 1 });
+    let t = AnimationTarget::MorphWeight {
+        node_id: NodeId(3),
+        target_index: 1,
+    };
+    assert_eq!(
+        t,
+        AnimationTarget::MorphWeight {
+            node_id: NodeId(3),
+            target_index: 1
+        }
+    );
 }
 
 #[test]
 fn animation_target_morph_weight_different_index_not_eq() {
-    let a = AnimationTarget::MorphWeight { node_id: NodeId(0), target_index: 0 };
-    let b = AnimationTarget::MorphWeight { node_id: NodeId(0), target_index: 1 };
+    let a = AnimationTarget::MorphWeight {
+        node_id: NodeId(0),
+        target_index: 0,
+    };
+    let b = AnimationTarget::MorphWeight {
+        node_id: NodeId(0),
+        target_index: 1,
+    };
     assert_ne!(a, b);
 }
 
@@ -44,16 +70,28 @@ fn animation_target_morph_weight_different_index_not_eq() {
 
 fn make_channel(times: Vec<f32>, values: Vec<f32>) -> AnimationChannel {
     AnimationChannel {
-        target:        AnimationTarget::Translation(NodeId(0)),
+        target: AnimationTarget::Translation(NodeId(0)),
         interpolation: Interpolation::Linear,
         times,
         values,
     }
 }
 
-#[test] fn channel_keyframe_count_zero()  { assert_eq!(make_channel(vec![], vec![]).keyframe_count(), 0); }
-#[test] fn channel_keyframe_count_three() { assert_eq!(make_channel(vec![0.0,1.0,2.0], vec![]).keyframe_count(), 3); }
-#[test] fn channel_duration_empty()       { assert_eq!(make_channel(vec![], vec![]).duration(), 0.0); }
+#[test]
+fn channel_keyframe_count_zero() {
+    assert_eq!(make_channel(vec![], vec![]).keyframe_count(), 0);
+}
+#[test]
+fn channel_keyframe_count_three() {
+    assert_eq!(
+        make_channel(vec![0.0, 1.0, 2.0], vec![]).keyframe_count(),
+        3
+    );
+}
+#[test]
+fn channel_duration_empty() {
+    assert_eq!(make_channel(vec![], vec![]).duration(), 0.0);
+}
 
 #[test]
 fn channel_duration_last_time() {
@@ -73,8 +111,14 @@ fn animation_new_sets_name() {
     assert_eq!(a.name, "Walk");
 }
 
-#[test] fn animation_new_channels_empty()   { assert!(Animation::new("X").channels.is_empty()); }
-#[test] fn animation_new_extensions_empty() { assert!(Animation::new("X").extensions.is_empty()); }
+#[test]
+fn animation_new_channels_empty() {
+    assert!(Animation::new("X").channels.is_empty());
+}
+#[test]
+fn animation_new_extensions_empty() {
+    assert!(Animation::new("X").extensions.is_empty());
+}
 
 // ── Animation::duration ──────────────────────────────────────────────────────
 
@@ -107,8 +151,8 @@ fn translation_channel_has_correct_value_count() {
     let ch = AnimationChannel {
         target: AnimationTarget::Translation(NodeId(0)),
         interpolation: Interpolation::Linear,
-        times:  vec![0.0, 1.0],
-        values: vec![0.0,0.0,0.0,  1.0,2.0,3.0],
+        times: vec![0.0, 1.0],
+        values: vec![0.0, 0.0, 0.0, 1.0, 2.0, 3.0],
     };
     assert_eq!(ch.values.len(), 6);
 }
@@ -121,8 +165,8 @@ fn rotation_channel_quaternion_values() {
     let ch = AnimationChannel {
         target: AnimationTarget::Rotation(NodeId(0)),
         interpolation: Interpolation::Step,
-        times:  vec![0.0],
-        values: vec![0.0, 0.0, 0.0, 1.0],  // identity quat
+        times: vec![0.0],
+        values: vec![0.0, 0.0, 0.0, 1.0], // identity quat
     };
     assert_eq!(ch.values[3], 1.0); // w = 1
 }
@@ -150,12 +194,14 @@ fn animation_multiple_target_types() {
     a.channels.push(AnimationChannel {
         target: AnimationTarget::Translation(NodeId(0)),
         interpolation: Interpolation::Linear,
-        times: vec![0.0, 1.0], values: vec![0.0,0.0,0.0, 0.0,1.0,0.0],
+        times: vec![0.0, 1.0],
+        values: vec![0.0, 0.0, 0.0, 0.0, 1.0, 0.0],
     });
     a.channels.push(AnimationChannel {
         target: AnimationTarget::Rotation(NodeId(0)),
         interpolation: Interpolation::CubicSpline,
-        times: vec![0.0, 1.0], values: vec![0.0,0.0,0.0,1.0, 0.0,0.0,0.0,1.0],
+        times: vec![0.0, 1.0],
+        values: vec![0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
     });
     assert_eq!(a.channels.len(), 2);
     assert_eq!(a.duration(), 1.0);

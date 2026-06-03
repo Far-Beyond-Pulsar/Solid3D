@@ -1,7 +1,7 @@
 mod common;
 use common::*;
+use glam::{Quat, Vec3};
 use solid_rs::prelude::*;
-use glam::{Vec3, Quat};
 
 // ── new / named ───────────────────────────────────────────────────────────────
 
@@ -22,9 +22,9 @@ fn builder_named_sets_scene_name() {
 
 #[test]
 fn builder_alloc_unique_ids() {
-    let mut b  = SceneBuilder::new();
-    let id_a   = b.add_root_node("A");
-    let id_b   = b.add_root_node("B");
+    let mut b = SceneBuilder::new();
+    let id_a = b.add_root_node("A");
+    let id_b = b.add_root_node("B");
     assert_ne!(id_a, id_b);
 }
 
@@ -42,26 +42,26 @@ fn builder_ids_sequential() {
 #[test]
 fn builder_add_root_node_appears_in_roots() {
     let mut b = SceneBuilder::new();
-    let r     = b.add_root_node("R");
-    let s     = b.build();
+    let r = b.add_root_node("R");
+    let s = b.build();
     assert!(s.roots.contains(&r));
 }
 
 #[test]
 fn builder_root_node_appears_in_nodes() {
     let mut b = SceneBuilder::new();
-    let r     = b.add_root_node("Root");
-    let s     = b.build();
+    let r = b.add_root_node("Root");
+    let s = b.build();
     assert!(s.node(r).is_some());
 }
 
 #[test]
 fn builder_multiple_roots() {
     let mut b = SceneBuilder::new();
-    let _r1   = b.add_root_node("R1");
-    let _r2   = b.add_root_node("R2");
-    let _r3   = b.add_root_node("R3");
-    let s     = b.build();
+    let _r1 = b.add_root_node("R1");
+    let _r2 = b.add_root_node("R2");
+    let _r3 = b.add_root_node("R3");
+    let s = b.build();
     assert_eq!(s.roots.len(), 3);
 }
 
@@ -69,35 +69,35 @@ fn builder_multiple_roots() {
 
 #[test]
 fn builder_child_has_parent() {
-    let mut b   = SceneBuilder::new();
-    let parent  = b.add_root_node("Parent");
-    let child   = b.add_child_node(parent, "Child");
-    let s       = b.build();
+    let mut b = SceneBuilder::new();
+    let parent = b.add_root_node("Parent");
+    let child = b.add_child_node(parent, "Child");
+    let s = b.build();
     assert_eq!(s.node(child).unwrap().parent, Some(parent));
 }
 
 #[test]
 fn builder_child_appears_in_parent_children() {
-    let mut b   = SceneBuilder::new();
-    let parent  = b.add_root_node("Parent");
-    let child   = b.add_child_node(parent, "Child");
-    let s       = b.build();
+    let mut b = SceneBuilder::new();
+    let parent = b.add_root_node("Parent");
+    let child = b.add_child_node(parent, "Child");
+    let s = b.build();
     assert!(s.node(parent).unwrap().children.contains(&child));
 }
 
 #[test]
 fn builder_child_not_in_roots() {
-    let mut b   = SceneBuilder::new();
-    let parent  = b.add_root_node("P");
-    let child   = b.add_child_node(parent, "C");
-    let s       = b.build();
+    let mut b = SceneBuilder::new();
+    let parent = b.add_root_node("P");
+    let child = b.add_child_node(parent, "C");
+    let s = b.build();
     assert!(!s.roots.contains(&child));
 }
 
 #[test]
 fn builder_deep_hierarchy() {
     let mut b = SceneBuilder::new();
-    let r     = b.add_root_node("R");
+    let r = b.add_root_node("R");
     let mut current = r;
     for i in 0..10 {
         current = b.add_child_node(current, format!("N{i}"));
@@ -111,11 +111,14 @@ fn builder_deep_hierarchy() {
 #[test]
 fn builder_set_transform() {
     let mut b = SceneBuilder::new();
-    let r     = b.add_root_node("R");
-    let t     = Transform::default().with_translation(Vec3::new(1.0, 2.0, 3.0));
+    let r = b.add_root_node("R");
+    let t = Transform::default().with_translation(Vec3::new(1.0, 2.0, 3.0));
     b.set_transform(r, t);
-    let s     = b.build();
-    assert_eq!(s.node(r).unwrap().transform.translation, Vec3::new(1.0, 2.0, 3.0));
+    let s = b.build();
+    assert_eq!(
+        s.node(r).unwrap().transform.translation,
+        Vec3::new(1.0, 2.0, 3.0)
+    );
 }
 
 // ── push_* returns correct indices ────────────────────────────────────────────
@@ -123,15 +126,15 @@ fn builder_set_transform() {
 #[test]
 fn builder_push_mesh_index_0() {
     let mut b = SceneBuilder::new();
-    let idx   = b.push_mesh(Mesh::new("M"));
+    let idx = b.push_mesh(Mesh::new("M"));
     assert_eq!(idx, 0);
 }
 
 #[test]
 fn builder_push_mesh_increments() {
-    let mut b  = SceneBuilder::new();
-    let idx0   = b.push_mesh(Mesh::new("M0"));
-    let idx1   = b.push_mesh(Mesh::new("M1"));
+    let mut b = SceneBuilder::new();
+    let idx0 = b.push_mesh(Mesh::new("M0"));
+    let idx1 = b.push_mesh(Mesh::new("M1"));
     assert_eq!(idx0, 0);
     assert_eq!(idx1, 1);
 }
@@ -139,50 +142,53 @@ fn builder_push_mesh_increments() {
 #[test]
 fn builder_push_material_index() {
     let mut b = SceneBuilder::new();
-    let idx   = b.push_material(Material::default());
+    let idx = b.push_material(Material::default());
     assert_eq!(idx, 0);
 }
 
 #[test]
 fn builder_push_texture_index() {
     let mut b = SceneBuilder::new();
-    let idx   = b.push_texture(Texture::new("Tex", 0));
+    let idx = b.push_texture(Texture::new("Tex", 0));
     assert_eq!(idx, 0);
 }
 
 #[test]
 fn builder_push_image_index() {
     let mut b = SceneBuilder::new();
-    let idx   = b.push_image(Image::from_uri("Img", "test.png"));
+    let idx = b.push_image(Image::from_uri("Img", "test.png"));
     assert_eq!(idx, 0);
 }
 
 #[test]
 fn builder_push_camera_index() {
     let mut b = SceneBuilder::new();
-    let idx   = b.push_camera(Camera::perspective("Cam"));
+    let idx = b.push_camera(Camera::perspective("Cam"));
     assert_eq!(idx, 0);
 }
 
 #[test]
 fn builder_push_light_index() {
     let mut b = SceneBuilder::new();
-    let l     = Light::Directional(DirectionalLight { base: LightBase::new("Sun"), extensions: Extensions::new() });
-    let idx   = b.push_light(l);
+    let l = Light::Directional(DirectionalLight {
+        base: LightBase::new("Sun"),
+        extensions: Extensions::new(),
+    });
+    let idx = b.push_light(l);
     assert_eq!(idx, 0);
 }
 
 #[test]
 fn builder_push_skin_index() {
     let mut b = SceneBuilder::new();
-    let idx   = b.push_skin(Skin::new("Skin0"));
+    let idx = b.push_skin(Skin::new("Skin0"));
     assert_eq!(idx, 0);
 }
 
 #[test]
 fn builder_push_animation_index() {
     let mut b = SceneBuilder::new();
-    let idx   = b.push_animation(Animation::new("Anim0"));
+    let idx = b.push_animation(Animation::new("Anim0"));
     assert_eq!(idx, 0);
 }
 
@@ -190,9 +196,9 @@ fn builder_push_animation_index() {
 
 #[test]
 fn builder_attach_mesh_to_node() {
-    let mut b   = SceneBuilder::new();
+    let mut b = SceneBuilder::new();
     let node_id = b.add_root_node("N");
-    let mesh_idx= b.push_mesh(Mesh::new("M"));
+    let mesh_idx = b.push_mesh(Mesh::new("M"));
     b.attach_mesh(node_id, mesh_idx);
     let s = b.build();
     assert_eq!(s.node(node_id).unwrap().mesh, Some(mesh_idx));
@@ -200,9 +206,9 @@ fn builder_attach_mesh_to_node() {
 
 #[test]
 fn builder_attach_camera_to_node() {
-    let mut b      = SceneBuilder::new();
-    let node_id    = b.add_root_node("N");
-    let cam_idx    = b.push_camera(Camera::perspective("C"));
+    let mut b = SceneBuilder::new();
+    let node_id = b.add_root_node("N");
+    let cam_idx = b.push_camera(Camera::perspective("C"));
     b.attach_camera(node_id, cam_idx);
     let s = b.build();
     assert_eq!(s.node(node_id).unwrap().camera, Some(cam_idx));
@@ -210,9 +216,12 @@ fn builder_attach_camera_to_node() {
 
 #[test]
 fn builder_attach_light_to_node() {
-    let mut b     = SceneBuilder::new();
-    let node_id   = b.add_root_node("N");
-    let light_idx = b.push_light(Light::Directional(DirectionalLight { base: LightBase::new("Sun"), extensions: Extensions::new() }));
+    let mut b = SceneBuilder::new();
+    let node_id = b.add_root_node("N");
+    let light_idx = b.push_light(Light::Directional(DirectionalLight {
+        base: LightBase::new("Sun"),
+        extensions: Extensions::new(),
+    }));
     b.attach_light(node_id, light_idx);
     let s = b.build();
     assert_eq!(s.node(node_id).unwrap().light, Some(light_idx));
@@ -220,8 +229,8 @@ fn builder_attach_light_to_node() {
 
 #[test]
 fn builder_attach_skin_to_node() {
-    let mut b    = SceneBuilder::new();
-    let node_id  = b.add_root_node("N");
+    let mut b = SceneBuilder::new();
+    let node_id = b.add_root_node("N");
     let skin_idx = b.push_skin(Skin::new("S"));
     b.attach_skin(node_id, skin_idx);
     let s = b.build();

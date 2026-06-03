@@ -27,12 +27,7 @@ impl Saver for ObjSaver {
         &OBJ_FORMAT
     }
 
-    fn save(
-        &self,
-        scene: &Scene,
-        writer: &mut dyn Write,
-        options: &SaveOptions,
-    ) -> Result<()> {
+    fn save(&self, scene: &Scene, writer: &mut dyn Write, options: &SaveOptions) -> Result<()> {
         write_obj(scene, writer, options)
     }
 }
@@ -65,15 +60,19 @@ fn write_obj(scene: &Scene, w: &mut dyn Write, options: &SaveOptions) -> Result<
 
     // OBJ uses a global vertex pool; we emit all vertices then per-group faces.
     // For simplicity we use per-mesh vertex pools with an offset counter.
-    let mut v_offset  = 1usize; // OBJ indices are 1-based
+    let mut v_offset = 1usize; // OBJ indices are 1-based
     let mut vt_offset = 1usize;
     let mut vn_offset = 1usize;
 
     for (mesh_idx, mesh) in scene.meshes.iter().enumerate() {
-        if mesh.vertices.is_empty() { continue; }
+        if mesh.vertices.is_empty() {
+            continue;
+        }
 
         // Find the node name for this mesh (first node that references it)
-        let group_name = scene.nodes.iter()
+        let group_name = scene
+            .nodes
+            .iter()
             .find(|n| n.mesh == Some(mesh_idx))
             .map(|n| n.name.as_str())
             .unwrap_or(&mesh.name);
@@ -132,29 +131,38 @@ fn write_obj(scene: &Scene, w: &mut dyn Write, options: &SaveOptions) -> Result<
                 let face = if has_uvs && has_normals {
                     format!(
                         "f {}/{}/{} {}/{}/{} {}/{}/{}",
-                        a + v_offset, a + vt_offset, a + vn_offset,
-                        b + v_offset, b + vt_offset, b + vn_offset,
-                        c + v_offset, c + vt_offset, c + vn_offset,
+                        a + v_offset,
+                        a + vt_offset,
+                        a + vn_offset,
+                        b + v_offset,
+                        b + vt_offset,
+                        b + vn_offset,
+                        c + v_offset,
+                        c + vt_offset,
+                        c + vn_offset,
                     )
                 } else if has_uvs {
                     format!(
                         "f {}/{} {}/{} {}/{}",
-                        a + v_offset, a + vt_offset,
-                        b + v_offset, b + vt_offset,
-                        c + v_offset, c + vt_offset,
+                        a + v_offset,
+                        a + vt_offset,
+                        b + v_offset,
+                        b + vt_offset,
+                        c + v_offset,
+                        c + vt_offset,
                     )
                 } else if has_normals {
                     format!(
                         "f {}//{} {}//{} {}//{}",
-                        a + v_offset, a + vn_offset,
-                        b + v_offset, b + vn_offset,
-                        c + v_offset, c + vn_offset,
+                        a + v_offset,
+                        a + vn_offset,
+                        b + v_offset,
+                        b + vn_offset,
+                        c + v_offset,
+                        c + vn_offset,
                     )
                 } else {
-                    format!(
-                        "f {} {} {}",
-                        a + v_offset, b + v_offset, c + v_offset,
-                    )
+                    format!("f {} {} {}", a + v_offset, b + v_offset, c + v_offset,)
                 };
                 writeln!(w, "{face}").map_err(SolidError::Io)?;
             }
@@ -163,7 +171,7 @@ fn write_obj(scene: &Scene, w: &mut dyn Write, options: &SaveOptions) -> Result<
         writeln!(w).map_err(SolidError::Io)?;
 
         let n_verts = mesh.vertices.len();
-        v_offset  += n_verts;
+        v_offset += n_verts;
         vt_offset += n_verts;
         vn_offset += n_verts;
     }

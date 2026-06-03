@@ -1,9 +1,9 @@
 mod common;
 use common::*;
 
+use glam::Vec3;
 use solid_ply::PlySaver;
 use solid_rs::prelude::*;
-use glam::Vec3;
 
 const EPS: f32 = 1e-5;
 const COLOR_EPS: f32 = 2.0 / 255.0;
@@ -79,9 +79,18 @@ fn round_trip_ascii_tangents() {
     let loaded = &rt.meshes[0].vertices;
     assert_eq!(loaded.len(), orig.len());
     for (o, l) in orig.iter().zip(loaded.iter()) {
-        assert!((o.position.x - l.position.x).abs() < EPS, "x mismatch with tangent props");
-        assert!((o.position.y - l.position.y).abs() < EPS, "y mismatch with tangent props");
-        assert!((o.position.z - l.position.z).abs() < EPS, "z mismatch with tangent props");
+        assert!(
+            (o.position.x - l.position.x).abs() < EPS,
+            "x mismatch with tangent props"
+        );
+        assert!(
+            (o.position.y - l.position.y).abs() < EPS,
+            "y mismatch with tangent props"
+        );
+        assert!(
+            (o.position.z - l.position.z).abs() < EPS,
+            "z mismatch with tangent props"
+        );
     }
 }
 
@@ -91,7 +100,11 @@ fn round_trip_ascii_index_count() {
     let rt = ascii_round_trip(&scene);
     let orig_prim = &scene.meshes[0].primitives[0];
     let rt_prim = &rt.meshes[0].primitives[0];
-    assert_eq!(orig_prim.indices.len(), rt_prim.indices.len(), "index count mismatch");
+    assert_eq!(
+        orig_prim.indices.len(),
+        rt_prim.indices.len(),
+        "index count mismatch"
+    );
 }
 
 // ── Binary LE round-trips ─────────────────────────────────────────────────────
@@ -115,7 +128,9 @@ fn round_trip_binary_le_normals() {
     let scene = normal_scene();
     let rt = binary_le_round_trip(&scene);
     for v in &rt.meshes[0].vertices {
-        let n = v.normal.expect("normal should survive binary LE round-trip");
+        let n = v
+            .normal
+            .expect("normal should survive binary LE round-trip");
         assert!((n.z - 1.0).abs() < EPS);
     }
 }
@@ -153,7 +168,9 @@ fn round_trip_binary_be_normals() {
     let scene = normal_scene();
     let rt = binary_be_round_trip(&scene);
     for v in &rt.meshes[0].vertices {
-        let n = v.normal.expect("normal should survive binary BE round-trip");
+        let n = v
+            .normal
+            .expect("normal should survive binary BE round-trip");
         assert!((n.z - 1.0).abs() < EPS);
     }
 }
@@ -177,9 +194,18 @@ fn round_trip_double_precision_positions() {
     let loaded = &rt.meshes[0].vertices;
     assert_eq!(loaded.len(), orig.len());
     for (o, l) in orig.iter().zip(loaded.iter()) {
-        assert!((o.position.x - l.position.x).abs() < EPS, "x mismatch in double precision");
-        assert!((o.position.y - l.position.y).abs() < EPS, "y mismatch in double precision");
-        assert!((o.position.z - l.position.z).abs() < EPS, "z mismatch in double precision");
+        assert!(
+            (o.position.x - l.position.x).abs() < EPS,
+            "x mismatch in double precision"
+        );
+        assert!(
+            (o.position.y - l.position.y).abs() < EPS,
+            "y mismatch in double precision"
+        );
+        assert!(
+            (o.position.z - l.position.z).abs() < EPS,
+            "z mismatch in double precision"
+        );
     }
 }
 
@@ -190,12 +216,19 @@ fn round_trip_point_cloud_no_faces() {
     let scene = point_cloud_scene();
     let rt = ascii_round_trip(&scene);
     let loaded_mesh = &rt.meshes[0];
-    assert_eq!(loaded_mesh.vertices.len(), 5, "all 5 cloud points should survive");
+    assert_eq!(
+        loaded_mesh.vertices.len(),
+        5,
+        "all 5 cloud points should survive"
+    );
     let has_triangles = loaded_mesh
         .primitives
         .iter()
         .any(|p| p.topology == Topology::TriangleList);
-    assert!(!has_triangles, "reloaded point cloud must not have triangle faces");
+    assert!(
+        !has_triangles,
+        "reloaded point cloud must not have triangle faces"
+    );
 }
 
 // ── Multi-mesh round-trip ─────────────────────────────────────────────────────

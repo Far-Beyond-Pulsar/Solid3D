@@ -1,6 +1,6 @@
 mod common;
-use solid_rs::prelude::*;
 use glam::Vec3;
+use solid_rs::prelude::*;
 
 // ── Mesh::new ─────────────────────────────────────────────────────────────────
 
@@ -10,15 +10,33 @@ fn mesh_new_sets_name() {
     assert_eq!(m.name, "Cube");
 }
 
-#[test] fn mesh_new_vertices_empty()       { assert!(Mesh::new("X").vertices.is_empty()); }
-#[test] fn mesh_new_primitives_empty()     { assert!(Mesh::new("X").primitives.is_empty()); }
-#[test] fn mesh_new_morph_targets_empty()  { assert!(Mesh::new("X").morph_targets.is_empty()); }
-#[test] fn mesh_new_bounds_none()          { assert!(Mesh::new("X").bounds.is_none()); }
-#[test] fn mesh_new_extensions_empty()     { assert!(Mesh::new("X").extensions.is_empty()); }
+#[test]
+fn mesh_new_vertices_empty() {
+    assert!(Mesh::new("X").vertices.is_empty());
+}
+#[test]
+fn mesh_new_primitives_empty() {
+    assert!(Mesh::new("X").primitives.is_empty());
+}
+#[test]
+fn mesh_new_morph_targets_empty() {
+    assert!(Mesh::new("X").morph_targets.is_empty());
+}
+#[test]
+fn mesh_new_bounds_none() {
+    assert!(Mesh::new("X").bounds.is_none());
+}
+#[test]
+fn mesh_new_extensions_empty() {
+    assert!(Mesh::new("X").extensions.is_empty());
+}
 
 // ── is_empty ──────────────────────────────────────────────────────────────────
 
-#[test] fn mesh_is_empty_initially()       { assert!(Mesh::new("X").is_empty()); }
+#[test]
+fn mesh_is_empty_initially() {
+    assert!(Mesh::new("X").is_empty());
+}
 
 #[test]
 fn mesh_not_empty_with_vertices() {
@@ -30,7 +48,9 @@ fn mesh_not_empty_with_vertices() {
 // ── vertex_count ─────────────────────────────────────────────────────────────
 
 #[test]
-fn mesh_vertex_count_zero() { assert_eq!(Mesh::new("X").vertex_count(), 0); }
+fn mesh_vertex_count_zero() {
+    assert_eq!(Mesh::new("X").vertex_count(), 0);
+}
 
 #[test]
 fn mesh_vertex_count_matches_vec_len() {
@@ -42,12 +62,14 @@ fn mesh_vertex_count_matches_vec_len() {
 // ── total_indices ─────────────────────────────────────────────────────────────
 
 #[test]
-fn mesh_total_indices_zero_no_primitives() { assert_eq!(Mesh::new("X").total_indices(), 0); }
+fn mesh_total_indices_zero_no_primitives() {
+    assert_eq!(Mesh::new("X").total_indices(), 0);
+}
 
 #[test]
 fn mesh_total_indices_single_primitive() {
     let mut m = Mesh::new("X");
-    m.primitives = vec![Primitive::triangles(vec![0,1,2], None)];
+    m.primitives = vec![Primitive::triangles(vec![0, 1, 2], None)];
     assert_eq!(m.total_indices(), 3);
 }
 
@@ -55,8 +77,8 @@ fn mesh_total_indices_single_primitive() {
 fn mesh_total_indices_two_primitives() {
     let mut m = Mesh::new("X");
     m.primitives = vec![
-        Primitive::triangles(vec![0,1,2], None),
-        Primitive::triangles(vec![3,4,5,6,7,8], None),
+        Primitive::triangles(vec![0, 1, 2], None),
+        Primitive::triangles(vec![3, 4, 5, 6, 7, 8], None),
     ];
     assert_eq!(m.total_indices(), 9);
 }
@@ -86,12 +108,12 @@ fn compute_bounds_multiple_vertices() {
     let mut m = Mesh::new("X");
     m.vertices = vec![
         Vertex::new(Vec3::new(-1.0, -2.0, -3.0)),
-        Vertex::new(Vec3::new( 4.0,  5.0,  6.0)),
+        Vertex::new(Vec3::new(4.0, 5.0, 6.0)),
     ];
     m.compute_bounds();
     let b = m.bounds.as_ref().unwrap();
     assert_eq!(b.min, Vec3::new(-1.0, -2.0, -3.0));
-    assert_eq!(b.max, Vec3::new( 4.0,  5.0,  6.0));
+    assert_eq!(b.max, Vec3::new(4.0, 5.0, 6.0));
 }
 
 #[test]
@@ -117,7 +139,10 @@ fn morph_target_default() {
 
 #[test]
 fn morph_target_with_name() {
-    let mt = MorphTarget { name: "smile".into(), ..Default::default() };
+    let mt = MorphTarget {
+        name: "smile".into(),
+        ..Default::default()
+    };
     assert_eq!(mt.name, "smile");
 }
 
@@ -146,7 +171,8 @@ fn mesh_clone_preserves_name_and_vertex_count() {
 
 #[test]
 fn mesh_extension_insert_and_retrieve() {
-    #[derive(Debug)] struct LODLevel(u8);
+    #[derive(Debug)]
+    struct LODLevel(u8);
     let mut m = Mesh::new("X");
     m.extensions.insert(LODLevel(2));
     assert_eq!(m.extensions.get::<LODLevel>().unwrap().0, 2);
@@ -157,7 +183,9 @@ fn mesh_extension_insert_and_retrieve() {
 #[test]
 fn large_mesh_vertex_count() {
     let mut m = Mesh::new("Large");
-    m.vertices = (0..10_000).map(|i| Vertex::new(Vec3::splat(i as f32))).collect();
+    m.vertices = (0..10_000)
+        .map(|i| Vertex::new(Vec3::splat(i as f32)))
+        .collect();
     assert_eq!(m.vertex_count(), 10_000);
 }
 

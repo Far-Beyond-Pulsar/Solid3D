@@ -24,8 +24,8 @@ impl Transform {
     /// The identity transform: no translation, no rotation, scale = 1.
     pub const IDENTITY: Self = Self {
         translation: Vec3::ZERO,
-        rotation:    Quat::IDENTITY,
-        scale:       Vec3::ONE,
+        rotation: Quat::IDENTITY,
+        scale: Vec3::ONE,
     };
 
     /// Decomposes an affine `Mat4` into a TRS transform.
@@ -33,7 +33,11 @@ impl Transform {
     /// Non-affine matrices (e.g. with shear) lose the shear component.
     pub fn from_matrix(mat: Mat4) -> Self {
         let (scale, rotation, translation) = mat.to_scale_rotation_translation();
-        Self { translation, rotation, scale }
+        Self {
+            translation,
+            rotation,
+            scale,
+        }
     }
 
     /// Recomposes this transform into a 4×4 matrix.

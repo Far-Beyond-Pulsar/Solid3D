@@ -7,8 +7,8 @@ use solid_rs::prelude::*;
 use solid_rs::scene::Scene;
 use solid_rs::{Result, SolidError};
 
-use crate::{convert, OBJ_FORMAT};
 use crate::parser::{parse_mtl, parse_obj};
+use crate::{convert, OBJ_FORMAT};
 
 /// Loader for Wavefront OBJ files (`.obj`).
 ///
@@ -22,11 +22,7 @@ impl Loader for ObjLoader {
         &OBJ_FORMAT
     }
 
-    fn load(
-        &self,
-        reader: &mut dyn ReadSeek,
-        options: &LoadOptions,
-    ) -> Result<Scene> {
+    fn load(&self, reader: &mut dyn ReadSeek, options: &LoadOptions) -> Result<Scene> {
         let mut src = String::new();
         reader.read_to_string(&mut src).map_err(SolidError::Io)?;
 
@@ -47,10 +43,17 @@ impl Loader for ObjLoader {
         let mut buf = [0u8; 512];
         let n = reader.read(&mut buf).unwrap_or(0);
         let s = std::str::from_utf8(&buf[..n]).unwrap_or("");
-        let score = s.lines().take(20).filter(|l| {
-            let l = l.trim_start();
-            l.starts_with("v ") || l.starts_with("vn ") || l.starts_with("vt ") || l.starts_with("f ")
-        }).count();
+        let score = s
+            .lines()
+            .take(20)
+            .filter(|l| {
+                let l = l.trim_start();
+                l.starts_with("v ")
+                    || l.starts_with("vn ")
+                    || l.starts_with("vt ")
+                    || l.starts_with("f ")
+            })
+            .count();
         (score as f32 / 5.0).min(0.9)
     }
 }
@@ -68,5 +71,9 @@ fn load_mtls(mtllibs: &[String], base_dir: &Path) -> Option<crate::parser::MtlDa
             any = true;
         }
     }
-    if any { Some(combined) } else { None }
+    if any {
+        Some(combined)
+    } else {
+        None
+    }
 }

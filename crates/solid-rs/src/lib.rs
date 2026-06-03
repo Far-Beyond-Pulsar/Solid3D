@@ -16,6 +16,8 @@
 //! | `solid-usd`   | OpenUSD / USDA / USDC loader / saver          |
 //! | `solid-stl`   | Stereolithography STL loader / saver          |
 //! | `solid-ply`   | Stanford PLY loader / saver                   |
+//! | `solid-blend` | Blender `.blend` loader / saver               |
+//! | `solid-x`     | Legacy DirectX `.x` loader / saver            |
 //!
 //! ## Quick Start
 //!

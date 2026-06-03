@@ -72,12 +72,12 @@ impl Mesh {
     pub fn new(name: impl Into<String>) -> Self {
         Self {
             name: name.into(),
-            vertices:     Vec::new(),
-            primitives:   Vec::new(),
+            vertices: Vec::new(),
+            primitives: Vec::new(),
             morph_targets: Vec::new(),
             morph_weights: Vec::new(),
-            bounds:       None,
-            extensions:   Extensions::new(),
+            bounds: None,
+            extensions: Extensions::new(),
         }
     }
 

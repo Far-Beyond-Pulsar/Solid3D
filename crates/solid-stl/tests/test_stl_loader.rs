@@ -35,7 +35,10 @@ fn loader_detects_ascii() {
 #[test]
 fn loader_binary_single_triangle_vertex_count() {
     let scene = StlLoader
-        .load(&mut Cursor::new(single_triangle_binary()), &LoadOptions::default())
+        .load(
+            &mut Cursor::new(single_triangle_binary()),
+            &LoadOptions::default(),
+        )
         .unwrap();
     assert_eq!(scene.meshes[0].vertices.len(), 3);
 }
@@ -43,7 +46,10 @@ fn loader_binary_single_triangle_vertex_count() {
 #[test]
 fn loader_binary_single_triangle_index_count() {
     let scene = StlLoader
-        .load(&mut Cursor::new(single_triangle_binary()), &LoadOptions::default())
+        .load(
+            &mut Cursor::new(single_triangle_binary()),
+            &LoadOptions::default(),
+        )
         .unwrap();
     assert_eq!(scene.meshes[0].primitives[0].indices.len(), 3);
 }
@@ -51,9 +57,16 @@ fn loader_binary_single_triangle_index_count() {
 #[test]
 fn loader_binary_positions_correct() {
     let scene = StlLoader
-        .load(&mut Cursor::new(single_triangle_binary()), &LoadOptions::default())
+        .load(
+            &mut Cursor::new(single_triangle_binary()),
+            &LoadOptions::default(),
+        )
         .unwrap();
-    let positions: Vec<_> = scene.meshes[0].vertices.iter().map(|v| v.position).collect();
+    let positions: Vec<_> = scene.meshes[0]
+        .vertices
+        .iter()
+        .map(|v| v.position)
+        .collect();
     assert!(positions.contains(&glam::Vec3::new(0.0, 0.0, 0.0)));
     assert!(positions.contains(&glam::Vec3::new(1.0, 0.0, 0.0)));
     assert!(positions.contains(&glam::Vec3::new(0.0, 1.0, 0.0)));
@@ -64,7 +77,10 @@ fn loader_binary_positions_correct() {
 #[test]
 fn loader_binary_two_triangles() {
     let scene = StlLoader
-        .load(&mut Cursor::new(two_triangle_binary()), &LoadOptions::default())
+        .load(
+            &mut Cursor::new(two_triangle_binary()),
+            &LoadOptions::default(),
+        )
         .unwrap();
     // Quad split into 2 tris → 4 unique vertices, 6 indices
     assert_eq!(scene.meshes[0].vertices.len(), 4);
@@ -76,7 +92,7 @@ fn loader_binary_two_triangles() {
 #[test]
 fn loader_binary_zero_triangles() {
     let mut buf = vec![0u8; 84]; // 80-byte header + 4-byte count = 0
-    // count stays 0 (all zeros)
+                                 // count stays 0 (all zeros)
     let scene = StlLoader
         .load(&mut Cursor::new(buf), &LoadOptions::default())
         .expect("empty binary STL should not panic");
@@ -89,7 +105,10 @@ fn loader_binary_zero_triangles() {
 #[test]
 fn loader_ascii_single_triangle_vertex_count() {
     let scene = StlLoader
-        .load(&mut Cursor::new(single_triangle_ascii()), &LoadOptions::default())
+        .load(
+            &mut Cursor::new(single_triangle_ascii()),
+            &LoadOptions::default(),
+        )
         .unwrap();
     assert_eq!(scene.meshes[0].vertices.len(), 3);
 }
@@ -97,9 +116,16 @@ fn loader_ascii_single_triangle_vertex_count() {
 #[test]
 fn loader_ascii_positions_correct() {
     let scene = StlLoader
-        .load(&mut Cursor::new(single_triangle_ascii()), &LoadOptions::default())
+        .load(
+            &mut Cursor::new(single_triangle_ascii()),
+            &LoadOptions::default(),
+        )
         .unwrap();
-    let positions: Vec<_> = scene.meshes[0].vertices.iter().map(|v| v.position).collect();
+    let positions: Vec<_> = scene.meshes[0]
+        .vertices
+        .iter()
+        .map(|v| v.position)
+        .collect();
     assert!(positions.contains(&glam::Vec3::new(0.0, 0.0, 0.0)));
     assert!(positions.contains(&glam::Vec3::new(1.0, 0.0, 0.0)));
     assert!(positions.contains(&glam::Vec3::new(0.0, 1.0, 0.0)));
@@ -155,7 +181,10 @@ fn loader_ascii_multiple_solids() {
 #[test]
 fn loader_viscam_color_red_loaded() {
     let scene = StlLoader
-        .load(&mut Cursor::new(colored_triangle_binary(31, 0, 0)), &LoadOptions::default())
+        .load(
+            &mut Cursor::new(colored_triangle_binary(31, 0, 0)),
+            &LoadOptions::default(),
+        )
         .unwrap();
     let v = &scene.meshes[0].vertices[0];
     let c = v.colors[0].expect("red vertex should have a color");
@@ -167,7 +196,10 @@ fn loader_viscam_color_red_loaded() {
 #[test]
 fn loader_viscam_color_green_loaded() {
     let scene = StlLoader
-        .load(&mut Cursor::new(colored_triangle_binary(0, 31, 0)), &LoadOptions::default())
+        .load(
+            &mut Cursor::new(colored_triangle_binary(0, 31, 0)),
+            &LoadOptions::default(),
+        )
         .unwrap();
     let v = &scene.meshes[0].vertices[0];
     let c = v.colors[0].expect("green vertex should have a color");
@@ -179,7 +211,10 @@ fn loader_viscam_color_green_loaded() {
 #[test]
 fn loader_viscam_color_white_loaded() {
     let scene = StlLoader
-        .load(&mut Cursor::new(colored_triangle_binary(31, 31, 31)), &LoadOptions::default())
+        .load(
+            &mut Cursor::new(colored_triangle_binary(31, 31, 31)),
+            &LoadOptions::default(),
+        )
         .unwrap();
     let v = &scene.meshes[0].vertices[0];
     let c = v.colors[0].expect("white vertex should have a color");
@@ -199,7 +234,10 @@ fn loader_no_viscam_color_when_bit15_clear() {
         .load(&mut Cursor::new(data), &LoadOptions::default())
         .unwrap();
     for v in &scene.meshes[0].vertices {
-        assert!(v.colors[0].is_none(), "no color expected when bit-15 is clear");
+        assert!(
+            v.colors[0].is_none(),
+            "no color expected when bit-15 is clear"
+        );
     }
 }
 
@@ -208,18 +246,27 @@ fn loader_no_viscam_color_when_bit15_clear() {
 #[test]
 fn loader_smooth_normals_computed() {
     let scene = StlLoader
-        .load(&mut Cursor::new(single_triangle_binary()), &LoadOptions::default())
+        .load(
+            &mut Cursor::new(single_triangle_binary()),
+            &LoadOptions::default(),
+        )
         .unwrap();
     // Every vertex in a triangle mesh should have a computed smooth normal.
     for v in &scene.meshes[0].vertices {
-        assert!(v.normal.is_some(), "smooth normal should be set on every vertex");
+        assert!(
+            v.normal.is_some(),
+            "smooth normal should be set on every vertex"
+        );
     }
 }
 
 #[test]
 fn loader_smooth_normals_unit_length() {
     let scene = StlLoader
-        .load(&mut Cursor::new(two_triangle_binary()), &LoadOptions::default())
+        .load(
+            &mut Cursor::new(two_triangle_binary()),
+            &LoadOptions::default(),
+        )
         .unwrap();
     for v in &scene.meshes[0].vertices {
         if let Some(n) = v.normal {

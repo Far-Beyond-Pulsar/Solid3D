@@ -3,12 +3,12 @@
 use std::io::{Cursor, Read};
 
 use solid_rs::{
-    SolidError,
     scene::scene::Scene,
     traits::{FormatInfo, LoadOptions, Loader, ReadSeek},
+    SolidError,
 };
 
-use crate::{USD_FORMAT, convert, parser, usdc, usdz};
+use crate::{convert, parser, usdc, usdz, USD_FORMAT};
 
 pub struct UsdLoader;
 
@@ -21,9 +21,15 @@ impl Loader for UsdLoader {
         let mut buf = [0u8; 10];
         let n = reader.read(&mut buf).unwrap_or(0);
         let s = &buf[..n];
-        if s.starts_with(b"#usda ")     { return 0.95; }
-        if s.starts_with(b"PXR-USDC")  { return 0.90; }
-        if s.starts_with(b"PK\x03\x04") { return 0.85; } // USDZ
+        if s.starts_with(b"#usda ") {
+            return 0.95;
+        }
+        if s.starts_with(b"PXR-USDC") {
+            return 0.90;
+        }
+        if s.starts_with(b"PK\x03\x04") {
+            return 0.85;
+        } // USDZ
         0.0
     }
 

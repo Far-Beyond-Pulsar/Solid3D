@@ -21,7 +21,7 @@ fn image_from_uri_sets_name() {
 #[test]
 fn image_embedded_sets_source() {
     let data = vec![0u8, 1, 2, 3];
-    let img  = Image::embedded("bump", "image/png", data.clone());
+    let img = Image::embedded("bump", "image/png", data.clone());
     match &img.source {
         ImageSource::Embedded { mime_type, data: d } => {
             assert_eq!(mime_type, "image/png");
@@ -44,17 +44,45 @@ fn image_extensions_initially_empty() {
 
 // ── WrapMode ─────────────────────────────────────────────────────────────────
 
-#[test] fn wrap_mode_default_is_repeat()    { assert_eq!(WrapMode::default(), WrapMode::Repeat); }
-#[test] fn wrap_mode_copy()                 { let a = WrapMode::ClampToEdge; let b = a; assert_eq!(a, b); }
-#[test] fn wrap_mode_eq_same()              { assert_eq!(WrapMode::Repeat, WrapMode::Repeat); }
-#[test] fn wrap_mode_ne_different()         { assert_ne!(WrapMode::Repeat, WrapMode::ClampToEdge); }
-#[test] fn wrap_mode_mirrored_distinct()    { assert_ne!(WrapMode::MirroredRepeat, WrapMode::Repeat); }
+#[test]
+fn wrap_mode_default_is_repeat() {
+    assert_eq!(WrapMode::default(), WrapMode::Repeat);
+}
+#[test]
+fn wrap_mode_copy() {
+    let a = WrapMode::ClampToEdge;
+    let b = a;
+    assert_eq!(a, b);
+}
+#[test]
+fn wrap_mode_eq_same() {
+    assert_eq!(WrapMode::Repeat, WrapMode::Repeat);
+}
+#[test]
+fn wrap_mode_ne_different() {
+    assert_ne!(WrapMode::Repeat, WrapMode::ClampToEdge);
+}
+#[test]
+fn wrap_mode_mirrored_distinct() {
+    assert_ne!(WrapMode::MirroredRepeat, WrapMode::Repeat);
+}
 
 // ── FilterMode ────────────────────────────────────────────────────────────────
 
-#[test] fn filter_mode_default_is_trilinear()  { assert_eq!(FilterMode::default(), FilterMode::LinearMipmapLinear); }
-#[test] fn filter_mode_nearest_copy()          { let a = FilterMode::Nearest; let b = a; assert_eq!(a, b); }
-#[test] fn filter_mode_ne_different()          { assert_ne!(FilterMode::Nearest, FilterMode::Linear); }
+#[test]
+fn filter_mode_default_is_trilinear() {
+    assert_eq!(FilterMode::default(), FilterMode::LinearMipmapLinear);
+}
+#[test]
+fn filter_mode_nearest_copy() {
+    let a = FilterMode::Nearest;
+    let b = a;
+    assert_eq!(a, b);
+}
+#[test]
+fn filter_mode_ne_different() {
+    assert_ne!(FilterMode::Nearest, FilterMode::Linear);
+}
 
 // ── Sampler ───────────────────────────────────────────────────────────────────
 
@@ -107,7 +135,7 @@ fn texture_clone_preserves_image_index() {
 #[test]
 fn image_clone_uri() {
     let img = Image::from_uri("img", "foo/bar.png");
-    let c   = img.clone();
+    let c = img.clone();
     match &c.source {
         ImageSource::Uri(s) => assert_eq!(s, "foo/bar.png"),
         _ => panic!(),
@@ -132,15 +160,27 @@ fn image_source_uri_ne() {
 
 #[test]
 fn image_source_embedded_eq_same_data() {
-    let a = ImageSource::Embedded { mime_type: "image/png".into(), data: vec![1,2,3] };
-    let b = ImageSource::Embedded { mime_type: "image/png".into(), data: vec![1,2,3] };
+    let a = ImageSource::Embedded {
+        mime_type: "image/png".into(),
+        data: vec![1, 2, 3],
+    };
+    let b = ImageSource::Embedded {
+        mime_type: "image/png".into(),
+        data: vec![1, 2, 3],
+    };
     assert_eq!(a, b);
 }
 
 #[test]
 fn image_source_embedded_ne_different_data() {
-    let a = ImageSource::Embedded { mime_type: "image/png".into(), data: vec![1,2,3] };
-    let b = ImageSource::Embedded { mime_type: "image/png".into(), data: vec![4,5,6] };
+    let a = ImageSource::Embedded {
+        mime_type: "image/png".into(),
+        data: vec![1, 2, 3],
+    };
+    let b = ImageSource::Embedded {
+        mime_type: "image/png".into(),
+        data: vec![4, 5, 6],
+    };
     assert_ne!(a, b);
 }
 
@@ -149,8 +189,8 @@ fn image_source_embedded_ne_different_data() {
 #[test]
 fn texture_custom_sampler() {
     let mut t = Texture::new("X", 0);
-    t.sampler.wrap_s    = WrapMode::ClampToEdge;
-    t.sampler.wrap_t    = WrapMode::MirroredRepeat;
+    t.sampler.wrap_s = WrapMode::ClampToEdge;
+    t.sampler.wrap_t = WrapMode::MirroredRepeat;
     t.sampler.mag_filter = FilterMode::Nearest;
     assert_eq!(t.sampler.wrap_s, WrapMode::ClampToEdge);
     assert_eq!(t.sampler.wrap_t, WrapMode::MirroredRepeat);

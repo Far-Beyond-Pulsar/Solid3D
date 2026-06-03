@@ -1,6 +1,6 @@
 mod common;
-use solid_rs::prelude::*;
 use glam::Vec3;
+use solid_rs::prelude::*;
 
 // ── LightBase::new ────────────────────────────────────────────────────────────
 
@@ -10,8 +10,14 @@ fn light_base_new_sets_name() {
     assert_eq!(b.name, "MyLight");
 }
 
-#[test] fn light_base_new_color_white()    { assert_eq!(LightBase::new("X").color,     Vec3::ONE); }
-#[test] fn light_base_new_intensity_one()  { assert_eq!(LightBase::new("X").intensity, 1.0); }
+#[test]
+fn light_base_new_color_white() {
+    assert_eq!(LightBase::new("X").color, Vec3::ONE);
+}
+#[test]
+fn light_base_new_intensity_one() {
+    assert_eq!(LightBase::new("X").intensity, 1.0);
+}
 
 // ── Light variants ────────────────────────────────────────────────────────────
 
@@ -51,10 +57,22 @@ fn make_area_light(name: &str) -> Light {
 
 // ── name() ───────────────────────────────────────────────────────────────────
 
-#[test] fn directional_light_name() { assert_eq!(make_dir_light("Sun").name(),   "Sun"); }
-#[test] fn point_light_name()       { assert_eq!(make_point_light("Lamp", None).name(), "Lamp"); }
-#[test] fn spot_light_name()        { assert_eq!(make_spot_light("Spot").name(), "Spot"); }
-#[test] fn area_light_name()        { assert_eq!(make_area_light("Area").name(), "Area"); }
+#[test]
+fn directional_light_name() {
+    assert_eq!(make_dir_light("Sun").name(), "Sun");
+}
+#[test]
+fn point_light_name() {
+    assert_eq!(make_point_light("Lamp", None).name(), "Lamp");
+}
+#[test]
+fn spot_light_name() {
+    assert_eq!(make_spot_light("Spot").name(), "Spot");
+}
+#[test]
+fn area_light_name() {
+    assert_eq!(make_area_light("Area").name(), "Area");
+}
 
 // ── color() ──────────────────────────────────────────────────────────────────
 
@@ -165,5 +183,7 @@ fn point_clone() {
     let l = make_point_light("PointClone", Some(25.0));
     let c = l.clone();
     assert_eq!(c.name(), "PointClone");
-    if let Light::Point(ref p) = c { assert_eq!(p.range, Some(25.0)); }
+    if let Light::Point(ref p) = c {
+        assert_eq!(p.range, Some(25.0));
+    }
 }

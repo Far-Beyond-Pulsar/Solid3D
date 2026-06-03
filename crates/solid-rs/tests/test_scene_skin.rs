@@ -1,6 +1,6 @@
 mod common;
-use solid_rs::prelude::*;
 use glam::Mat4;
+use solid_rs::prelude::*;
 
 // ── Skin::new ─────────────────────────────────────────────────────────────────
 
@@ -10,14 +10,29 @@ fn skin_new_sets_name() {
     assert_eq!(s.name, "ArmatureSkin");
 }
 
-#[test] fn skin_new_no_skeleton_root()             { assert!(Skin::new("X").skeleton_root.is_none()); }
-#[test] fn skin_new_joints_empty()                 { assert!(Skin::new("X").joints.is_empty()); }
-#[test] fn skin_new_ibms_empty()                   { assert!(Skin::new("X").inverse_bind_matrices.is_empty()); }
-#[test] fn skin_new_extensions_empty()             { assert!(Skin::new("X").extensions.is_empty()); }
+#[test]
+fn skin_new_no_skeleton_root() {
+    assert!(Skin::new("X").skeleton_root.is_none());
+}
+#[test]
+fn skin_new_joints_empty() {
+    assert!(Skin::new("X").joints.is_empty());
+}
+#[test]
+fn skin_new_ibms_empty() {
+    assert!(Skin::new("X").inverse_bind_matrices.is_empty());
+}
+#[test]
+fn skin_new_extensions_empty() {
+    assert!(Skin::new("X").extensions.is_empty());
+}
 
 // ── joint_count ──────────────────────────────────────────────────────────────
 
-#[test] fn joint_count_zero_initially()            { assert_eq!(Skin::new("X").joint_count(), 0); }
+#[test]
+fn joint_count_zero_initially() {
+    assert_eq!(Skin::new("X").joint_count(), 0);
+}
 
 #[test]
 fn joint_count_matches_joints_len() {
@@ -96,7 +111,10 @@ fn skin_clone_preserves_joints() {
 
 #[test]
 fn skin_extensions_insert_and_get() {
-    #[derive(Debug)] struct SkeletonMeta { version: u8 }
+    #[derive(Debug)]
+    struct SkeletonMeta {
+        version: u8,
+    }
     let mut s = Skin::new("X");
     s.extensions.insert(SkeletonMeta { version: 2 });
     assert_eq!(s.extensions.get::<SkeletonMeta>().unwrap().version, 2);

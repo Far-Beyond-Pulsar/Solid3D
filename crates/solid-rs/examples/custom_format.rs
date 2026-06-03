@@ -7,19 +7,19 @@
 
 use std::io::{BufRead, BufReader, Read, Write};
 
+use glam::Vec3;
 use solid_rs::prelude::*;
 use solid_rs::traits::ReadSeek;
-use glam::Vec3;
 
 // ── Format metadata ───────────────────────────────────────────────────────────
 
 static XYZ_FORMAT: FormatInfo = FormatInfo {
-    name:         "XYZ Point Cloud",
-    id:           "xyz",
-    extensions:   &["xyz"],
-    mime_types:   &["text/plain"],
-    can_load:     true,
-    can_save:     true,
+    name: "XYZ Point Cloud",
+    id: "xyz",
+    extensions: &["xyz"],
+    mime_types: &["text/plain"],
+    can_load: true,
+    can_save: true,
     spec_version: None,
 };
 
@@ -36,13 +36,9 @@ static XYZ_FORMAT: FormatInfo = FormatInfo {
 pub struct XyzLoader;
 
 impl Loader for XyzLoader {
-    fn load(
-        &self,
-        reader: &mut dyn ReadSeek,
-        _options: &LoadOptions,
-    ) -> Result<Scene> {
+    fn load(&self, reader: &mut dyn ReadSeek, _options: &LoadOptions) -> Result<Scene> {
         let mut builder = SceneBuilder::named("XYZ Scene");
-        let mut mesh    = Mesh::new("Points");
+        let mut mesh = Mesh::new("Points");
 
         for (line_no, line) in BufReader::new(reader).lines().enumerate() {
             let line = line.map_err(SolidError::Io)?;
@@ -55,7 +51,9 @@ impl Loader for XyzLoader {
                 .map(|s| {
                     s.parse::<f32>().map_err(|_| {
                         SolidError::parse(format!(
-                            "expected float on line {}, got {:?}", line_no + 1, s
+                            "expected float on line {}, got {:?}",
+                            line_no + 1,
+                            s
                         ))
                     })
                 })
@@ -69,7 +67,8 @@ impl Loader for XyzLoader {
                 )));
             }
 
-            mesh.vertices.push(Vertex::new(Vec3::new(coords[0], coords[1], coords[2])));
+            mesh.vertices
+                .push(Vertex::new(Vec3::new(coords[0], coords[1], coords[2])));
         }
 
         let n = mesh.vertices.len() as u32;
@@ -77,7 +76,7 @@ impl Loader for XyzLoader {
         mesh.compute_bounds();
 
         let mesh_idx = builder.push_mesh(mesh);
-        let root     = builder.add_root_node("Root");
+        let root = builder.add_root_node("Root");
         builder.attach_mesh(root, mesh_idx);
 
         Ok(builder.build())
@@ -92,7 +91,11 @@ impl Loader for XyzLoader {
         let n = reader.read(&mut buf).unwrap_or(0);
         let s = std::str::from_utf8(&buf[..n]).unwrap_or("");
         // Heuristic: first non-whitespace char is a digit or '-'
-        if s.trim_start().chars().next().map_or(false, |c| c.is_ascii_digit() || c == '-') {
+        if s.trim_start()
+            .chars()
+            .next()
+            .map_or(false, |c| c.is_ascii_digit() || c == '-')
+        {
             0.4
         } else {
             0.0
@@ -106,20 +109,13 @@ impl Loader for XyzLoader {
 pub struct XyzSaver;
 
 impl Saver for XyzSaver {
-    fn save(
-        &self,
-        scene: &Scene,
-        writer: &mut dyn Write,
-        _options: &SaveOptions,
-    ) -> Result<()> {
-        writeln!(writer, "# Exported by solid-rs XyzSaver")
-            .map_err(SolidError::Io)?;
+    fn save(&self, scene: &Scene, writer: &mut dyn Write, _options: &SaveOptions) -> Result<()> {
+        writeln!(writer, "# Exported by solid-rs XyzSaver").map_err(SolidError::Io)?;
 
         for mesh in &scene.meshes {
             for vertex in &mesh.vertices {
                 let p = vertex.position;
-                writeln!(writer, "{} {} {}", p.x, p.y, p.z)
-                    .map_err(SolidError::Io)?;
+                writeln!(writer, "{} {} {}", p.x, p.y, p.z).map_err(SolidError::Io)?;
             }
         }
         Ok(())
@@ -135,9 +131,7 @@ impl Saver for XyzSaver {
 fn main() -> Result<()> {
     // Register the custom format.
     let mut registry = Registry::new();
-    registry
-        .register_loader(XyzLoader)
-        .register_saver(XyzSaver);
+    registry.register_loader(XyzLoader).register_saver(XyzSaver);
 
     println!("Registered formats:");
     for info in registry.loader_infos() {
@@ -157,10 +151,10 @@ fn main() -> Result<()> {
             Vertex::new(Vec3::new(0.0, 1.0, 0.0)),
             Vertex::new(Vec3::new(0.0, 0.0, 1.0)),
         ];
-        let n   = mesh.vertices.len() as u32;
+        let n = mesh.vertices.len() as u32;
         mesh.primitives = vec![Primitive::points((0..n).collect(), None)];
         let idx = b.push_mesh(mesh);
-        let r   = b.add_root_node("Root");
+        let r = b.add_root_node("Root");
         b.attach_mesh(r, idx);
         b.build()
     };
@@ -172,10 +166,7 @@ fn main() -> Result<()> {
     println!("\nSaved XYZ:\n{}", xyz_text);
 
     // Reload from that buffer.
-    let loaded = XyzLoader.load(
-        &mut std::io::Cursor::new(buf),
-        &LoadOptions::default(),
-    )?;
+    let loaded = XyzLoader.load(&mut std::io::Cursor::new(buf), &LoadOptions::default())?;
     println!(
         "Reloaded {} vertices",
         loaded.meshes.first().map(|m| m.vertices.len()).unwrap_or(0)

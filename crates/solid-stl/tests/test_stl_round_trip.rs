@@ -15,8 +15,16 @@ fn round_trip_binary_positions() {
         glam::Vec3::new(7.0, 8.0, 9.0),
     );
     let loaded = binary_round_trip(&original);
-    let orig_positions: Vec<_> = original.meshes[0].vertices.iter().map(|v| v.position).collect();
-    let load_positions: Vec<_> = loaded.meshes[0].vertices.iter().map(|v| v.position).collect();
+    let orig_positions: Vec<_> = original.meshes[0]
+        .vertices
+        .iter()
+        .map(|v| v.position)
+        .collect();
+    let load_positions: Vec<_> = loaded.meshes[0]
+        .vertices
+        .iter()
+        .map(|v| v.position)
+        .collect();
     for p in &orig_positions {
         assert!(
             load_positions.iter().any(|lp| (*lp - *p).length() < 1e-5),
@@ -51,7 +59,9 @@ fn round_trip_binary_normal_directions() {
     );
     let loaded = binary_round_trip(&scene);
     for v in &loaded.meshes[0].vertices {
-        let n = v.normal.expect("every vertex should have a smooth normal after loading");
+        let n = v
+            .normal
+            .expect("every vertex should have a smooth normal after loading");
         // XY-plane triangle → normal must point in +Z direction
         assert!(n.z > 0.5, "normal should point toward +Z, got {n:?}");
     }
@@ -67,8 +77,16 @@ fn round_trip_ascii_positions() {
         glam::Vec3::new(0.0, 2.5, 0.0),
     );
     let loaded = ascii_round_trip(&original);
-    let orig_positions: Vec<_> = original.meshes[0].vertices.iter().map(|v| v.position).collect();
-    let load_positions: Vec<_> = loaded.meshes[0].vertices.iter().map(|v| v.position).collect();
+    let orig_positions: Vec<_> = original.meshes[0]
+        .vertices
+        .iter()
+        .map(|v| v.position)
+        .collect();
+    let load_positions: Vec<_> = loaded.meshes[0]
+        .vertices
+        .iter()
+        .map(|v| v.position)
+        .collect();
     for p in &orig_positions {
         assert!(
             load_positions.iter().any(|lp| (*lp - *p).length() < 1e-4),
@@ -224,9 +242,12 @@ fn round_trip_large_mesh() {
     let mut mesh = Mesh::new("LargeMesh");
     for i in 0..n {
         let x = i as f32 * 10.0; // spread far apart so no shared positions
-        mesh.vertices.push(Vertex::new(glam::Vec3::new(x, 0.0, 0.0)));
-        mesh.vertices.push(Vertex::new(glam::Vec3::new(x, 1.0, 0.0)));
-        mesh.vertices.push(Vertex::new(glam::Vec3::new(x + 0.5, 0.5, 1.0)));
+        mesh.vertices
+            .push(Vertex::new(glam::Vec3::new(x, 0.0, 0.0)));
+        mesh.vertices
+            .push(Vertex::new(glam::Vec3::new(x, 1.0, 0.0)));
+        mesh.vertices
+            .push(Vertex::new(glam::Vec3::new(x + 0.5, 0.5, 1.0)));
     }
     let indices: Vec<u32> = (0..n * 3).collect();
     mesh.primitives = vec![Primitive::triangles(indices, None)];

@@ -73,11 +73,11 @@ pub fn tokenise(src: &str) -> Result<Vec<Token>, String> {
         let c = chars[pos];
 
         // ── Triple-quoted string ──────────────────────────────────────────────
-        if c == '"' && chars.get(pos+1) == Some(&'"') && chars.get(pos+2) == Some(&'"') {
+        if c == '"' && chars.get(pos + 1) == Some(&'"') && chars.get(pos + 2) == Some(&'"') {
             pos += 3;
             let start = pos;
             while pos + 2 < chars.len()
-                && !(chars[pos] == '"' && chars[pos+1] == '"' && chars[pos+2] == '"')
+                && !(chars[pos] == '"' && chars[pos + 1] == '"' && chars[pos + 2] == '"')
             {
                 pos += 1;
             }
@@ -95,11 +95,14 @@ pub fn tokenise(src: &str) -> Result<Vec<Token>, String> {
                 if chars[pos] == '\\' && pos + 1 < chars.len() {
                     pos += 1;
                     match chars[pos] {
-                        'n'  => s.push('\n'),
-                        't'  => s.push('\t'),
-                        '"'  => s.push('"'),
+                        'n' => s.push('\n'),
+                        't' => s.push('\t'),
+                        '"' => s.push('"'),
                         '\\' => s.push('\\'),
-                        other => { s.push('\\'); s.push(other); }
+                        other => {
+                            s.push('\\');
+                            s.push(other);
+                        }
                     }
                 } else {
                     s.push(chars[pos]);
@@ -138,23 +141,42 @@ pub fn tokenise(src: &str) -> Result<Vec<Token>, String> {
         }
 
         // ── Number  (optional leading minus handled as Ident '-' by caller) ──
-        if c.is_ascii_digit() || (c == '-' && chars.get(pos+1).map_or(false, |n| n.is_ascii_digit())) {
+        if c.is_ascii_digit()
+            || (c == '-' && chars.get(pos + 1).map_or(false, |n| n.is_ascii_digit()))
+        {
             let start = pos;
-            if c == '-' { pos += 1; }
-            while pos < chars.len() && chars[pos].is_ascii_digit() { pos += 1; }
-            let is_float = pos < chars.len() && (chars[pos] == '.' || chars[pos] == 'e' || chars[pos] == 'E');
+            if c == '-' {
+                pos += 1;
+            }
+            while pos < chars.len() && chars[pos].is_ascii_digit() {
+                pos += 1;
+            }
+            let is_float =
+                pos < chars.len() && (chars[pos] == '.' || chars[pos] == 'e' || chars[pos] == 'E');
             if is_float {
-                if pos < chars.len() && chars[pos] == '.' { pos += 1; }
-                while pos < chars.len() && chars[pos].is_ascii_digit() { pos += 1; }
+                if pos < chars.len() && chars[pos] == '.' {
+                    pos += 1;
+                }
+                while pos < chars.len() && chars[pos].is_ascii_digit() {
+                    pos += 1;
+                }
                 if pos < chars.len() && (chars[pos] == 'e' || chars[pos] == 'E') {
                     pos += 1;
-                    if pos < chars.len() && (chars[pos] == '+' || chars[pos] == '-') { pos += 1; }
-                    while pos < chars.len() && chars[pos].is_ascii_digit() { pos += 1; }
+                    if pos < chars.len() && (chars[pos] == '+' || chars[pos] == '-') {
+                        pos += 1;
+                    }
+                    while pos < chars.len() && chars[pos].is_ascii_digit() {
+                        pos += 1;
+                    }
                 }
                 // optional 'f' suffix
-                if pos < chars.len() && chars[pos] == 'f' { pos += 1; }
+                if pos < chars.len() && chars[pos] == 'f' {
+                    pos += 1;
+                }
                 let s: String = chars[start..pos].iter().collect();
-                let v: f64 = s.trim_end_matches('f').parse()
+                let v: f64 = s
+                    .trim_end_matches('f')
+                    .parse()
                     .map_err(|_| format!("bad float: {s}"))?;
                 tokens.push(Token::Float(v));
             } else {
@@ -174,7 +196,7 @@ pub fn tokenise(src: &str) -> Result<Vec<Token>, String> {
                 pos += 1;
             }
             // also consume trailing [] for type names like `point3f[]`
-            if pos + 1 < chars.len() && chars[pos] == '[' && chars[pos+1] == ']' {
+            if pos + 1 < chars.len() && chars[pos] == '[' && chars[pos + 1] == ']' {
                 pos += 2;
             }
             let word: String = chars[start..pos].iter().collect();
@@ -205,23 +227,23 @@ pub fn tokenise(src: &str) -> Result<Vec<Token>, String> {
 
 fn keyword_or_ident(word: String) -> Token {
     match word.as_str() {
-        "def"        => Token::Def,
-        "over"       => Token::Over,
-        "class"      => Token::Class,
-        "uniform"    => Token::Uniform,
-        "custom"     => Token::Custom,
-        "prepend"    => Token::Prepend,
-        "append"     => Token::Append,
-        "rel"        => Token::Rel,
-        "inherits"   => Token::Inherits,
+        "def" => Token::Def,
+        "over" => Token::Over,
+        "class" => Token::Class,
+        "uniform" => Token::Uniform,
+        "custom" => Token::Custom,
+        "prepend" => Token::Prepend,
+        "append" => Token::Append,
+        "rel" => Token::Rel,
+        "inherits" => Token::Inherits,
         "references" => Token::References,
-        "payload"    => Token::Payload,
+        "payload" => Token::Payload,
         "variantSet" => Token::VariantSet,
-        "variant"    => Token::Variant,
-        "true"       => Token::Bool(true),
-        "false"      => Token::Bool(false),
-        "None"       => Token::None,
-        _            => Token::Ident(word),
+        "variant" => Token::Variant,
+        "true" => Token::Bool(true),
+        "false" => Token::Bool(false),
+        "None" => Token::None,
+        _ => Token::Ident(word),
     }
 }
 

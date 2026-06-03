@@ -1,5 +1,5 @@
 mod common;
-use solid_rs::{SolidError, Result};
+use solid_rs::{Result, SolidError};
 use std::io;
 
 // ── Constructors ─────────────────────────────────────────────────────────────
@@ -13,8 +13,12 @@ fn error_parse_constructor() {
 #[test]
 fn error_parse_message_preserved() {
     let msg = "bad byte 0xFF at offset 12";
-    let e   = SolidError::parse(msg);
-    if let SolidError::Parse(s) = e { assert_eq!(s, msg); } else { panic!(); }
+    let e = SolidError::parse(msg);
+    if let SolidError::Parse(s) = e {
+        assert_eq!(s, msg);
+    } else {
+        panic!();
+    }
 }
 
 #[test]
@@ -26,7 +30,11 @@ fn error_unsupported_constructor() {
 #[test]
 fn error_unsupported_message() {
     let e = SolidError::unsupported("feature X");
-    if let SolidError::UnsupportedFeature(s) = e { assert_eq!(s, "feature X"); } else { panic!(); }
+    if let SolidError::UnsupportedFeature(s) = e {
+        assert_eq!(s, "feature X");
+    } else {
+        panic!();
+    }
 }
 
 #[test]
@@ -158,7 +166,7 @@ fn error_in_result_chain() {
         Err(SolidError::parse("data error"))
     }
     fn process() -> Result<String> {
-        let _v = load_data()?;  // ? propagation
+        let _v = load_data()?; // ? propagation
         Ok("ok".into())
     }
     assert!(process().is_err());

@@ -277,10 +277,26 @@ fn loader_ascii_colors_loaded_uchar() {
     let scene = load_str(COLOR_UCHAR_PLY).unwrap();
     let c = scene.meshes[0].vertices[0].colors[0].expect("color should be present");
     let eps = 1.0_f32 / 255.0;
-    assert!((c.x - 1.0).abs() < eps, "red channel should be ~1.0, got {}", c.x);
-    assert!((c.y - 0.0).abs() < eps, "green channel should be ~0.0, got {}", c.y);
-    assert!((c.z - 0.0).abs() < eps, "blue channel should be ~0.0, got {}", c.z);
-    assert!((c.w - 1.0).abs() < eps, "alpha channel should be ~1.0, got {}", c.w);
+    assert!(
+        (c.x - 1.0).abs() < eps,
+        "red channel should be ~1.0, got {}",
+        c.x
+    );
+    assert!(
+        (c.y - 0.0).abs() < eps,
+        "green channel should be ~0.0, got {}",
+        c.y
+    );
+    assert!(
+        (c.z - 0.0).abs() < eps,
+        "blue channel should be ~0.0, got {}",
+        c.z
+    );
+    assert!(
+        (c.w - 1.0).abs() < eps,
+        "alpha channel should be ~1.0, got {}",
+        c.w
+    );
 }
 
 #[test]
@@ -387,7 +403,11 @@ fn loader_alpha_channel_loaded() {
     let c = scene.meshes[0].vertices[0].colors[0].expect("color should be present");
     let expected_alpha = 128.0_f32 / 255.0;
     let eps = 1.0_f32 / 255.0;
-    assert!((c.w - expected_alpha).abs() < eps, "alpha should be ~{expected_alpha}, got {}", c.w);
+    assert!(
+        (c.w - expected_alpha).abs() < eps,
+        "alpha should be ~{expected_alpha}, got {}",
+        c.w
+    );
 }
 
 #[test]

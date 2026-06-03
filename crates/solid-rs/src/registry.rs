@@ -34,7 +34,7 @@ use crate::traits::{FormatInfo, LoadOptions, Loader, ReadSeek, SaveOptions, Save
 #[derive(Default)]
 pub struct Registry {
     loaders: Vec<Arc<dyn Loader>>,
-    savers:  Vec<Arc<dyn Saver>>,
+    savers: Vec<Arc<dyn Saver>>,
 }
 
 impl Registry {
@@ -113,7 +113,7 @@ impl Registry {
         options: &LoadOptions,
     ) -> Result<Scene> {
         let path = path.as_ref();
-        let ext  = path
+        let ext = path
             .extension()
             .and_then(|e| e.to_str())
             .ok_or_else(|| SolidError::UnsupportedFormat("no file extension".into()))?;
@@ -122,7 +122,7 @@ impl Registry {
             .loader_for_extension(ext)
             .ok_or_else(|| SolidError::UnsupportedFormat(format!("no loader for .{ext}")))?;
 
-        let file   = std::fs::File::open(path).map_err(SolidError::Io)?;
+        let file = std::fs::File::open(path).map_err(SolidError::Io)?;
         let mut reader = std::io::BufReader::new(file);
         loader.load(&mut reader, options)
     }
@@ -140,7 +140,7 @@ impl Registry {
         options: &SaveOptions,
     ) -> Result<()> {
         let path = path.as_ref();
-        let ext  = path
+        let ext = path
             .extension()
             .and_then(|e| e.to_str())
             .ok_or_else(|| SolidError::UnsupportedFormat("no file extension".into()))?;
@@ -149,7 +149,7 @@ impl Registry {
             .saver_for_extension(ext)
             .ok_or_else(|| SolidError::UnsupportedFormat(format!("no saver for .{ext}")))?;
 
-        let file   = std::fs::File::create(path).map_err(SolidError::Io)?;
+        let file = std::fs::File::create(path).map_err(SolidError::Io)?;
         let mut writer = std::io::BufWriter::new(file);
         saver.save(scene, &mut writer, options)
     }

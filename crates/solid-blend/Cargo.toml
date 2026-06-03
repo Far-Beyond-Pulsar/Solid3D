@@ -1,0 +1,16 @@
+[package]
+name        = "solid-blend"
+description = "Blender .blend loader and saver for SolidRS via Blender CLI + GLB bridge"
+version.workspace    = true
+edition.workspace    = true
+authors.workspace    = true
+license.workspace    = true
+repository.workspace = true
+homepage.workspace   = true
+
+[dependencies]
+solid-rs   = { workspace = true }
+solid-gltf = { path = "../solid-gltf", version = "0.1.0" }
+
+[dev-dependencies]
+solid-rs = { workspace = true }

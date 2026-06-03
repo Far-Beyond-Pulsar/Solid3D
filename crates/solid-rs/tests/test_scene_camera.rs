@@ -1,20 +1,44 @@
 mod common;
 use solid_rs::prelude::*;
-use std::f32::consts::{FRAC_PI_4, FRAC_PI_2};
+use std::f32::consts::{FRAC_PI_2, FRAC_PI_4};
 
 // ── PerspectiveCamera defaults ────────────────────────────────────────────────
 
-#[test] fn perspective_default_fov_y()          { assert!((PerspectiveCamera::default().fov_y - FRAC_PI_4).abs() < 1e-6); }
-#[test] fn perspective_default_aspect_none()    { assert!(PerspectiveCamera::default().aspect_ratio.is_none()); }
-#[test] fn perspective_default_z_near()         { assert!((PerspectiveCamera::default().z_near - 0.01).abs() < 1e-6); }
-#[test] fn perspective_default_z_far_none()     { assert!(PerspectiveCamera::default().z_far.is_none()); }
+#[test]
+fn perspective_default_fov_y() {
+    assert!((PerspectiveCamera::default().fov_y - FRAC_PI_4).abs() < 1e-6);
+}
+#[test]
+fn perspective_default_aspect_none() {
+    assert!(PerspectiveCamera::default().aspect_ratio.is_none());
+}
+#[test]
+fn perspective_default_z_near() {
+    assert!((PerspectiveCamera::default().z_near - 0.01).abs() < 1e-6);
+}
+#[test]
+fn perspective_default_z_far_none() {
+    assert!(PerspectiveCamera::default().z_far.is_none());
+}
 
 // ── OrthographicCamera defaults ───────────────────────────────────────────────
 
-#[test] fn ortho_default_x_mag()        { assert!((OrthographicCamera::default().x_mag - 1.0).abs() < 1e-6); }
-#[test] fn ortho_default_y_mag()        { assert!((OrthographicCamera::default().y_mag - 1.0).abs() < 1e-6); }
-#[test] fn ortho_default_z_near()       { assert!((OrthographicCamera::default().z_near - 0.01).abs() < 1e-6); }
-#[test] fn ortho_default_z_far()        { assert!((OrthographicCamera::default().z_far - 1000.0).abs() < 1e-6); }
+#[test]
+fn ortho_default_x_mag() {
+    assert!((OrthographicCamera::default().x_mag - 1.0).abs() < 1e-6);
+}
+#[test]
+fn ortho_default_y_mag() {
+    assert!((OrthographicCamera::default().y_mag - 1.0).abs() < 1e-6);
+}
+#[test]
+fn ortho_default_z_near() {
+    assert!((OrthographicCamera::default().z_near - 0.01).abs() < 1e-6);
+}
+#[test]
+fn ortho_default_z_far() {
+    assert!((OrthographicCamera::default().z_far - 1000.0).abs() < 1e-6);
+}
 
 // ── Projection default ────────────────────────────────────────────────────────
 
@@ -78,7 +102,7 @@ fn camera_clone_preserves_name() {
 
 #[test]
 fn camera_clone_preserves_projection() {
-    let c  = Camera::orthographic("O");
+    let c = Camera::orthographic("O");
     let c2 = c.clone();
     assert!(!c2.is_perspective());
 }

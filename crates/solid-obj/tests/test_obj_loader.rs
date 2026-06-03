@@ -42,14 +42,15 @@ fn loader_positions_correct() {
     // Vertices may be reordered; collect positions and check set membership
     let positions: Vec<_> = verts.iter().map(|v| v.position).collect();
     let expected = [
-        glam::Vec3::new( 0.0,  1.0,  0.0),
-        glam::Vec3::new(-1.0, -1.0,  0.0),
-        glam::Vec3::new( 1.0, -1.0,  0.0),
+        glam::Vec3::new(0.0, 1.0, 0.0),
+        glam::Vec3::new(-1.0, -1.0, 0.0),
+        glam::Vec3::new(1.0, -1.0, 0.0),
     ];
     for exp in &expected {
         assert!(
             positions.iter().any(|p| (*p - *exp).length() < 1e-4),
-            "expected position {:?} not found", exp
+            "expected position {:?} not found",
+            exp
         );
     }
 }
@@ -73,7 +74,11 @@ f 1//1 2//2 3//3
     );
     for v in verts {
         let n = v.normal.unwrap();
-        assert!((n.z - 1.0).abs() < 1e-4, "normal z should be 1.0, got {:?}", n);
+        assert!(
+            (n.z - 1.0).abs() < 1e-4,
+            "normal z should be 1.0, got {:?}",
+            n
+        );
     }
 }
 
@@ -113,7 +118,11 @@ o ObjectB
 f 4 5 6
 ";
     let scene = load_obj_str(obj);
-    assert_eq!(scene.meshes.len(), 2, "two 'o' directives should give two meshes");
+    assert_eq!(
+        scene.meshes.len(),
+        2,
+        "two 'o' directives should give two meshes"
+    );
 }
 
 #[test]
@@ -131,7 +140,11 @@ g GroupB
 f 4 5 6
 ";
     let scene = load_obj_str(obj);
-    assert_eq!(scene.meshes.len(), 2, "'g' directives should create separate meshes");
+    assert_eq!(
+        scene.meshes.len(),
+        2,
+        "'g' directives should create separate meshes"
+    );
 }
 
 // ── Material references ───────────────────────────────────────────────────────
@@ -153,7 +166,10 @@ Kd 1.0 0.0 0.0
     let scene = load_obj_with_mtl(obj, mtl);
     assert!(!scene.materials.is_empty(), "material should be loaded");
     let prim = &scene.meshes[0].primitives[0];
-    assert!(prim.material_index.is_some(), "primitive should reference a material");
+    assert!(
+        prim.material_index.is_some(),
+        "primitive should reference a material"
+    );
 }
 
 #[test]
@@ -161,8 +177,8 @@ fn loader_mtl_diffuse_color_parsed() {
     let obj = "mtllib scene.mtl\nv 0 0 0\nv 1 0 0\nv 0 1 0\nusemtl M\nf 1 2 3\n";
     let mtl = "newmtl M\nKd 0.6 0.3 0.1\n";
     let scene = load_obj_with_mtl(obj, mtl);
-    let mat   = &scene.materials[0];
-    let c     = mat.base_color_factor;
+    let mat = &scene.materials[0];
+    let c = mat.base_color_factor;
     assert!((c.x - 0.6).abs() < 1e-4, "Kd.r mismatch: {}", c.x);
     assert!((c.y - 0.3).abs() < 1e-4, "Kd.g mismatch: {}", c.y);
     assert!((c.z - 0.1).abs() < 1e-4, "Kd.b mismatch: {}", c.z);
@@ -184,10 +200,15 @@ fn loader_mtl_shininess_to_roughness() {
     // Ns 250 → roughness = sqrt(1 - 250/1000) = sqrt(0.75) ≈ 0.866
     let obj = "mtllib scene.mtl\nv 0 0 0\nv 1 0 0\nv 0 1 0\nusemtl M\nf 1 2 3\n";
     let mtl = "newmtl M\nNs 250\n";
-    let scene    = load_obj_with_mtl(obj, mtl);
-    let r        = scene.materials[0].roughness_factor;
+    let scene = load_obj_with_mtl(obj, mtl);
+    let r = scene.materials[0].roughness_factor;
     let expected = (1.0_f32 - (250.0_f32 / 1000.0)).sqrt();
-    assert!((r - expected).abs() < 1e-4, "roughness from Ns mismatch: {} vs {}", r, expected);
+    assert!(
+        (r - expected).abs() < 1e-4,
+        "roughness from Ns mismatch: {} vs {}",
+        r,
+        expected
+    );
 }
 
 #[test]
@@ -195,8 +216,11 @@ fn loader_mtl_opacity_d_parsed() {
     let obj = "mtllib scene.mtl\nv 0 0 0\nv 1 0 0\nv 0 1 0\nusemtl M\nf 1 2 3\n";
     let mtl = "newmtl M\nd 0.5\n";
     let scene = load_obj_with_mtl(obj, mtl);
-    let mat   = &scene.materials[0];
-    assert!((mat.base_color_factor.w - 0.5).abs() < 1e-4, "alpha from 'd' mismatch");
+    let mat = &scene.materials[0];
+    assert!(
+        (mat.base_color_factor.w - 0.5).abs() < 1e-4,
+        "alpha from 'd' mismatch"
+    );
     assert_eq!(mat.alpha_mode, solid_rs::scene::AlphaMode::Blend);
 }
 
@@ -207,7 +231,11 @@ fn loader_mtl_opacity_tr_parsed() {
     let mtl = "newmtl M\nTr 0.3\n";
     let scene = load_obj_with_mtl(obj, mtl);
     let alpha = scene.materials[0].base_color_factor.w;
-    assert!((alpha - 0.7).abs() < 1e-4, "alpha from 'Tr' mismatch: {}", alpha);
+    assert!(
+        (alpha - 0.7).abs() < 1e-4,
+        "alpha from 'Tr' mismatch: {}",
+        alpha
+    );
 }
 
 #[test]
@@ -215,8 +243,11 @@ fn loader_mtl_map_kd_texture_parsed() {
     let obj = "mtllib scene.mtl\nv 0 0 0\nv 1 0 0\nv 0 1 0\nusemtl M\nf 1 2 3\n";
     let mtl = "newmtl M\nmap_Kd diffuse.png\n";
     let scene = load_obj_with_mtl(obj, mtl);
-    let mat   = &scene.materials[0];
-    assert!(mat.base_color_texture.is_some(), "base_color_texture should be present");
+    let mat = &scene.materials[0];
+    assert!(
+        mat.base_color_texture.is_some(),
+        "base_color_texture should be present"
+    );
     let tex_idx = mat.base_color_texture.as_ref().unwrap().texture_index;
     assert_eq!(image_uri(&scene, tex_idx), Some("diffuse.png"));
 }
@@ -226,8 +257,11 @@ fn loader_mtl_map_bump_normal_parsed() {
     let obj = "mtllib scene.mtl\nv 0 0 0\nv 1 0 0\nv 0 1 0\nusemtl M\nf 1 2 3\n";
     let mtl = "newmtl M\nmap_bump normal.png\n";
     let scene = load_obj_with_mtl(obj, mtl);
-    let mat   = &scene.materials[0];
-    assert!(mat.normal_texture.is_some(), "normal_texture should be present");
+    let mat = &scene.materials[0];
+    assert!(
+        mat.normal_texture.is_some(),
+        "normal_texture should be present"
+    );
     let tex_idx = mat.normal_texture.as_ref().unwrap().texture_index;
     assert_eq!(image_uri(&scene, tex_idx), Some("normal.png"));
 }
@@ -255,8 +289,11 @@ fn loader_mtl_map_ke_emissive_texture_parsed() {
     let obj = "mtllib scene.mtl\nv 0 0 0\nv 1 0 0\nv 0 1 0\nusemtl M\nf 1 2 3\n";
     let mtl = "newmtl M\nmap_Ke emit.png\n";
     let scene = load_obj_with_mtl(obj, mtl);
-    let mat   = &scene.materials[0];
-    assert!(mat.emissive_texture.is_some(), "emissive_texture should be present");
+    let mat = &scene.materials[0];
+    assert!(
+        mat.emissive_texture.is_some(),
+        "emissive_texture should be present"
+    );
     let tex_idx = mat.emissive_texture.as_ref().unwrap().texture_index;
     assert_eq!(image_uri(&scene, tex_idx), Some("emit.png"));
 }
@@ -290,9 +327,13 @@ v 1 1 0
 v 0 1 0
 f 1 2 3 4
 ";
-    let scene  = load_obj_str(obj);
-    let prim   = &scene.meshes[0].primitives[0];
-    assert_eq!(prim.indices.len(), 6, "quad should be fan-triangulated to 6 indices");
+    let scene = load_obj_str(obj);
+    let prim = &scene.meshes[0].primitives[0];
+    assert_eq!(
+        prim.indices.len(),
+        6,
+        "quad should be fan-triangulated to 6 indices"
+    );
 }
 
 // ── Smoothing groups ──────────────────────────────────────────────────────────

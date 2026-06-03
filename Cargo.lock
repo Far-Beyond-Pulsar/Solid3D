@@ -62,6 +62,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "directx_mesh"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "429ad90b9ed59c7432f90f70f4a70fba23fb2346c2ed937442aa8005fb3ff7cb"
+dependencies = [
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "displaydoc"
 version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -224,13 +233,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e320a6c5ad31d271ad523dcf3ad13e2767ad8b1cb8f047f75a8aeaf8da139da2"
 
 [[package]]
+name = "solid-blend"
+version = "0.1.0"
+dependencies = [
+ "solid-gltf",
+ "solid-rs",
+]
+
+[[package]]
 name = "solid-fbx"
 version = "0.1.0"
 dependencies = [
  "flate2",
  "glam",
  "solid-rs",
- "thiserror",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
@@ -265,7 +282,7 @@ name = "solid-rs"
 version = "0.1.0"
 dependencies = [
  "glam",
- "thiserror",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
@@ -283,8 +300,16 @@ dependencies = [
  "glam",
  "lz4_flex",
  "solid-rs",
- "thiserror",
+ "thiserror 2.0.18",
  "zip",
+]
+
+[[package]]
+name = "solid-x"
+version = "0.1.0"
+dependencies = [
+ "directx_mesh",
+ "solid-rs",
 ]
 
 [[package]]
@@ -300,11 +325,31 @@ dependencies = [
 
 [[package]]
 name = "thiserror"
+version = "1.0.69"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b6aaf5339b578ea85b50e080feb250a3e8ae8cfcdff9a461c9ec2904bc923f52"
+dependencies = [
+ "thiserror-impl 1.0.69",
+]
+
+[[package]]
+name = "thiserror"
 version = "2.0.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4288b5bcbc7920c07a1149a35cf9590a2aa808e0bc1eafaade0b80947865fbc4"
 dependencies = [
- "thiserror-impl",
+ "thiserror-impl 2.0.18",
+]
+
+[[package]]
+name = "thiserror-impl"
+version = "1.0.69"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4fee6c4efc90059e10f81e6d42c60a18f76588c3d74cb83a0b242a2b6c7504c1"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
@@ -343,7 +388,7 @@ dependencies = [
  "flate2",
  "indexmap",
  "memchr",
- "thiserror",
+ "thiserror 2.0.18",
  "zopfli",
 ]
 

@@ -4,8 +4,8 @@ mod common;
 
 use glam::Vec3;
 use solid_rs::prelude::LoadOptions;
-use solid_usd::UsdLoader;
 use solid_rs::traits::Loader;
+use solid_usd::UsdLoader;
 use std::io::Cursor;
 
 fn load_usda(src: &str) -> solid_rs::scene::Scene {
@@ -50,13 +50,21 @@ def Xform "Root" {
 fn loader_triangle_vertex_count() {
     let scene = load_usda(TRIANGLE_USDA);
     assert!(!scene.meshes.is_empty(), "should have at least one mesh");
-    assert_eq!(scene.meshes[0].vertices.len(), 3, "triangle should have 3 vertices");
+    assert_eq!(
+        scene.meshes[0].vertices.len(),
+        3,
+        "triangle should have 3 vertices"
+    );
 }
 
 #[test]
 fn loader_triangle_positions() {
     let scene = load_usda(TRIANGLE_USDA);
-    let positions: Vec<Vec3> = scene.meshes[0].vertices.iter().map(|v| v.position).collect();
+    let positions: Vec<Vec3> = scene.meshes[0]
+        .vertices
+        .iter()
+        .map(|v| v.position)
+        .collect();
     assert!((positions[0] - Vec3::new(0.0, 1.0, 0.0)).length() < 1e-4);
     assert!((positions[1] - Vec3::new(-1.0, -1.0, 0.0)).length() < 1e-4);
     assert!((positions[2] - Vec3::new(1.0, -1.0, 0.0)).length() < 1e-4);
@@ -67,7 +75,10 @@ fn loader_triangle_normals() {
     let scene = load_usda(TRIANGLE_USDA);
     for v in &scene.meshes[0].vertices {
         let n = v.normal.expect("normal should be present");
-        assert!((n - Vec3::Z).length() < 1e-4, "normal should be Vec3::Z, got {n:?}");
+        assert!(
+            (n - Vec3::Z).length() < 1e-4,
+            "normal should be Vec3::Z, got {n:?}"
+        );
     }
 }
 
@@ -151,8 +162,11 @@ fn loader_quad_triangulated_to_6_indices() {
     let scene = load_usda(QUAD_USDA);
     assert!(!scene.meshes.is_empty());
     // One quad = 2 triangles = 6 indices
-    assert_eq!(scene.meshes[0].primitives[0].indices.len(), 6,
-        "quad should be fan-triangulated into 6 indices");
+    assert_eq!(
+        scene.meshes[0].primitives[0].indices.len(),
+        6,
+        "quad should be fan-triangulated into 6 indices"
+    );
 }
 
 // ── Reject binary USD ─────────────────────────────────────────────────────────

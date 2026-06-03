@@ -3,9 +3,7 @@
 //! Consumes the token stream produced by [`crate::lexer::tokenise`] and
 //! builds a [`UsdDoc`](crate::document::UsdDoc).
 
-use crate::document::{
-    Attribute, Prim, Relationship, Specifier, StageMeta, UsdDoc, UsdValue,
-};
+use crate::document::{Attribute, Prim, Relationship, Specifier, StageMeta, UsdDoc, UsdValue};
 use crate::lexer::{tokenise, Token};
 use solid_rs::SolidError;
 
@@ -23,7 +21,7 @@ pub fn parse(src: &str) -> Result<UsdDoc, SolidError> {
 
 struct Parser {
     tokens: Vec<Token>,
-    pos:    usize,
+    pos: usize,
 }
 
 impl Parser {
@@ -47,7 +45,7 @@ impl Parser {
         match self.advance() {
             Some(Token::Ident(s)) => Ok(s.clone()),
             Some(t) => Err(SolidError::parse(format!("expected identifier, got {t:?}"))),
-            None    => Err(SolidError::parse("unexpected end of input")),
+            None => Err(SolidError::parse("unexpected end of input")),
         }
     }
 
@@ -55,15 +53,17 @@ impl Parser {
         match self.advance() {
             Some(Token::StringLit(s)) => Ok(s.clone()),
             Some(t) => Err(SolidError::parse(format!("expected string, got {t:?}"))),
-            None    => Err(SolidError::parse("unexpected end of input")),
+            None => Err(SolidError::parse("unexpected end of input")),
         }
     }
 
     fn expect(&mut self, expected: &Token) -> Result<(), SolidError> {
         match self.advance() {
             Some(t) if t == expected => Ok(()),
-            Some(t) => Err(SolidError::parse(format!("expected {expected:?}, got {t:?}"))),
-            None    => Err(SolidError::parse("unexpected end of input")),
+            Some(t) => Err(SolidError::parse(format!(
+                "expected {expected:?}, got {t:?}"
+            ))),
+            None => Err(SolidError::parse("unexpected end of input")),
         }
     }
 
@@ -109,20 +109,25 @@ impl Parser {
 
             let key = match self.advance() {
                 Some(Token::Ident(s)) => s.clone(),
-                Some(Token::RParen)   => { self.pos -= 1; break; }
+                Some(Token::RParen) => {
+                    self.pos -= 1;
+                    break;
+                }
                 Some(t) => return Err(SolidError::parse(format!("stage meta key: got {t:?}"))),
-                None    => break,
+                None => break,
             };
 
             self.expect(&Token::Equals)?;
             let val = self.parse_value()?;
 
             match key.as_str() {
-                "upAxis"        => meta.up_axis         = value_as_string(&val),
-                "defaultPrim"   => meta.default_prim    = value_as_string(&val),
-                "doc"           => meta.doc             = value_as_string(&val),
+                "upAxis" => meta.up_axis = value_as_string(&val),
+                "defaultPrim" => meta.default_prim = value_as_string(&val),
+                "doc" => meta.doc = value_as_string(&val),
                 "metersPerUnit" => meta.meters_per_unit = value_as_f64(&val),
-                _               => { meta.extra.insert(key, format!("{val:?}")); }
+                _ => {
+                    meta.extra.insert(key, format!("{val:?}"));
+                }
             }
         }
 
@@ -134,9 +139,18 @@ impl Parser {
 
     fn parse_prim(&mut self) -> Result<Option<Prim>, SolidError> {
         let specifier = match self.peek() {
-            Some(Token::Def)   => { self.advance(); Specifier::Def   }
-            Some(Token::Over)  => { self.advance(); Specifier::Over  }
-            Some(Token::Class) => { self.advance(); Specifier::Class }
+            Some(Token::Def) => {
+                self.advance();
+                Specifier::Def
+            }
+            Some(Token::Over) => {
+                self.advance();
+                Specifier::Over
+            }
+            Some(Token::Class) => {
+                self.advance();
+                Specifier::Class
+            }
             _ => return Ok(None),
         };
 
@@ -172,10 +186,10 @@ impl Parser {
 
     fn parse_prim_body_item(&mut self, prim: &mut Prim) -> Result<(), SolidError> {
         // Skip qualifiers
-        let _custom  = self.eat(&Token::Custom);
+        let _custom = self.eat(&Token::Custom);
         let _prepend = self.eat(&Token::Prepend);
-        let _append  = self.eat(&Token::Append);
-        let uniform  = self.eat(&Token::Uniform);
+        let _append = self.eat(&Token::Append);
+        let uniform = self.eat(&Token::Uniform);
 
         match self.peek().cloned() {
             // ── Nested prim ────────────────────────────────────────────────
@@ -192,11 +206,19 @@ impl Parser {
                 let name = self.parse_qualified_name()?;
                 let target = if self.eat(&Token::Equals) {
                     match self.peek().cloned() {
-                        Some(Token::SdfPath(p)) => { self.advance(); Some(p) }
-                        Some(Token::None)       => { self.advance(); None }
+                        Some(Token::SdfPath(p)) => {
+                            self.advance();
+                            Some(p)
+                        }
+                        Some(Token::None) => {
+                            self.advance();
+                            None
+                        }
                         _ => None,
                     }
-                } else { None };
+                } else {
+                    None
+                };
                 prim.relationships.push(Relationship { name, target });
             }
 
@@ -212,7 +234,7 @@ impl Parser {
                 if type_name == "inherits" || type_name == "references" || type_name == "payload" {
                     // skip to next `}` or next prim/attr start
                     self.advance(); // consume keyword
-                    // skip optional = and value tokens until we reach a brace or new prim
+                                    // skip optional = and value tokens until we reach a brace or new prim
                     if self.eat(&Token::Equals) {
                         self.skip_value();
                     }
@@ -236,17 +258,20 @@ impl Parser {
                 } else {
                     // Declaration without value — still record it.
                     let attr = Attribute {
-                        name:      attr_name,
+                        name: attr_name,
                         type_name,
-                        value:     None,
+                        value: None,
                         uniform,
                     };
                     prim.attributes.push(attr);
                 }
             }
 
-            Some(Token::Inherits) | Some(Token::References) | Some(Token::Payload)
-            | Some(Token::VariantSet) | Some(Token::Variant) => {
+            Some(Token::Inherits)
+            | Some(Token::References)
+            | Some(Token::Payload)
+            | Some(Token::VariantSet)
+            | Some(Token::Variant) => {
                 self.skip_to_next_statement();
             }
 
@@ -263,20 +288,44 @@ impl Parser {
 
     fn parse_value(&mut self) -> Result<UsdValue, SolidError> {
         match self.peek().cloned() {
-            Some(Token::Bool(b))      => { self.advance(); Ok(UsdValue::Bool(b)) }
-            Some(Token::None)         => { self.advance(); Ok(UsdValue::String("None".into())) }
-            Some(Token::Int(i))       => { self.advance(); Ok(UsdValue::Int(i)) }
-            Some(Token::Float(f))     => { self.advance(); Ok(UsdValue::Float(f)) }
-            Some(Token::StringLit(s)) => { self.advance(); Ok(UsdValue::String(s)) }
-            Some(Token::AssetPath(s)) => { self.advance(); Ok(UsdValue::Asset(s)) }
-            Some(Token::SdfPath(s))   => { self.advance(); Ok(UsdValue::String(s)) }
-            Some(Token::Ident(s))     => { self.advance(); Ok(UsdValue::Token(s)) }
-            Some(Token::LParen)       => self.parse_tuple(),
-            Some(Token::LBracket)     => self.parse_array(),
+            Some(Token::Bool(b)) => {
+                self.advance();
+                Ok(UsdValue::Bool(b))
+            }
+            Some(Token::None) => {
+                self.advance();
+                Ok(UsdValue::String("None".into()))
+            }
+            Some(Token::Int(i)) => {
+                self.advance();
+                Ok(UsdValue::Int(i))
+            }
+            Some(Token::Float(f)) => {
+                self.advance();
+                Ok(UsdValue::Float(f))
+            }
+            Some(Token::StringLit(s)) => {
+                self.advance();
+                Ok(UsdValue::String(s))
+            }
+            Some(Token::AssetPath(s)) => {
+                self.advance();
+                Ok(UsdValue::Asset(s))
+            }
+            Some(Token::SdfPath(s)) => {
+                self.advance();
+                Ok(UsdValue::String(s))
+            }
+            Some(Token::Ident(s)) => {
+                self.advance();
+                Ok(UsdValue::Token(s))
+            }
+            Some(Token::LParen) => self.parse_tuple(),
+            Some(Token::LBracket) => self.parse_array(),
             // Time-sampled block  { time: value, ... }  → extract first keyframe value
-            Some(Token::LBrace)       => self.parse_time_samples(),
+            Some(Token::LBrace) => self.parse_time_samples(),
             Some(t) => Err(SolidError::parse(format!("expected value, got {t:?}"))),
-            None    => Err(SolidError::parse("unexpected end of input in value")),
+            None => Err(SolidError::parse("unexpected end of input in value")),
         }
     }
 
@@ -322,7 +371,9 @@ impl Parser {
                         let v = self.parse_number()?;
                         self.eat(&Token::Comma);
                         v
-                    } else { 0.0 };
+                    } else {
+                        0.0
+                    };
                     self.expect(&Token::RParen)?;
                     items.push([a, b, c]);
                     self.eat(&Token::Comma);
@@ -377,18 +428,18 @@ impl Parser {
     fn parse_number(&mut self) -> Result<f64, SolidError> {
         match self.advance() {
             Some(Token::Float(f)) => Ok(*f),
-            Some(Token::Int(i))   => Ok(*i as f64),
+            Some(Token::Int(i)) => Ok(*i as f64),
             Some(t) => Err(SolidError::parse(format!("expected number, got {t:?}"))),
-            None    => Err(SolidError::parse("unexpected end of input")),
+            None => Err(SolidError::parse("unexpected end of input")),
         }
     }
 
     fn parse_int(&mut self) -> Result<i64, SolidError> {
         match self.advance() {
-            Some(Token::Int(i))   => Ok(*i),
+            Some(Token::Int(i)) => Ok(*i),
             Some(Token::Float(f)) => Ok(*f as i64),
             Some(t) => Err(SolidError::parse(format!("expected integer, got {t:?}"))),
-            None    => Err(SolidError::parse("unexpected end of input")),
+            None => Err(SolidError::parse("unexpected end of input")),
         }
     }
 
@@ -403,21 +454,33 @@ impl Parser {
 
     fn skip_value(&mut self) {
         match self.peek().cloned() {
-            Some(Token::LParen)   => { self.skip_brackets(Token::LParen, Token::RParen); }
-            Some(Token::LBracket) => { self.skip_brackets(Token::LBracket, Token::RBracket); }
-            Some(Token::LBrace)   => { self.skip_brackets(Token::LBrace, Token::RBrace); }
-            _ => { self.advance(); }
+            Some(Token::LParen) => {
+                self.skip_brackets(Token::LParen, Token::RParen);
+            }
+            Some(Token::LBracket) => {
+                self.skip_brackets(Token::LBracket, Token::RBracket);
+            }
+            Some(Token::LBrace) => {
+                self.skip_brackets(Token::LBrace, Token::RBrace);
+            }
+            _ => {
+                self.advance();
+            }
         }
     }
 
     fn skip_brackets(&mut self, open: Token, close: Token) {
         let mut depth = 0usize;
         while self.pos < self.tokens.len() {
-            if self.tokens[self.pos] == open  { depth += 1; }
+            if self.tokens[self.pos] == open {
+                depth += 1;
+            }
             if self.tokens[self.pos] == close {
                 depth -= 1;
                 self.pos += 1;
-                if depth == 0 { break; }
+                if depth == 0 {
+                    break;
+                }
                 continue;
             }
             self.pos += 1;
@@ -433,11 +496,12 @@ impl Parser {
         // attribute type, or closing brace.
         while self.pos < self.tokens.len() {
             match self.peek() {
-                Some(Token::Def)
-                | Some(Token::Over)
-                | Some(Token::Class)
-                | Some(Token::RBrace) => break,
-                _ => { self.advance(); }
+                Some(Token::Def) | Some(Token::Over) | Some(Token::Class) | Some(Token::RBrace) => {
+                    break
+                }
+                _ => {
+                    self.advance();
+                }
             }
         }
     }
@@ -454,14 +518,21 @@ impl Parser {
                 Some(Token::Float(_)) | Some(Token::Int(_)) | Some(Token::Ident(_)) => {
                     self.advance();
                 }
-                _ => { self.advance(); continue; }
+                _ => {
+                    self.advance();
+                    continue;
+                }
             }
             self.eat(&Token::Colon);
             match self.parse_value() {
                 Ok(v) => {
-                    if first_val.is_none() { first_val = Some(v); }
+                    if first_val.is_none() {
+                        first_val = Some(v);
+                    }
                 }
-                Err(_) => { self.skip_value(); }
+                Err(_) => {
+                    self.skip_value();
+                }
             }
             self.eat(&Token::Comma);
         }
@@ -482,7 +553,7 @@ fn value_as_string(v: &UsdValue) -> Option<String> {
 fn value_as_f64(v: &UsdValue) -> Option<f64> {
     match v {
         UsdValue::Float(f) => Some(*f),
-        UsdValue::Int(i)   => Some(*i as f64),
+        UsdValue::Int(i) => Some(*i as f64),
         _ => None,
     }
 }

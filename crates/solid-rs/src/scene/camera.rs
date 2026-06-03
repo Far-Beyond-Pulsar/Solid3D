@@ -20,10 +20,10 @@ pub struct PerspectiveCamera {
 impl Default for PerspectiveCamera {
     fn default() -> Self {
         Self {
-            fov_y:        std::f32::consts::FRAC_PI_4, // 45°
+            fov_y: std::f32::consts::FRAC_PI_4, // 45°
             aspect_ratio: None,
-            z_near:       0.01,
-            z_far:        None,
+            z_near: 0.01,
+            z_far: None,
         }
     }
 }
@@ -43,7 +43,12 @@ pub struct OrthographicCamera {
 
 impl Default for OrthographicCamera {
     fn default() -> Self {
-        Self { x_mag: 1.0, y_mag: 1.0, z_near: 0.01, z_far: 1000.0 }
+        Self {
+            x_mag: 1.0,
+            y_mag: 1.0,
+            z_near: 0.01,
+            z_far: 1000.0,
+        }
     }
 }
 

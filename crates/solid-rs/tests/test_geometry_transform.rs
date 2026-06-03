@@ -1,6 +1,6 @@
 mod common;
-use solid_rs::prelude::*;
 use glam::{Mat4, Quat, Vec3};
+use solid_rs::prelude::*;
 use std::f32::consts::{FRAC_PI_2, PI};
 
 // ── IDENTITY constant ─────────────────────────────────────────────────────────
@@ -24,14 +24,20 @@ fn transform_identity_scale_is_one() {
 fn transform_default_equals_identity() {
     let d: Transform = Default::default();
     assert_eq!(d.translation, Transform::IDENTITY.translation);
-    assert_eq!(d.rotation,    Transform::IDENTITY.rotation);
-    assert_eq!(d.scale,       Transform::IDENTITY.scale);
+    assert_eq!(d.rotation, Transform::IDENTITY.rotation);
+    assert_eq!(d.scale, Transform::IDENTITY.scale);
 }
 
 // ── is_identity ───────────────────────────────────────────────────────────────
 
-#[test] fn identity_is_identity()                  { assert!(Transform::IDENTITY.is_identity()); }
-#[test] fn default_is_identity()                   { assert!(Transform::default().is_identity()); }
+#[test]
+fn identity_is_identity() {
+    assert!(Transform::IDENTITY.is_identity());
+}
+#[test]
+fn default_is_identity() {
+    assert!(Transform::default().is_identity());
+}
 
 #[test]
 fn non_zero_translation_not_identity() {
@@ -112,25 +118,24 @@ fn from_matrix_identity_roundtrip() {
 #[test]
 fn translation_roundtrip_through_matrix() {
     let orig = Transform::IDENTITY.with_translation(Vec3::new(3.0, -2.0, 5.0));
-    let rt   = Transform::from_matrix(orig.to_matrix());
+    let rt = Transform::from_matrix(orig.to_matrix());
     assert!(rt.translation.abs_diff_eq(orig.translation, 1e-4));
 }
 
 #[test]
 fn scale_roundtrip_through_matrix() {
     let orig = Transform::IDENTITY.with_scale(Vec3::new(2.0, 3.0, 0.5));
-    let rt   = Transform::from_matrix(orig.to_matrix());
+    let rt = Transform::from_matrix(orig.to_matrix());
     assert!(rt.scale.abs_diff_eq(orig.scale, 1e-4));
 }
 
 #[test]
 fn rotation_roundtrip_through_matrix() {
-    let q    = Quat::from_rotation_x(FRAC_PI_2).normalize();
+    let q = Quat::from_rotation_x(FRAC_PI_2).normalize();
     let orig = Transform::IDENTITY.with_rotation(q);
-    let rt   = Transform::from_matrix(orig.to_matrix());
+    let rt = Transform::from_matrix(orig.to_matrix());
     // Quaternion may negate but represent the same rotation
-    let same = rt.rotation.abs_diff_eq(q, 1e-4)
-        || rt.rotation.abs_diff_eq(-q, 1e-4);
+    let same = rt.rotation.abs_diff_eq(q, 1e-4) || rt.rotation.abs_diff_eq(-q, 1e-4);
     assert!(same);
 }
 
@@ -138,8 +143,8 @@ fn rotation_roundtrip_through_matrix() {
 fn full_trs_roundtrip() {
     let orig = Transform {
         translation: Vec3::new(1.0, -3.0, 7.0),
-        rotation:    Quat::from_euler(glam::EulerRot::XYZ, 0.3, 1.2, -0.7).normalize(),
-        scale:       Vec3::new(2.0, 0.5, 1.5),
+        rotation: Quat::from_euler(glam::EulerRot::XYZ, 0.3, 1.2, -0.7).normalize(),
+        scale: Vec3::new(2.0, 0.5, 1.5),
     };
     let rt = Transform::from_matrix(orig.to_matrix());
     assert!(rt.translation.abs_diff_eq(orig.translation, 1e-3));
@@ -182,21 +187,23 @@ fn transform_uniform_scale_2() {
 #[test]
 fn transform_translation_moves_point() {
     let offset = Vec3::new(5.0, 0.0, 0.0);
-    let t  = Transform::IDENTITY.with_translation(offset);
-    let m  = t.to_matrix();
-    let p  = m.transform_point3(Vec3::ZERO);
+    let t = Transform::IDENTITY.with_translation(offset);
+    let m = t.to_matrix();
+    let p = m.transform_point3(Vec3::ZERO);
     assert!(p.abs_diff_eq(offset, 1e-5));
 }
 
 #[test]
 fn transform_90_degree_rotation() {
-    let q  = Quat::from_rotation_y(FRAC_PI_2);
-    let t  = Transform::IDENTITY.with_rotation(q);
-    let m  = t.to_matrix();
+    let q = Quat::from_rotation_y(FRAC_PI_2);
+    let t = Transform::IDENTITY.with_rotation(q);
+    let m = t.to_matrix();
     // Z-axis rotated 90° around Y becomes X-axis
-    let z  = m.transform_vector3(Vec3::Z);
-    assert!(z.abs_diff_eq(Vec3::new(-1.0, 0.0, 0.0), 1e-4) ||
-            z.abs_diff_eq(Vec3::new( 1.0, 0.0, 0.0), 1e-4));
+    let z = m.transform_vector3(Vec3::Z);
+    assert!(
+        z.abs_diff_eq(Vec3::new(-1.0, 0.0, 0.0), 1e-4)
+            || z.abs_diff_eq(Vec3::new(1.0, 0.0, 0.0), 1e-4)
+    );
 }
 
 #[test]

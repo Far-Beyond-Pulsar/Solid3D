@@ -7,9 +7,7 @@
 //! override the ones you care about.
 
 use crate::error::Result;
-use crate::scene::{
-    Animation, Camera, Image, Light, Material, Mesh, Node, Skin, Texture,
-};
+use crate::scene::{Animation, Camera, Image, Light, Material, Mesh, Node, Skin, Texture};
 
 /// Visitor called for each object in a [`Scene`](crate::scene::Scene).
 ///

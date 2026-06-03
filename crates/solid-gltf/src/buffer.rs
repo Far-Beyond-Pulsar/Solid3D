@@ -1,6 +1,6 @@
 //! Buffer resolution and typed accessor reads.
 
-use crate::document::{GltfAccessor, GltfRoot, component_size, num_components};
+use crate::document::{component_size, num_components, GltfAccessor, GltfRoot};
 use solid_rs::error::{Result, SolidError};
 use std::path::Path;
 
@@ -17,9 +17,9 @@ pub fn resolve_buffers(
         .map(|(i, buf)| {
             if let Some(uri) = &buf.uri {
                 if let Some(b64) = uri.strip_prefix("data:") {
-                    let comma = b64.find(',').ok_or_else(|| {
-                        SolidError::parse("glTF buffer data URI missing comma")
-                    })?;
+                    let comma = b64
+                        .find(',')
+                        .ok_or_else(|| SolidError::parse("glTF buffer data URI missing comma"))?;
                     let encoded = &b64[comma + 1..];
                     use base64::Engine;
                     base64::engine::general_purpose::STANDARD
@@ -36,7 +36,9 @@ pub fn resolve_buffers(
             } else if i == 0 && !bin_chunk.is_empty() {
                 Ok(bin_chunk.to_vec())
             } else {
-                Err(SolidError::parse(format!("glTF buffer {i} has no URI and no binary chunk")))
+                Err(SolidError::parse(format!(
+                    "glTF buffer {i} has no URI and no binary chunk"
+                )))
             }
         })
         .collect()
@@ -47,7 +49,9 @@ fn get_slice<'a>(
     buffers: &'a [Vec<u8>],
     acc: &GltfAccessor,
 ) -> Result<(&'a [u8], usize)> {
-    let bv_idx = acc.buffer_view.ok_or_else(|| SolidError::parse("accessor missing bufferView"))?;
+    let bv_idx = acc
+        .buffer_view
+        .ok_or_else(|| SolidError::parse("accessor missing bufferView"))?;
     let bv = &root.buffer_views[bv_idx];
     let buf = &buffers[bv.buffer];
     let start = bv.byte_offset + acc.byte_offset;
@@ -110,8 +114,12 @@ fn apply_sparse_f32(
         let idx_pos = k * idx_csz;
         let tgt = match idx_ctype {
             5121 => idx_slice[idx_pos] as usize,
-            5123 => u16::from_le_bytes(idx_slice[idx_pos..idx_pos + 2].try_into().unwrap()) as usize,
-            5125 => u32::from_le_bytes(idx_slice[idx_pos..idx_pos + 4].try_into().unwrap()) as usize,
+            5123 => {
+                u16::from_le_bytes(idx_slice[idx_pos..idx_pos + 2].try_into().unwrap()) as usize
+            }
+            5125 => {
+                u32::from_le_bytes(idx_slice[idx_pos..idx_pos + 4].try_into().unwrap()) as usize
+            }
             _ => continue,
         };
         for c in 0..n_comps {
@@ -158,8 +166,12 @@ fn apply_sparse_u32(
         let idx_pos = k * idx_csz;
         let tgt = match idx_ctype {
             5121 => idx_slice[idx_pos] as usize,
-            5123 => u16::from_le_bytes(idx_slice[idx_pos..idx_pos + 2].try_into().unwrap()) as usize,
-            5125 => u32::from_le_bytes(idx_slice[idx_pos..idx_pos + 4].try_into().unwrap()) as usize,
+            5123 => {
+                u16::from_le_bytes(idx_slice[idx_pos..idx_pos + 2].try_into().unwrap()) as usize
+            }
+            5125 => {
+                u32::from_le_bytes(idx_slice[idx_pos..idx_pos + 4].try_into().unwrap()) as usize
+            }
             _ => continue,
         };
         let src = k * val_csz;
@@ -190,7 +202,12 @@ pub fn read_f32(root: &GltfRoot, buffers: &[Vec<u8>], acc_idx: usize) -> Result<
         for i in 0..acc.count {
             let base = i * stride;
             for c in 0..n_comps {
-                out.push(decode_f32(slice, base + c * comp_sz, acc.component_type, acc.normalized));
+                out.push(decode_f32(
+                    slice,
+                    base + c * comp_sz,
+                    acc.component_type,
+                    acc.normalized,
+                ));
             }
         }
         out
@@ -199,7 +216,15 @@ pub fn read_f32(root: &GltfRoot, buffers: &[Vec<u8>], acc_idx: usize) -> Result<
     };
 
     if let Some(sparse) = &acc.sparse {
-        apply_sparse_f32(root, buffers, sparse, acc.component_type, acc.normalized, &mut out, n_comps)?;
+        apply_sparse_f32(
+            root,
+            buffers,
+            sparse,
+            acc.component_type,
+            acc.normalized,
+            &mut out,
+            n_comps,
+        )?;
     }
 
     Ok(out)
@@ -236,7 +261,11 @@ pub fn read_u32(root: &GltfRoot, buffers: &[Vec<u8>], acc_idx: usize) -> Result<
 }
 
 /// Read u16 values (used for JOINTS_0).
-pub fn read_u16_vec4(root: &GltfRoot, buffers: &[Vec<u8>], acc_idx: usize) -> Result<Vec<[u16; 4]>> {
+pub fn read_u16_vec4(
+    root: &GltfRoot,
+    buffers: &[Vec<u8>],
+    acc_idx: usize,
+) -> Result<Vec<[u16; 4]>> {
     let acc = &root.accessors[acc_idx];
     let (slice, stride) = get_slice(root, buffers, acc)?;
     let comp_sz = component_size(acc.component_type);
@@ -248,7 +277,7 @@ pub fn read_u16_vec4(root: &GltfRoot, buffers: &[Vec<u8>], acc_idx: usize) -> Re
             let off = base + c * comp_sz;
             joints[c] = match acc.component_type {
                 5121 => slice[off] as u16,
-                5123 => u16::from_le_bytes(slice[off..off+2].try_into().unwrap()),
+                5123 => u16::from_le_bytes(slice[off..off + 2].try_into().unwrap()),
                 _ => 0,
             };
         }

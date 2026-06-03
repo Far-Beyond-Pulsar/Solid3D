@@ -51,14 +51,14 @@
 //! registry.save_file(&scene, "out.usda").unwrap();
 //! ```
 
+pub(crate) mod convert;
 pub mod document;
 pub(crate) mod lexer;
+pub mod loader;
 pub(crate) mod parser;
-pub(crate) mod convert;
+pub mod saver;
 pub(crate) mod usdc;
 pub(crate) mod usdz;
-pub mod loader;
-pub mod saver;
 
 pub use loader::UsdLoader;
 pub use saver::UsdSaver;
@@ -67,11 +67,11 @@ use solid_rs::traits::FormatInfo;
 
 /// Metadata for the USD format (all dialects).
 pub static USD_FORMAT: FormatInfo = FormatInfo {
-    name:         "OpenUSD",
-    id:           "usd",
-    extensions:   &["usda", "usdc", "usdz", "usd"],
-    mime_types:   &["model/vnd.usd", "model/vnd.usdz+zip"],
-    can_load:     true,
-    can_save:     true,
+    name: "OpenUSD",
+    id: "usd",
+    extensions: &["usda", "usdc", "usdz", "usd"],
+    mime_types: &["model/vnd.usd", "model/vnd.usdz+zip"],
+    can_load: true,
+    can_save: true,
     spec_version: Some("1.0"),
 };

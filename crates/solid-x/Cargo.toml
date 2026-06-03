@@ -1,0 +1,16 @@
+[package]
+name        = "solid-x"
+description = "DirectX .x (text) loader and saver for SolidRS"
+version.workspace    = true
+edition.workspace    = true
+authors.workspace    = true
+license.workspace    = true
+repository.workspace = true
+homepage.workspace   = true
+
+[dependencies]
+solid-rs     = { workspace = true }
+directx_mesh = "0.1.0"
+
+[dev-dependencies]
+solid-rs = { workspace = true }

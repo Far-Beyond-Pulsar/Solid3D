@@ -70,7 +70,10 @@ impl<'r> BinaryParser<'r> {
     }
 
     fn seek_to(&mut self, offset: u64) -> Result<()> {
-        self.r.seek(SeekFrom::Start(offset)).map(|_| ()).map_err(SolidError::Io)
+        self.r
+            .seek(SeekFrom::Start(offset))
+            .map(|_| ())
+            .map_err(SolidError::Io)
     }
 
     // ── Primitive readers ─────────────────────────────────────────────────────
@@ -133,7 +136,11 @@ impl<'r> BinaryParser<'r> {
 
     /// Size of the null-sentinel record that marks the end of a children list.
     fn null_record_len(&self) -> u64 {
-        if self.version >= 7500 { 25 } else { 13 }
+        if self.version >= 7500 {
+            25
+        } else {
+            13
+        }
     }
 
     /// Read one node.  Returns `None` when a null sentinel is encountered
@@ -142,12 +149,12 @@ impl<'r> BinaryParser<'r> {
         // Read the node header — size depends on format version
         let (end_offset, num_props): (u64, usize) = if self.version >= 7500 {
             let end = self.read_u64()?;
-            let np  = self.read_u64()?;
+            let np = self.read_u64()?;
             let _pl = self.read_u64()?; // properties byte-length (unused)
             (end, np as usize)
         } else {
             let end = self.read_u32()? as u64;
-            let np  = self.read_u32()? as u64;
+            let np = self.read_u32()? as u64;
             let _pl = self.read_u32()?; // properties byte-length (unused)
             (end, np as usize)
         };
@@ -178,7 +185,7 @@ impl<'r> BinaryParser<'r> {
             }
             match self.read_node()? {
                 Some(child) => children.push(child),
-                None        => break,
+                None => break,
             }
         }
 
@@ -187,7 +194,11 @@ impl<'r> BinaryParser<'r> {
             self.seek_to(end_offset)?;
         }
 
-        Ok(Some(FbxNode { name, properties, children }))
+        Ok(Some(FbxNode {
+            name,
+            properties,
+            children,
+        }))
     }
 
     // ── Property reading ──────────────────────────────────────────────────────
@@ -203,12 +214,14 @@ impl<'r> BinaryParser<'r> {
             b'L' => Ok(FbxProperty::Int64(self.read_i64()?)),
 
             b'S' => {
-                let len  = self.read_u32()? as usize;
+                let len = self.read_u32()? as usize;
                 let data = self.read_bytes(len)?;
-                Ok(FbxProperty::String(String::from_utf8_lossy(&data).into_owned()))
+                Ok(FbxProperty::String(
+                    String::from_utf8_lossy(&data).into_owned(),
+                ))
             }
             b'R' => {
-                let len  = self.read_u32()? as usize;
+                let len = self.read_u32()? as usize;
                 let data = self.read_bytes(len)?;
                 Ok(FbxProperty::Bytes(data))
             }
@@ -221,32 +234,32 @@ impl<'r> BinaryParser<'r> {
                 let raw = self.read_array_data(4)?;
                 Ok(FbxProperty::ArrInt32(
                     raw.chunks_exact(4)
-                       .map(|c| i32::from_le_bytes(c.try_into().unwrap()))
-                       .collect(),
+                        .map(|c| i32::from_le_bytes(c.try_into().unwrap()))
+                        .collect(),
                 ))
             }
             b'l' => {
                 let raw = self.read_array_data(8)?;
                 Ok(FbxProperty::ArrInt64(
                     raw.chunks_exact(8)
-                       .map(|c| i64::from_le_bytes(c.try_into().unwrap()))
-                       .collect(),
+                        .map(|c| i64::from_le_bytes(c.try_into().unwrap()))
+                        .collect(),
                 ))
             }
             b'f' => {
                 let raw = self.read_array_data(4)?;
                 Ok(FbxProperty::ArrFloat32(
                     raw.chunks_exact(4)
-                       .map(|c| f32::from_le_bytes(c.try_into().unwrap()))
-                       .collect(),
+                        .map(|c| f32::from_le_bytes(c.try_into().unwrap()))
+                        .collect(),
                 ))
             }
             b'd' => {
                 let raw = self.read_array_data(8)?;
                 Ok(FbxProperty::ArrFloat64(
                     raw.chunks_exact(8)
-                       .map(|c| f64::from_le_bytes(c.try_into().unwrap()))
-                       .collect(),
+                        .map(|c| f64::from_le_bytes(c.try_into().unwrap()))
+                        .collect(),
                 ))
             }
 
@@ -260,8 +273,8 @@ impl<'r> BinaryParser<'r> {
     /// Read the array header (count / encoding / compressed-length) then
     /// return the raw decompressed bytes.
     fn read_array_data(&mut self, elem_size: usize) -> Result<Vec<u8>> {
-        let count          = self.read_u32()? as usize;
-        let encoding       = self.read_u32()?;
+        let count = self.read_u32()? as usize;
+        let encoding = self.read_u32()?;
         let compressed_len = self.read_u32()? as usize;
 
         let raw = self.read_bytes(compressed_len)?;
@@ -275,7 +288,9 @@ impl<'r> BinaryParser<'r> {
                 dec.read_to_end(&mut out).map_err(SolidError::Io)?;
                 Ok(out)
             }
-            e => Err(SolidError::parse(format!("unknown FBX array encoding: {e}"))),
+            e => Err(SolidError::parse(format!(
+                "unknown FBX array encoding: {e}"
+            ))),
         }
     }
 }

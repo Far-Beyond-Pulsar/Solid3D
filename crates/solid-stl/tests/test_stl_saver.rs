@@ -55,7 +55,10 @@ fn saver_binary_header_80_bytes() {
     let buf = save_binary(&scene);
     // First 80 bytes form the header; must start with the mesh name.
     let header = std::str::from_utf8(&buf[..80]).unwrap();
-    assert!(header.starts_with("MyHeader"), "header should start with mesh name");
+    assert!(
+        header.starts_with("MyHeader"),
+        "header should start with mesh name"
+    );
 }
 
 #[test]
@@ -68,7 +71,11 @@ fn saver_binary_triangle_count_correct() {
 #[test]
 fn saver_binary_total_size_correct() {
     let buf = save_binary(&std_scene());
-    assert_eq!(buf.len(), 80 + 4 + 1 * 50, "total binary size should be 134 bytes");
+    assert_eq!(
+        buf.len(),
+        80 + 4 + 1 * 50,
+        "total binary size should be 134 bytes"
+    );
 }
 
 #[test]
@@ -106,7 +113,10 @@ fn saver_binary_face_normals_unit_length() {
     let buf = save_binary(&scene);
     let normal = read_vec3(&buf, 84);
     let len = normal.length();
-    assert!((len - 1.0).abs() < 1e-5, "face normal length should be 1.0, got {len}");
+    assert!(
+        (len - 1.0).abs() < 1e-5,
+        "face normal length should be 1.0, got {len}"
+    );
 }
 
 // ── Binary – VisCAM color ─────────────────────────────────────────────────────
@@ -116,7 +126,7 @@ fn saver_binary_viscam_color_encoded() {
     let scene = colored_triangle_scene(glam::Vec4::new(1.0, 0.0, 0.0, 1.0));
     let buf = save_binary(&scene);
     let attr = read_u16_le(&buf, 132); // attr bytes at offset 80+4+48
-    // bit 15 must be set
+                                       // bit 15 must be set
     assert!(attr & 0x8000 != 0, "color-valid bit (15) must be set");
     let r5 = (attr >> 10) & 0x1F;
     let g5 = (attr >> 5) & 0x1F;
@@ -139,24 +149,39 @@ fn saver_binary_no_color_when_none() {
 fn saver_ascii_starts_with_solid() {
     let bytes = save_ascii_bytes(&std_scene());
     let text = std::str::from_utf8(&bytes).unwrap();
-    assert!(text.starts_with("solid "), "ASCII STL must start with 'solid '");
+    assert!(
+        text.starts_with("solid "),
+        "ASCII STL must start with 'solid '"
+    );
 }
 
 #[test]
 fn saver_ascii_ends_with_endsolid() {
     let bytes = save_ascii_bytes(&std_scene());
     let text = std::str::from_utf8(&bytes).unwrap().trim_end();
-    assert!(text.ends_with("endsolid Triangle"), "ASCII STL must end with 'endsolid <name>'");
+    assert!(
+        text.ends_with("endsolid Triangle"),
+        "ASCII STL must end with 'endsolid <name>'"
+    );
 }
 
 #[test]
 fn saver_ascii_vertex_lines_present() {
     let bytes = save_ascii_bytes(&std_scene());
     let text = std::str::from_utf8(&bytes).unwrap();
-    assert!(text.contains("vertex "), "ASCII STL must contain 'vertex' lines");
+    assert!(
+        text.contains("vertex "),
+        "ASCII STL must contain 'vertex' lines"
+    );
     // One triangle → exactly 3 vertex lines
-    let count = text.lines().filter(|l| l.trim().starts_with("vertex ")).count();
-    assert_eq!(count, 3, "one triangle should produce exactly 3 vertex lines");
+    let count = text
+        .lines()
+        .filter(|l| l.trim().starts_with("vertex "))
+        .count();
+    assert_eq!(
+        count, 3,
+        "one triangle should produce exactly 3 vertex lines"
+    );
 }
 
 #[test]
@@ -202,16 +227,25 @@ fn saver_ascii_multiple_meshes() {
     let text = std::str::from_utf8(&bytes).unwrap();
     // Each mesh produces one "solid <name>" line.
     let solid_count = text.lines().filter(|l| l.starts_with("solid ")).count();
-    assert_eq!(solid_count, 2, "two meshes should produce two 'solid' blocks");
+    assert_eq!(
+        solid_count, 2,
+        "two meshes should produce two 'solid' blocks"
+    );
     let endsolid_count = text.lines().filter(|l| l.starts_with("endsolid ")).count();
-    assert_eq!(endsolid_count, 2, "two meshes should produce two 'endsolid' lines");
+    assert_eq!(
+        endsolid_count, 2,
+        "two meshes should produce two 'endsolid' lines"
+    );
 }
 
 #[test]
 fn saver_binary_multiple_meshes() {
     let buf = save_binary(&two_mesh_scene());
     let count = u32::from_le_bytes([buf[80], buf[81], buf[82], buf[83]]);
-    assert_eq!(count, 2, "two meshes with 1 triangle each → total count = 2");
+    assert_eq!(
+        count, 2,
+        "two meshes with 1 triangle each → total count = 2"
+    );
     assert_eq!(buf.len(), 80 + 4 + 2 * 50);
 }
 
@@ -222,7 +256,11 @@ fn saver_empty_scene_no_crash() {
     let scene = Scene::new();
     // Binary
     let buf = save_binary(&scene);
-    assert_eq!(buf.len(), 84, "empty binary STL should be 84 bytes (header + count)");
+    assert_eq!(
+        buf.len(),
+        84,
+        "empty binary STL should be 84 bytes (header + count)"
+    );
     let count = u32::from_le_bytes([buf[80], buf[81], buf[82], buf[83]]);
     assert_eq!(count, 0);
 

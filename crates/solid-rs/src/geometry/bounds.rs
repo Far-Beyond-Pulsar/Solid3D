@@ -59,7 +59,10 @@ impl Aabb {
     /// Returns the smallest [`Aabb`] that contains both `self` and `other`.
     #[inline]
     pub fn union(&self, other: &Self) -> Self {
-        Self { min: self.min.min(other.min), max: self.max.max(other.max) }
+        Self {
+            min: self.min.min(other.min),
+            max: self.max.max(other.max),
+        }
     }
 
     /// Returns `true` if `self` and `other` overlap.

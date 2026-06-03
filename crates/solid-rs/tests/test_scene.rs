@@ -1,31 +1,73 @@
 mod common;
 use common::*;
-use solid_rs::prelude::*;
 use glam::Vec3;
+use solid_rs::prelude::*;
 
 // ── Scene::new / named / default ─────────────────────────────────────────────
 
-#[test] fn scene_new_name_empty()           { assert!(Scene::new().name.is_empty()); }
-#[test] fn scene_default_name_empty()       { assert!(Scene::default().name.is_empty()); }
-#[test] fn scene_named_sets_name()          { assert_eq!(Scene::named("Demo").name, "Demo"); }
-#[test] fn scene_new_no_roots()             { assert!(Scene::new().roots.is_empty()); }
-#[test] fn scene_new_no_nodes()             { assert!(Scene::new().nodes.is_empty()); }
-#[test] fn scene_new_no_meshes()            { assert!(Scene::new().meshes.is_empty()); }
-#[test] fn scene_new_no_materials()         { assert!(Scene::new().materials.is_empty()); }
-#[test] fn scene_new_no_textures()          { assert!(Scene::new().textures.is_empty()); }
-#[test] fn scene_new_no_images()            { assert!(Scene::new().images.is_empty()); }
-#[test] fn scene_new_no_cameras()           { assert!(Scene::new().cameras.is_empty()); }
-#[test] fn scene_new_no_lights()            { assert!(Scene::new().lights.is_empty()); }
-#[test] fn scene_new_no_skins()             { assert!(Scene::new().skins.is_empty()); }
-#[test] fn scene_new_no_animations()        { assert!(Scene::new().animations.is_empty()); }
-#[test] fn scene_extensions_empty()         { assert!(Scene::new().extensions.is_empty()); }
+#[test]
+fn scene_new_name_empty() {
+    assert!(Scene::new().name.is_empty());
+}
+#[test]
+fn scene_default_name_empty() {
+    assert!(Scene::default().name.is_empty());
+}
+#[test]
+fn scene_named_sets_name() {
+    assert_eq!(Scene::named("Demo").name, "Demo");
+}
+#[test]
+fn scene_new_no_roots() {
+    assert!(Scene::new().roots.is_empty());
+}
+#[test]
+fn scene_new_no_nodes() {
+    assert!(Scene::new().nodes.is_empty());
+}
+#[test]
+fn scene_new_no_meshes() {
+    assert!(Scene::new().meshes.is_empty());
+}
+#[test]
+fn scene_new_no_materials() {
+    assert!(Scene::new().materials.is_empty());
+}
+#[test]
+fn scene_new_no_textures() {
+    assert!(Scene::new().textures.is_empty());
+}
+#[test]
+fn scene_new_no_images() {
+    assert!(Scene::new().images.is_empty());
+}
+#[test]
+fn scene_new_no_cameras() {
+    assert!(Scene::new().cameras.is_empty());
+}
+#[test]
+fn scene_new_no_lights() {
+    assert!(Scene::new().lights.is_empty());
+}
+#[test]
+fn scene_new_no_skins() {
+    assert!(Scene::new().skins.is_empty());
+}
+#[test]
+fn scene_new_no_animations() {
+    assert!(Scene::new().animations.is_empty());
+}
+#[test]
+fn scene_extensions_empty() {
+    assert!(Scene::new().extensions.is_empty());
+}
 
 // ── node lookup ──────────────────────────────────────────────────────────────
 
 #[test]
 fn scene_node_found() {
     let scene = make_triangle_scene();
-    let id    = scene.roots[0];
+    let id = scene.roots[0];
     assert!(scene.node(id).is_some());
 }
 
@@ -38,14 +80,14 @@ fn scene_node_not_found() {
 #[test]
 fn scene_node_correct_name() {
     let scene = make_triangle_scene();
-    let id    = scene.roots[0];
+    let id = scene.roots[0];
     assert_eq!(scene.node(id).unwrap().name, "Root");
 }
 
 #[test]
 fn scene_node_mut_modifies_name() {
     let mut scene = make_triangle_scene();
-    let id        = scene.roots[0];
+    let id = scene.roots[0];
     scene.node_mut(id).unwrap().name = "Renamed".into();
     assert_eq!(scene.node(id).unwrap().name, "Renamed");
 }
@@ -72,9 +114,12 @@ fn scene_total_vertex_count_triangle_scene() {
 #[test]
 fn scene_total_vertex_count_two_meshes() {
     let mut b = SceneBuilder::new();
-    let mut m1 = Mesh::new("A"); m1.vertices = vec![Vertex::new(Vec3::ZERO); 5];
-    let mut m2 = Mesh::new("B"); m2.vertices = vec![Vertex::new(Vec3::ONE); 8];
-    b.push_mesh(m1); b.push_mesh(m2);
+    let mut m1 = Mesh::new("A");
+    m1.vertices = vec![Vertex::new(Vec3::ZERO); 5];
+    let mut m2 = Mesh::new("B");
+    m2.vertices = vec![Vertex::new(Vec3::ONE); 8];
+    b.push_mesh(m1);
+    b.push_mesh(m2);
     assert_eq!(b.build().total_vertex_count(), 13);
 }
 
@@ -89,7 +134,7 @@ fn scene_total_index_count_triangle() {
 #[test]
 fn walk_from_visits_root() {
     let scene = make_triangle_scene();
-    let root  = scene.roots[0];
+    let root = scene.roots[0];
     let mut visited = vec![];
     scene.walk_from(root, &mut |n| visited.push(n.name.clone()));
     assert!(visited.contains(&"Root".to_owned()));
@@ -98,7 +143,7 @@ fn walk_from_visits_root() {
 #[test]
 fn walk_from_visits_children() {
     let scene = make_deep_hierarchy_scene(3);
-    let root  = scene.roots[0];
+    let root = scene.roots[0];
     let mut count = 0;
     scene.walk_from(root, &mut |_| count += 1);
     assert_eq!(count, 4); // root + 3 children
@@ -126,16 +171,16 @@ fn walk_all_visits_all_nodes() {
 
 #[test]
 fn scene_visit_counts_all_object_types() {
-    let scene   = make_full_scene();
+    let scene = make_full_scene();
     let mut vis = CountingVisitor::default();
     scene.visit(&mut vis).unwrap();
-    assert_eq!(vis.nodes,     scene.nodes.len());
-    assert_eq!(vis.meshes,    scene.meshes.len());
+    assert_eq!(vis.nodes, scene.nodes.len());
+    assert_eq!(vis.meshes, scene.meshes.len());
     assert_eq!(vis.materials, scene.materials.len());
-    assert_eq!(vis.textures,  scene.textures.len());
-    assert_eq!(vis.cameras,   scene.cameras.len());
-    assert_eq!(vis.lights,    scene.lights.len());
-    assert_eq!(vis.animations,scene.animations.len());
+    assert_eq!(vis.textures, scene.textures.len());
+    assert_eq!(vis.cameras, scene.cameras.len());
+    assert_eq!(vis.lights, scene.lights.len());
+    assert_eq!(vis.animations, scene.animations.len());
 }
 
 #[test]

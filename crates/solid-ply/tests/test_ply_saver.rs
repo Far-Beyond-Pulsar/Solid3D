@@ -1,9 +1,9 @@
 mod common;
 use common::*;
 
+use glam::{Vec2, Vec3, Vec4};
 use solid_ply::PlySaver;
 use solid_rs::prelude::*;
-use glam::{Vec2, Vec3, Vec4};
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -114,9 +114,18 @@ fn saver_ascii_normals_omitted_when_absent() {
 fn saver_ascii_colors_emitted_when_present() {
     let text = save_ascii(&colored_vertex_scene());
     assert!(text.contains("property uchar red"), "red property missing");
-    assert!(text.contains("property uchar green"), "green property missing");
-    assert!(text.contains("property uchar blue"), "blue property missing");
-    assert!(text.contains("property uchar alpha"), "alpha property missing");
+    assert!(
+        text.contains("property uchar green"),
+        "green property missing"
+    );
+    assert!(
+        text.contains("property uchar blue"),
+        "blue property missing"
+    );
+    assert!(
+        text.contains("property uchar alpha"),
+        "alpha property missing"
+    );
 }
 
 #[test]
@@ -277,7 +286,16 @@ fn saver_empty_scene_valid_ply() {
         .save(&scene, &mut buf, &SaveOptions::default())
         .unwrap();
     let text = String::from_utf8(buf).unwrap();
-    assert!(text.starts_with("ply\n"), "empty scene must still produce valid PLY");
-    assert!(text.contains("element vertex 0"), "should declare 0 vertices");
-    assert!(!text.contains("element face"), "no face element for empty scene");
+    assert!(
+        text.starts_with("ply\n"),
+        "empty scene must still produce valid PLY"
+    );
+    assert!(
+        text.contains("element vertex 0"),
+        "should declare 0 vertices"
+    );
+    assert!(
+        !text.contains("element face"),
+        "no face element for empty scene"
+    );
 }

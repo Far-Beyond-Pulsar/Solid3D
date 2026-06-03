@@ -24,6 +24,8 @@ are pulled in à-la-carte.
 | [`solid-gltf`](crates/solid-gltf) | ✅ stable | glTF 2.0 JSON + GLB load + save; skinning; animation; KHR_lights_punctual |
 | [`solid-stl`](crates/solid-stl) | ✅ stable | STL binary + ASCII load + save; smooth normals; VisCAM vertex colours |
 | [`solid-ply`](crates/solid-ply) | ✅ stable | PLY ASCII + binary LE/BE load; ASCII + binary LE/BE save; double precision; point clouds; multi-UV; tangents |
+| [`solid-blend`](crates/solid-blend) | ✅ stable | Blender `.blend` load + save via headless Blender bridge |
+| [`solid-x`](crates/solid-x) | ✅ stable | Legacy DirectX `.x` ASCII load + save |
 | `solid-usd` | 🔜 planned | OpenUSD / USDA / USDC loader + saver |
 
 ---
@@ -40,6 +42,8 @@ solid-obj  = "0.1"   # Wavefront OBJ
 solid-gltf = "0.1"   # glTF 2.0 / GLB
 solid-stl  = "0.1"   # Stereolithography STL
 solid-ply  = "0.1"   # Stanford PLY
+solid-blend = "0.1"  # Blender .blend
+solid-x     = "0.1"  # DirectX .x
 ```
 
 ### Load a file
@@ -124,7 +128,8 @@ cargo run -p fbx-to-obj -- input.fbx output.obj
        ┌───────────────┼───────────────────┐
        ▼               ▼                   ▼
    solid-fbx       solid-obj          solid-gltf
-   solid-stl       solid-ply          solid-usd …
+   solid-stl       solid-ply          solid-blend
+   solid-x         solid-usd          …
 ```
 
 ### Scene IR
@@ -198,6 +203,8 @@ cargo run -p fbx-to-obj -- input.fbx output.obj
 | PLY ASCII | ✅ | ✅ | N-gon fan triangulation; point clouds; multi-UV; tangents |
 | PLY binary LE | ✅ | ✅ | `PlySaver::save_binary_le()` / `save_with_precision()` |
 | PLY binary BE | ✅ | ✅ | `PlySaver::save_binary_be()` |
+| Blender `.blend` | ✅ | ✅ | Via headless Blender conversion bridge and temporary GLB |
+| DirectX `.x` (ASCII) | ✅ | ✅ | `xof ....txt ....` flavor |
 
 ---
 

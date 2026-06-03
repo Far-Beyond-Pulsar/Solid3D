@@ -66,12 +66,7 @@ pub struct SaveOptions {
 /// ```
 pub trait Saver: Send + Sync + 'static {
     /// Serialises `scene` and writes the result to `writer`.
-    fn save(
-        &self,
-        scene: &Scene,
-        writer: &mut dyn Write,
-        options: &SaveOptions,
-    ) -> Result<()>;
+    fn save(&self, scene: &Scene, writer: &mut dyn Write, options: &SaveOptions) -> Result<()>;
 
     /// Returns static metadata describing the format this saver handles.
     fn format_info(&self) -> &FormatInfo;

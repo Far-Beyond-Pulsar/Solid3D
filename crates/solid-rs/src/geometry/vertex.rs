@@ -28,7 +28,10 @@ pub struct SkinWeights {
 
 impl Default for SkinWeights {
     fn default() -> Self {
-        Self { joints: [0; 4], weights: [0.0; 4] }
+        Self {
+            joints: [0; 4],
+            weights: [0.0; 4],
+        }
     }
 }
 
