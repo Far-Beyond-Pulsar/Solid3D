@@ -1,5 +1,9 @@
 # Solid3D
 
+<p align="center">
+<img width="300" height="300" alt="Solid3D" src="https://github.com/user-attachments/assets/1249e245-3876-4827-869d-b6308f086c2d" />
+</p>
+
 A **generic 3D model loading and saving library** for Rust — designed on the
 same split as `serde` / `serde_json`:
 
