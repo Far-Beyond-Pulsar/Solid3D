@@ -1,0 +1,19 @@
+[package]
+name        = "solid-mdl"
+description = "Quake MDL model loader/saver for the SolidRS ecosystem"
+version.workspace     = true
+edition.workspace     = true
+authors.workspace     = true
+license.workspace     = true
+repository.workspace  = true
+homepage.workspace    = true
+
+[dependencies]
+solid-rs  = { workspace = true }
+glam      = { workspace = true }
+flate2    = { workspace = true }
+
+[dev-dependencies]
+solid-rs  = { workspace = true }
+glam      = { workspace = true }
+flate2    = { workspace = true }

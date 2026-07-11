@@ -262,6 +262,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "solid-mdl"
+version = "0.1.0"
+dependencies = [
+ "flate2",
+ "glam",
+ "solid-rs",
+]
+
+[[package]]
 name = "solid-obj"
 version = "0.1.0"
 dependencies = [

@@ -30,6 +30,7 @@ are pulled in à-la-carte.
 | [`solid-ply`](crates/solid-ply) | ✅ stable | PLY ASCII + binary LE/BE load; ASCII + binary LE/BE save; double precision; point clouds; multi-UV; tangents |
 | [`solid-blend`](crates/solid-blend) | ✅ stable | Blender `.blend` load + save via headless Blender bridge |
 | [`solid-x`](crates/solid-x) | ✅ stable | Legacy DirectX `.x` ASCII load + save |
+| [`solid-mdl`](crates/solid-mdl) | ✅ stable | Quake MDL binary load + save; 8-bit indexed textures with Quake palette; 162 precomputed anorms; vertex decompression |
 | `solid-usd` | 🔜 planned | OpenUSD / USDA / USDC loader + saver |
 
 ---
@@ -48,6 +49,7 @@ solid-stl  = "0.1"   # Stereolithography STL
 solid-ply  = "0.1"   # Stanford PLY
 solid-blend = "0.1"  # Blender .blend
 solid-x     = "0.1"  # DirectX .x
+solid-mdl   = "0.1"  # Quake MDL
 ```
 
 ### Load a file
@@ -132,8 +134,8 @@ cargo run -p fbx-to-obj -- input.fbx output.obj
        ┌───────────────┼───────────────────┐
        ▼               ▼                   ▼
    solid-fbx       solid-obj          solid-gltf
-   solid-stl       solid-ply          solid-blend
-   solid-x         solid-usd          …
+    solid-stl       solid-ply          solid-blend
+    solid-x         solid-mdl          solid-usd          …
 ```
 
 ### Scene IR
@@ -209,6 +211,7 @@ cargo run -p fbx-to-obj -- input.fbx output.obj
 | PLY binary BE | ✅ | ✅ | `PlySaver::save_binary_be()` |
 | Blender `.blend` | ✅ | ✅ | Via headless Blender conversion bridge and temporary GLB |
 | DirectX `.x` (ASCII) | ✅ | ✅ | `xof ....txt ....` flavor |
+| Quake MDL | ✅ | ✅ | 8-bit indexed textures; Quake palette; 162 anorms; frame-by-frame animation |
 
 ---
 
@@ -408,6 +411,36 @@ Extensions: `.ply` · MIME: `model/ply`
 | Node hierarchy / transforms | — | — | Not supported by format |
 | Materials / textures | — | — | Not supported by format |
 | Cameras / lights / skinning / animation | — | — | Not supported by format |
+
+---
+
+### MDL — Quake Model ([`solid-mdl`](crates/solid-mdl))
+
+Extensions: `.mdl` · MIME: `model/mdl` · Spec: [Quake MDL format](https://book.leveldesignbook.com/appendix/resources/formats/mdl)
+
+| Feature | Load | Save | Notes |
+|---|---|---|---|
+| **Encoding** | | | |
+| Binary MDL | ✅ | ✅ | Little-endian; magic `IDPO`, version 6 |
+| **Geometry** | | | |
+| Vertex positions (u8 compressed) | ✅ | ✅ | `v_real = scale * v_byte + translate` |
+| Vertex normals (162 anorms table) | ✅ | ✅ | Quake's 162 precomputed normal vectors |
+| Triangles | ✅ | ✅ | `facesfront` / backface flag |
+| UV coordinates | ✅ | ✅ | `onseam` handling for front/back texture split |
+| **Textures** | | | |
+| 8-bit indexed skins | ✅ | — | Converted to RGBA via Quake palette (256 colours) |
+| Group skins (animated textures) | ✅ | — | First frame used |
+| Colour 255 transparency | ✅ | — | Index 255 → alpha 0 |
+| Embedded PNG in scene | ✅ | — | Skin converted to PNG for scene IR |
+| **Scene graph** | | | |
+| Single mesh per model | ✅ | ✅ | MDL has no hierarchy |
+| **Animation** | | | |
+| Frame-by-frame animation | ⚠️ | — | First frame loaded; all frames in extension data |
+| Group frames | ⚠️ | — | First sub-frame used |
+| **Saving** | | | |
+| Bounding box quantisation | — | ✅ | Scale/translate computed from mesh bounds |
+| Normal quantisation | — | ✅ | Closest anorm via dot-product search |
+| No skin output | — | ✅ | `num_skins = 0` (texture lossy) |
 
 ---
 
