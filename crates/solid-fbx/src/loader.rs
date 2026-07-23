@@ -12,6 +12,37 @@ use crate::{ascii, binary, convert, FBX_FORMAT};
 pub struct FbxLoader;
 
 impl Loader for FbxLoader {
+    /// FBX-specific import options, extending the common set. Fields not yet
+    /// honoured by the loader are ignored (per the `LoadOptions` contract) and
+    /// may be consumed by the host during conversion.
+    #[cfg(feature = "configurator")]
+    fn options_schema(&self) -> solid_rs::configurator::OptionsSchema {
+        use solid_rs::configurator::{OptionField, OptionsSchema};
+        OptionsSchema::base_load_options()
+            .with(OptionField::choice(
+                "up_axis",
+                "Up axis",
+                "Axis treated as 'up' in the source file (converted to engine Y-up).",
+                "Y",
+                &["Y", "Z"],
+            ))
+            .with(OptionField::float(
+                "unit_scale",
+                "Unit scale",
+                "Uniform scale applied on import (e.g. cm to m = 0.01).",
+                1.0,
+                Some(0.0001),
+                Some(10000.0),
+                Some(0.01),
+            ))
+            .with(OptionField::bool(
+                "import_animations",
+                "Import animations",
+                "Import animation takes/tracks if present.",
+                true,
+            ))
+    }
+
     fn format_info(&self) -> &FormatInfo {
         &FBX_FORMAT
     }

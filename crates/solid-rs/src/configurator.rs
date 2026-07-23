@@ -315,3 +315,58 @@ impl OptionValues {
         o
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn base_schema_has_the_common_fields() {
+        let s = OptionsSchema::base_load_options();
+        let ks: Vec<&str> = s.fields.iter().map(|f| f.key.as_str()).collect();
+        assert_eq!(s.fields.len(), 5);
+        assert!(ks.contains(&keys::GENERATE_NORMALS));
+        assert!(ks.contains(&keys::MAX_TEXTURE_SIZE));
+    }
+
+    #[test]
+    fn default_values_reflect_field_defaults() {
+        let v = OptionsSchema::base_load_options().default_values();
+        assert!(!v.bool_or(keys::TRIANGULATE, true));
+        assert_eq!(v.i64_or(keys::MAX_TEXTURE_SIZE, -1), 0);
+    }
+
+    #[test]
+    fn to_load_options_maps_common_keys() {
+        let mut v = OptionValues::new();
+        v.set(keys::GENERATE_NORMALS, OptionValue::Bool(true));
+        v.set(keys::MAX_TEXTURE_SIZE, OptionValue::Int(2048));
+        let o = v.to_load_options();
+        assert!(o.generate_normals);
+        assert_eq!(o.max_texture_size, Some(2048));
+
+        // 0 means "no limit" -> None
+        let mut v0 = OptionValues::new();
+        v0.set(keys::MAX_TEXTURE_SIZE, OptionValue::Int(0));
+        assert_eq!(v0.to_load_options().max_texture_size, None);
+    }
+
+    #[test]
+    fn values_survive_a_serde_json_roundtrip() {
+        let mut v = OptionValues::new();
+        v.set("up_axis", OptionValue::Choice("Z".into()));
+        v.set(keys::FLIP_UV_V, OptionValue::Bool(true));
+        v.set("import_scale", OptionValue::Float(0.01));
+        let json = serde_json::to_string(&v).unwrap();
+        let back: OptionValues = serde_json::from_str(&json).unwrap();
+        assert_eq!(v, back);
+    }
+
+    #[test]
+    fn schema_survives_a_serde_json_roundtrip() {
+        let s = OptionsSchema::base_load_options();
+        let json = serde_json::to_string(&s).unwrap();
+        let back: OptionsSchema = serde_json::from_str(&json).unwrap();
+        assert_eq!(s, back);
+    }
+}

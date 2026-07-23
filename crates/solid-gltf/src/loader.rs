@@ -8,6 +8,36 @@ use solid_rs::{Result, SolidError};
 pub struct GltfLoader;
 
 impl Loader for GltfLoader {
+    /// glTF-specific import options, extending the common set. Fields not yet
+    /// honoured by the loader are ignored (per the `LoadOptions` contract) and
+    /// may be consumed by the host during conversion.
+    #[cfg(feature = "configurator")]
+    fn options_schema(&self) -> solid_rs::configurator::OptionsSchema {
+        use solid_rs::configurator::{OptionField, OptionsSchema};
+        OptionsSchema::base_load_options()
+            .with(OptionField::float(
+                "import_scale",
+                "Import scale",
+                "Uniform scale applied to the imported scene.",
+                1.0,
+                Some(0.0001),
+                Some(10000.0),
+                Some(0.01),
+            ))
+            .with(OptionField::bool(
+                "import_animations",
+                "Import animations",
+                "Import animation channels if present.",
+                true,
+            ))
+            .with(OptionField::bool(
+                "import_cameras",
+                "Import cameras",
+                "Import camera nodes if present.",
+                true,
+            ))
+    }
+
     fn format_info(&self) -> &'static FormatInfo {
         &GLTF_FORMAT
     }

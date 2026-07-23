@@ -17,6 +17,10 @@ thiserror = { workspace = true }
 lz4_flex  = { workspace = true }
 zip       = { workspace = true }
 
+[features]
+# Enable the configurator schema for this format (see solid-rs `configurator`).
+configurator = ["solid-rs/configurator"]
+
 [dev-dependencies]
 solid-rs = { workspace = true }
 glam     = { workspace = true }

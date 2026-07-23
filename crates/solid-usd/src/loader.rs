@@ -13,6 +13,28 @@ use crate::{convert, parser, usdc, usdz, USD_FORMAT};
 pub struct UsdLoader;
 
 impl Loader for UsdLoader {
+    /// USD-specific import options, extending the common set. Fields not yet
+    /// honoured by the loader are ignored (per the `LoadOptions` contract) and
+    /// may be consumed by the host during conversion.
+    #[cfg(feature = "configurator")]
+    fn options_schema(&self) -> solid_rs::configurator::OptionsSchema {
+        use solid_rs::configurator::{OptionField, OptionsSchema};
+        OptionsSchema::base_load_options()
+            .with(OptionField::choice(
+                "up_axis",
+                "Up axis",
+                "Stage up-axis to assume when not declared (converted to engine Y-up).",
+                "Y",
+                &["Y", "Z"],
+            ))
+            .with(OptionField::bool(
+                "import_materials",
+                "Import materials",
+                "Import USD material bindings if present.",
+                true,
+            ))
+    }
+
     fn format_info(&self) -> &'static FormatInfo {
         &USD_FORMAT
     }

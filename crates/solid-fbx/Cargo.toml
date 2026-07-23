@@ -14,6 +14,10 @@ glam      = { workspace = true }
 thiserror = { workspace = true }
 flate2    = { workspace = true }
 
+[features]
+# Enable the configurator schema for this format (see solid-rs `configurator`).
+configurator = ["solid-rs/configurator"]
+
 [dev-dependencies]
 solid-rs = { workspace = true }
 glam     = { workspace = true }

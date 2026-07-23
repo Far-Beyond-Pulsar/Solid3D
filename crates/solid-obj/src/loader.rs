@@ -18,6 +18,18 @@ use crate::{convert, OBJ_FORMAT};
 pub struct ObjLoader;
 
 impl Loader for ObjLoader {
+    /// OBJ-specific import options, extending the common set.
+    #[cfg(feature = "configurator")]
+    fn options_schema(&self) -> solid_rs::configurator::OptionsSchema {
+        use solid_rs::configurator::{OptionField, OptionsSchema};
+        OptionsSchema::base_load_options().with(OptionField::bool(
+            "import_materials",
+            "Import materials",
+            "Resolve and import the referenced .mtl material library if present.",
+            true,
+        ))
+    }
+
     fn format_info(&self) -> &FormatInfo {
         &OBJ_FORMAT
     }
