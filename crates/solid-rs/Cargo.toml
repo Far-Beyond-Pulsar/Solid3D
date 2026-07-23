@@ -16,9 +16,15 @@ documentation = "https://docs.rs/solid-rs"
 [dependencies]
 glam      = { workspace = true }
 thiserror = { workspace = true }
+serde     = { workspace = true, optional = true }
 
 [dev-dependencies]
 glam = { workspace = true }
 
 # ── feature flags ───────────────────────────────────────────────────────────
-# None in the core crate; format crates expose their own flags.
+[features]
+# Runtime-introspectable import options: adds the `configurator` module plus
+# `Loader::options_schema` / `Loader::load_configured`, letting a host render an
+# import configurator UI from a loader's option schema. Off by default so plain
+# consumers don't pull `serde` or the extra surface; the engine enables it.
+configurator = ["dep:serde"]

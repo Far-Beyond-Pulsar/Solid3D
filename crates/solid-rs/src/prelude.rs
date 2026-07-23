@@ -21,5 +21,10 @@ pub use crate::traits::{
 };
 pub use crate::value::Value;
 
+#[cfg(feature = "configurator")]
+pub use crate::configurator::{
+    OptionField, OptionKind, OptionValue, OptionValues, OptionsSchema,
+};
+
 /// Re-export of `glam` for use in code that constructs geometry.
 pub use glam;

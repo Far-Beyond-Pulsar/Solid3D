@@ -167,6 +167,54 @@ impl Registry {
         loader.load(&mut reader, options)
     }
 
+    /// Returns the import-options schema advertised by the loader for `ext`
+    /// (without leading dot), or `None` if no loader handles that extension.
+    #[cfg(feature = "configurator")]
+    pub fn options_schema_for_extension(
+        &self,
+        ext: &str,
+    ) -> Option<crate::configurator::OptionsSchema> {
+        self.loader_for_extension(ext).map(|l| l.options_schema())
+    }
+
+    /// Loads a scene from `path` using configurator [`OptionValues`], selecting a
+    /// loader by extension.
+    #[cfg(feature = "configurator")]
+    pub fn load_file_configured(
+        &self,
+        path: impl AsRef<Path>,
+        values: &crate::configurator::OptionValues,
+    ) -> Result<Scene> {
+        let path = path.as_ref();
+        let ext = path
+            .extension()
+            .and_then(|e| e.to_str())
+            .ok_or_else(|| SolidError::UnsupportedFormat("no file extension".into()))?;
+
+        let loader = self
+            .loader_for_extension(ext)
+            .ok_or_else(|| SolidError::UnsupportedFormat(format!("no loader for .{ext}")))?;
+
+        let file = std::fs::File::open(path).map_err(SolidError::Io)?;
+        let mut reader = std::io::BufReader::new(file);
+        loader.load_configured(&mut reader, values)
+    }
+
+    /// Loads a scene from an already-open reader using configurator
+    /// [`OptionValues`] and the loader for `format_id`.
+    #[cfg(feature = "configurator")]
+    pub fn load_from_configured<R: ReadSeek>(
+        &self,
+        mut reader: R,
+        format_id: &str,
+        values: &crate::configurator::OptionValues,
+    ) -> Result<Scene> {
+        let loader = self
+            .loader_by_id(format_id)
+            .ok_or_else(|| SolidError::UnsupportedFormat(format!("no loader for '{format_id}'")))?;
+        loader.load_configured(&mut reader, values)
+    }
+
     // ── Introspection ────────────────────────────────────────────────────────
 
     /// Returns an iterator over the [`FormatInfo`] of every registered loader.

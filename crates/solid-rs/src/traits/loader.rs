@@ -98,4 +98,29 @@ pub trait Loader: Send + Sync + 'static {
     fn detect(&self, _reader: &mut dyn Read) -> f32 {
         0.0
     }
+
+    /// Describes the import options this loader understands, for runtime
+    /// configurator UIs (see the [`configurator`](crate::configurator) module).
+    ///
+    /// Defaults to the common [`LoadOptions`] fields
+    /// ([`OptionsSchema::base_load_options`]). Format crates override this to
+    /// advertise format-specific options, typically by extending that base.
+    #[cfg(feature = "configurator")]
+    fn options_schema(&self) -> crate::configurator::OptionsSchema {
+        crate::configurator::OptionsSchema::base_load_options()
+    }
+
+    /// Loads a scene using a set of configurator [`OptionValues`].
+    ///
+    /// The default maps the common keys onto [`LoadOptions`] and delegates to
+    /// [`Loader::load`]. Loaders that support format-specific options should
+    /// override this to interpret their own keys as well.
+    #[cfg(feature = "configurator")]
+    fn load_configured(
+        &self,
+        reader: &mut dyn ReadSeek,
+        values: &crate::configurator::OptionValues,
+    ) -> Result<Scene> {
+        self.load(reader, &values.to_load_options())
+    }
 }

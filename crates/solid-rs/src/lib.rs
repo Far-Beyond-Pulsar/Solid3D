@@ -56,13 +56,19 @@
 //!
 //! ## Feature Flags
 //!
-//! _No feature flags in `solid-rs` itself. Format crates expose their own._
+//! - **`configurator`** (off by default): adds the [`configurator`] module plus
+//!   [`Loader::options_schema`](crate::traits::Loader::options_schema) and
+//!   [`Loader::load_configured`](crate::traits::Loader::load_configured), a small
+//!   runtime schema/value system so a host can render an import configurator UI
+//!   from a loader's advertised options. Format crates expose their own flags too.
 
 #![warn(missing_docs)]
 #![warn(clippy::all)]
 #![forbid(unsafe_code)]
 
 pub mod builder;
+#[cfg(feature = "configurator")]
+pub mod configurator;
 pub mod error;
 pub mod extensions;
 pub mod geometry;

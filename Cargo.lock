@@ -291,6 +291,7 @@ name = "solid-rs"
 version = "0.1.0"
 dependencies = [
  "glam",
+ "serde",
  "thiserror 2.0.18",
 ]
 
