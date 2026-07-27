@@ -380,6 +380,7 @@ dependencies = [
 name = "solid-unreal"
 version = "0.1.0"
 dependencies = [
+ "binread",
  "bitflags",
  "flate2",
  "glam",
