@@ -145,6 +145,25 @@ impl UPackage {
         )
     }
 
+    /// Resolve the class name for an export's class index.
+    pub fn resolve_export_class_name(&self, class_index: PackageIndex) -> String {
+        if class_index.is_import() {
+            let idx = ((-class_index.0) - 1) as usize;
+            self.imports
+                .get(idx)
+                .map(|i| self.resolve_name(i.object_name))
+                .unwrap_or_default()
+        } else if class_index.is_export() {
+            let idx = (class_index.0 - 1) as usize;
+            self.exports
+                .get(idx)
+                .map(|e| self.resolve_name(e.object_name))
+                .unwrap_or_default()
+        } else {
+            String::new()
+        }
+    }
+
     /// Create an archive positioned at the start of a specific export's serial data.
     pub fn archive_for_export<'a>(
         &self,

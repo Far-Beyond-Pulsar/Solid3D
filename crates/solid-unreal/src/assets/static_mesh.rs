@@ -327,6 +327,200 @@ fn unpack_tangent(packed: u32) -> Vec4 {
     Vec4::new(x, y, z, w)
 }
 
+/// Read a CubeBuilder export and extract geometry from the "Vertices" property.
+///
+/// CubeBuilder is an editor-only brush builder that stores vertices as a TArray<FVector>.
+/// The cooked map preserves this data. We read the vertices and generate a mesh
+/// using convex hull triangulation (fan from centroid).
+pub fn read_cube_builder(
+    pkg: &UPackage,
+    export_idx: usize,
+    reader: &mut (dyn solid_rs::traits::ReadSeek),
+) -> Result<StaticMeshAsset, UnrealError> {
+    let export = pkg.exports.get(export_idx).ok_or_else(|| UnrealError::Parse {
+        context: "read_cube_builder",
+        detail: format!("export index {export_idx} out of range"),
+    })?;
+
+    let export_name = pkg.resolve_name(export.object_name);
+
+    let start_offset = export.serial_offset as u64;
+    reader.seek(SeekFrom::Start(start_offset))?;
+
+    // Use the package's property reader to iterate all properties
+    let archive = FArchiveUE::new(reader, pkg.version.clone());
+    let mut pr = pkg.property_reader(archive);
+
+    // Dump all properties
+    loop {
+        let tag_opt = pr.read_tag()?;
+        match tag_opt {
+            None => { println!("[CUBE] None terminator at pos={}", pr.archive().pos); break; }
+            Some(tag) => {
+                let data_start = pr.archive().pos;
+                let data_size = if tag.raw.next_offset > data_start { tag.raw.next_offset - data_start } else { 0 };
+                println!("[CUBE] property '{}' type='{}' struct='{}' size={} arr_idx={} data_offset={} data_size={}",
+                    tag.name, tag.type_name, tag.struct_name, tag.raw.size, tag.raw.array_index, data_start, data_size);
+                
+                if tag.name == "Vertices" && data_size > 4 {
+                    // Try to read array of FVectors (3 × f32)
+                    let count = pr.archive().read_i32()? as usize;
+                    println!("[CUBE] Vertices count={}", count);
+                    if count > 0 && count < 10000 {
+                        let mut positions = Vec::with_capacity(count);
+                        for i in 0..count.min(5) {
+                            let x = pr.archive().read_f32()?;
+                            let y = pr.archive().read_f32()?;
+                            let z = pr.archive().read_f32()?;
+                            positions.push(Vec3::new(x, y, z));
+                            println!("[CUBE] v[{}]=({} {} {})", i, x, y, z);
+                        }
+                        if count >= 3 && positions.len() >= 3 {
+                            println!("[CUBE] Found {} vertices!", count);
+                            // Read remaining vertices
+                            for _ in 5..count {
+                                let x = pr.archive().read_f32()?;
+                                let y = pr.archive().read_f32()?;
+                                let z = pr.archive().read_f32()?;
+                                positions.push(Vec3::new(x, y, z));
+                            }
+                            drop(pr);
+                            // Build mesh from vertices
+                            let centroid = positions.iter().sum::<Vec3>() / positions.len() as f32;
+                            let mut ue_verts: Vec<UnrealVertex> = positions.iter().map(|p| {
+                                UnrealVertex { position: *p, ..Default::default() }
+                            }).collect();
+                            let cv = UnrealVertex { position: centroid, ..Default::default() };
+                            let ci = ue_verts.len() as u32;
+                            ue_verts.push(cv);
+                            let mut sorted: Vec<(usize, f32)> = positions.iter().enumerate().map(|(i, p)| {
+                                let dir = (*p - centroid).normalize_or_zero();
+                                (i, f32::atan2(dir.z, dir.x))
+                            }).collect();
+                            sorted.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
+                            let mut indices = Vec::new();
+                            for i in 0..sorted.len() {
+                                let a = sorted[i].0 as u32;
+                                let b = sorted[(i + 1) % sorted.len()].0 as u32;
+                                indices.push(ci); indices.push(a); indices.push(b);
+                            }
+                            let num_verts = ue_verts.len() as u32;
+                            let num_idx = indices.len() as u32;
+                            return Ok(StaticMeshAsset {
+                                name: export_name,
+                                lod_count: 1,
+                                lods: vec![StaticMeshLOD {
+                                    vertices: ue_verts,
+                                    indices,
+                                    sections: vec![MeshSection { material_index: 0, first_index: 0, num_indices: num_idx, first_vertex: 0, num_vertices: num_verts }],
+                                    material_names: vec!["Default".to_string()],
+                                }],
+                            });
+                        }
+                    }
+                }
+                
+                // Skip to next property
+                if tag.raw.next_offset > data_start {
+                    pr.archive().seek_to(tag.raw.next_offset)?;
+                }
+            }
+        }
+    }
+    drop(pr);
+
+    // No valid geometry found - generate a default box
+    println!("[CUBE] No valid geometry in CubeBuilder, generating default box");
+    let default_box: [Vec3; 8] = [
+        Vec3::new(-50.0, -50.0, -50.0), Vec3::new(50.0, -50.0, -50.0),
+        Vec3::new(50.0, 50.0, -50.0), Vec3::new(-50.0, 50.0, -50.0),
+        Vec3::new(-50.0, -50.0, 50.0), Vec3::new(50.0, -50.0, 50.0),
+        Vec3::new(50.0, 50.0, 50.0), Vec3::new(-50.0, 50.0, 50.0),
+    ];
+    let faces: [[u32; 4]; 6] = [
+        [0, 1, 2, 3], [1, 5, 6, 2], [5, 4, 7, 6],
+        [4, 0, 3, 7], [3, 2, 6, 7], [4, 5, 1, 0],
+    ];
+    let mut ue_verts: Vec<UnrealVertex> = default_box.iter().map(|p| {
+        UnrealVertex { position: *p, ..Default::default() }
+    }).collect();
+    let mut indices = Vec::new();
+    for face in &faces {
+        indices.push(face[0]); indices.push(face[1]); indices.push(face[2]);
+        indices.push(face[0]); indices.push(face[2]); indices.push(face[3]);
+    }
+    let num_verts = ue_verts.len() as u32;
+    let num_idx = indices.len() as u32;
+    println!("[CUBE] Generated default box: {} verts, {} triangles", num_verts, num_idx / 3);
+    Ok(StaticMeshAsset {
+        name: export_name,
+        lod_count: 1,
+        lods: vec![StaticMeshLOD {
+            vertices: ue_verts,
+            indices,
+            sections: vec![MeshSection { material_index: 0, first_index: 0, num_indices: num_idx, first_vertex: 0, num_vertices: num_verts }],
+            material_names: vec!["Default".to_string()],
+        }],
+    })
+}
+
+/// Read a BrushComponent export and try to extract geometry.
+/// BrushComponent's "Brush" property points to a UModel or brush object.
+pub fn read_brush_component(
+    pkg: &UPackage,
+    export_idx: usize,
+    reader: &mut (dyn solid_rs::traits::ReadSeek),
+) -> Result<StaticMeshAsset, UnrealError> {
+    let export = pkg.exports.get(export_idx).ok_or_else(|| UnrealError::Parse {
+        context: "read_brush_component",
+        detail: format!("export index {export_idx} out of range"),
+    })?;
+
+    let export_name = pkg.resolve_name(export.object_name);
+    let start_offset = export.serial_offset as u64;
+    reader.seek(SeekFrom::Start(start_offset))?;
+
+    let archive = FArchiveUE::new(reader, pkg.version.clone());
+    let mut pr = pkg.property_reader(archive);
+
+    // Find the "Brush" property (ObjectProperty referencing a UModel or brush)
+    if !pr.find_property("Brush")? {
+        return Err(UnrealError::Conversion {
+            asset_type: "BrushComponent",
+            detail: format!("BrushComponent '{export_name}' has no Brush property"),
+        });
+    }
+
+    // Read the object reference (FPackageIndex)
+    let brush_ref = pr.archive().read_package_index()?;
+
+    if !brush_ref.is_export() {
+        // Brush reference might be null or import - can't follow
+        return Err(UnrealError::Conversion {
+            asset_type: "BrushComponent",
+            detail: format!("BrushComponent '{export_name}' Brush reference is not an export"),
+        });
+    }
+
+    let brush_export_idx = (brush_ref.0 - 1) as usize;
+    let brush_name = pkg.resolve_name(pkg.exports[brush_export_idx].object_name);
+    println!("[BRUSH] '{export_name}' Brush -> export[{brush_export_idx}] '{brush_name}'");
+
+    // The brush might be a UModel with BSP geometry, or a CubeBuilder.
+    // For now, try reading the referenced export as a CubeBuilder if it is one.
+    let brush_class = pkg.resolve_export_class_name(pkg.exports[brush_export_idx].class_index);
+    if brush_class == "CubeBuilder" {
+        return read_cube_builder(pkg, brush_export_idx, reader);
+    }
+
+    // If the Brush is a UModel, the serial data has BSP nodes/geom which is complex.
+    // For now, return error.
+    Err(UnrealError::Conversion {
+        asset_type: "BrushComponent",
+        detail: format!("Brush references '{brush_class}' which is not yet supported"),
+    })
+}
+
 /// Convert half-precision float to f32.
 fn half_to_f32(h: u16) -> f32 {
     let sign = ((h >> 15) & 0x1) as f32;

@@ -1,6 +1,5 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
-use crate::archive::FArchiveUE;
 use glam::{Mat4, Vec4};
 
 use crate::assets::material::MaterialAsset;
@@ -8,7 +7,6 @@ use crate::assets::static_mesh::{StaticMeshAsset, UnrealVertex};
 use crate::assets::texture::Texture2DAsset;
 use crate::assets::world::{ActorComponent, LevelAsset};
 use crate::error::UnrealError;
-use crate::types::PackageIndex;
 use crate::UPackage;
 
 /// Configuration for the UE → Solid3D conversion.
@@ -70,7 +68,10 @@ pub fn package_to_scene(
 
         // Classify each export
     for (export_idx, export) in pkg.exports.iter().enumerate() {
-        let class_name = resolve_export_class_name(pkg, export.class_index);
+        let class_name = pkg.resolve_export_class_name(export.class_index);
+        if class_name.is_empty() { continue; }
+        println!("[CLASS] export[{export_idx}] class='{class_name}'");
+
         match class_name.as_str() {
             "Texture2D" => {
                 if let Ok(tex) = crate::assets::texture::read_texture2d(pkg, export_idx, reader) {
@@ -84,9 +85,23 @@ pub fn package_to_scene(
                 }
                 let _ = rewind_to_export(pkg, export_idx, reader);
             }
-            "StaticMesh" | "CubeBuilder" | "BrushComponent" => {
+            "StaticMesh" => {
                 if let Ok(mesh) = crate::assets::static_mesh::read_static_mesh(pkg, export_idx, reader) {
                     mesh_exports.push((export_idx, mesh));
+                }
+                let _ = rewind_to_export(pkg, export_idx, reader);
+            }
+            "CubeBuilder" => {
+                match crate::assets::static_mesh::read_cube_builder(pkg, export_idx, reader) {
+                    Ok(mesh) => mesh_exports.push((export_idx, mesh)),
+                    Err(e) => println!("[ERR] CubeBuilder: {e}"),
+                }
+                let _ = rewind_to_export(pkg, export_idx, reader);
+            }
+            "BrushComponent" => {
+                match crate::assets::static_mesh::read_brush_component(pkg, export_idx, reader) {
+                    Ok(mesh) => mesh_exports.push((export_idx, mesh)),
+                    Err(e) => println!("[ERR] BrushComponent: {e}"),
                 }
                 let _ = rewind_to_export(pkg, export_idx, reader);
             }
@@ -192,29 +207,8 @@ pub fn package_to_scene(
         }
     }
 
-    // 6b. Scan ALL exports for ObjectProperty references
-    // and try to read the referenced objects
-    // Check first 8 bytes of each export's serial data to see which are non-None
-    eprintln!("[REF] Checking serial data headers...");
-    for (ei, export) in pkg.exports.iter().enumerate() {
-        if export.serial_offset <= 0 || export.serial_size <= 0 { continue; }
-        let cname = resolve_export_class_name(pkg, export.class_index);
-        if cname.is_empty() { continue; }
-        let _ = rewind_to_export(pkg, ei, reader);
-        let mut tmp_ar = FArchiveUE::new(reader, pkg.version.clone());
-        let idx = tmp_ar.read_i32().unwrap_or(0);
-        let num = tmp_ar.read_i32().unwrap_or(0);
-        if idx != pkg.none_name_index || num != 0 {
-            // This export doesn't start with None - it has actual properties
-            let ename = pkg.resolve_name(export.object_name);
-            let name_str = pkg.resolve_name(crate::types::FName::new(idx, num));
-            let off = export.serial_offset;
-            let sz = export.serial_size;
-            eprintln!("[REF] export[{ei}] '{ename}' class='{cname}': first FName({idx},{num})='{name_str}' off={off} sz={sz}");
-        }
-    }
-
     // 7. Process level actors into the scene graph
+    // (If no level exports were found, all meshes are attached directly to root below)
     for (_export_idx, level) in &level_exports {
         for actor in &level.actors {
             let actor_node = if config.flatten_hierarchy {
@@ -274,6 +268,49 @@ pub fn package_to_scene(
                     _ => {} // Skip other component types for now
                 }
             }
+        }
+    }
+
+    // 7b. If no level actors were processed, fall back: attach all meshes directly to root
+    let used_mesh_indices: HashSet<usize> = {
+        let mut set = std::collections::HashSet::new();
+        for (_export_idx, level) in &level_exports {
+            for actor in &level.actors {
+                for component in &actor.components {
+                    match component {
+                        ActorComponent::StaticMesh(smc) => {
+                            if let Some(mi) = smc.static_mesh_export_idx {
+                                if let Some(&si) = mesh_export_to_mesh_index.get(&mi) {
+                                    set.insert(si);
+                                }
+                            }
+                        }
+                        ActorComponent::SkeletalMesh(sk) => {
+                            if let Some(mi) = sk.skeletal_mesh_export_idx {
+                                if let Some(&si) = mesh_export_to_mesh_index.get(&mi) {
+                                    set.insert(si);
+                                }
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+        set
+    };
+
+    // Attach any meshes not connected to the scene graph
+    for (export_idx, solid_mesh_idx) in &mesh_export_to_mesh_index {
+        if !used_mesh_indices.contains(solid_mesh_idx) {
+            let mesh_name = pkg.resolve_name(pkg.exports[*export_idx].object_name);
+            let mesh_node = if config.flatten_hierarchy {
+                root
+            } else {
+                builder.add_child_node(root, &mesh_name)
+            };
+            builder.attach_mesh(mesh_node, *solid_mesh_idx);
+            println!("[SCENE] Attached mesh '{mesh_name}' (export[{export_idx}]) to root");
         }
     }
 
@@ -378,21 +415,4 @@ fn rewind_to_export(
     Ok(())
 }
 
-/// Resolve the class name for an export's class index.
-fn resolve_export_class_name(pkg: &UPackage, class_index: PackageIndex) -> String {
-    if class_index.is_import() {
-        let idx = ((-class_index.0) - 1) as usize;
-        pkg.imports
-            .get(idx)
-            .map(|i| pkg.resolve_name(i.object_name))
-            .unwrap_or_default()
-    } else if class_index.is_export() {
-        let idx = (class_index.0 - 1) as usize;
-        pkg.exports
-            .get(idx)
-            .map(|e| pkg.resolve_name(e.object_name))
-            .unwrap_or_default()
-    } else {
-        String::new()
-    }
-}
+

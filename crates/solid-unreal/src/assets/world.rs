@@ -85,7 +85,7 @@ pub fn read_world(
     })?;
 
     let export_name = pkg.resolve_name(export.object_name);
-    let class_name = resolve_class_name(pkg, export.class_index);
+    let class_name = pkg.resolve_export_class_name(export.class_index);
     let is_world = class_name == "World" || class_name == "WorldPartition"
         || class_name == "BlueprintGeneratedClass";
 
@@ -175,7 +175,7 @@ fn try_read_actor(
         None => return Ok(None),
     };
 
-    let class_name = resolve_class_name(pkg, export.class_index);
+    let class_name = pkg.resolve_export_class_name(export.class_index);
     let actor_name = pkg.resolve_name(export.object_name);
 
     let start_offset = if pkg.version.is_ue5() {
@@ -250,7 +250,7 @@ fn try_read_scene_component(
         None => return Ok(None),
     };
 
-    let class_name = resolve_class_name(pkg, export.class_index);
+    let class_name = pkg.resolve_export_class_name(export.class_index);
     let comp_name = pkg.resolve_name(export.object_name);
 
     let start_offset = if pkg.version.is_ue5() {
@@ -363,21 +363,4 @@ struct ComponentReadResult {
     component: ActorComponent,
 }
 
-/// Resolve the class name of an export from its PackageIndex.
-fn resolve_class_name(pkg: &UPackage, class_index: PackageIndex) -> String {
-    if class_index.is_import() {
-        let idx = ((-class_index.0) - 1) as usize;
-        pkg.imports
-            .get(idx)
-            .map(|i| pkg.resolve_name(i.object_name))
-            .unwrap_or_default()
-    } else if class_index.is_export() {
-        let idx = (class_index.0 - 1) as usize;
-        pkg.exports
-            .get(idx)
-            .map(|e| pkg.resolve_name(e.object_name))
-            .unwrap_or_default()
-    } else {
-        String::new()
-    }
-}
+
