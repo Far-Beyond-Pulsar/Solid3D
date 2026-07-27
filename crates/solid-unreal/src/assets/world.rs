@@ -1,13 +1,11 @@
-use std::io::SeekFrom;
+use std::io::{Seek, SeekFrom};
 
 use glam::{Mat4, Quat, Vec3};
 
-use crate::archive::FArchiveUE;
 use crate::error::UnrealError;
-use crate::types::PackageIndex;
-use crate::UPackage;
+use crate::reader;
+use crate::uobject::property::PropertyReader;
 
-/// A placed actor instance in a level.
 #[derive(Debug, Clone)]
 pub struct ActorInstance {
     pub name: String,
@@ -16,7 +14,6 @@ pub struct ActorInstance {
     pub components: Vec<ActorComponent>,
 }
 
-/// A component attached to an actor.
 #[derive(Debug, Clone)]
 pub enum ActorComponent {
     StaticMesh(StaticMeshComponent),
@@ -26,7 +23,6 @@ pub enum ActorComponent {
     Unknown { name: String, class: String },
 }
 
-/// A static mesh component (placed mesh in the level).
 #[derive(Debug, Clone)]
 pub struct StaticMeshComponent {
     pub name: String,
@@ -65,7 +61,6 @@ pub struct CameraComponent {
     pub aspect_ratio: f32,
 }
 
-/// Parsed level (ULevel / UWorld) data.
 #[derive(Debug, Clone)]
 pub struct LevelAsset {
     pub name: String,
@@ -73,50 +68,54 @@ pub struct LevelAsset {
     pub referenced_exports: Vec<usize>,
 }
 
-/// Read a UWorld or ULevel from a package export.
 pub fn read_world(
-    pkg: &UPackage,
+    header: &mut uasset::AssetHeader<std::io::Cursor<&[u8]>>,
     export_idx: usize,
-    reader: &mut (dyn solid_rs::traits::ReadSeek),
 ) -> Result<LevelAsset, UnrealError> {
-    let export = pkg.exports.get(export_idx).ok_or_else(|| UnrealError::Parse {
+    let export = header.exports.get(export_idx).ok_or_else(|| UnrealError::Parse {
         context: "read_world",
         detail: format!("export index {export_idx} out of range"),
     })?;
 
-    let export_name = pkg.resolve_name(export.object_name);
-    let class_name = pkg.resolve_export_class_name(export.class_index);
+    let export_name = header.resolve_name(&export.object_name)
+        .unwrap_or_default().to_string();
+
+    let class_name = match export.class() {
+        uasset::ObjectReference::Import { import_index } => {
+            header.imports.get(import_index)
+                .and_then(|i| header.resolve_name(&i.object_name).ok())
+                .map(|c| c.to_string()).unwrap_or_default()
+        }
+        uasset::ObjectReference::Export { export_index } => {
+            header.exports.get(export_index)
+                .and_then(|e| header.resolve_name(&e.object_name).ok())
+                .map(|c| c.to_string()).unwrap_or_default()
+        }
+        uasset::ObjectReference::None => String::new(),
+    };
+
     let is_world = class_name == "World" || class_name == "WorldPartition"
         || class_name == "BlueprintGeneratedClass";
 
-    let start_offset = if pkg.version.is_ue5() {
-        export.serial_offset as u64
-    } else {
-        export.serial_offset as u64
-    };
-
-    reader.seek(SeekFrom::Start(start_offset))?;
+    let start_offset = export.serial_offset as u64;
 
     if is_world {
-        reader.seek(SeekFrom::Start(start_offset))?;
+        header.archive.seek(SeekFrom::Start(start_offset))?;
 
-        reader.seek(SeekFrom::Start(start_offset))?;
+        let pr = PropertyReader::new(&header.names);
 
-        let archive = FArchiveUE::new(reader, pkg.version.clone());
-        let mut pr = pkg.property_reader(archive);
-
-        if !pr.find_property("PersistentLevel")? {
+        if !pr.find_property(&mut header.archive, "PersistentLevel")? {
             return Err(UnrealError::Conversion {
                 asset_type: "World",
                 detail: format!("world '{}' has no PersistentLevel", export_name),
             });
         }
 
-        let level_export = pr.archive().read_package_index()?;
+        let level_ref = reader::read_package_index(&mut header.archive)?;
 
-        if level_export.is_export() {
-            let level_idx = (level_export.0 - 1) as usize;
-            return read_world(pkg, level_idx, reader);
+        if level_ref > 0 {
+            let level_idx = (level_ref - 1) as usize;
+            return read_world(header, level_idx);
         }
 
         return Err(UnrealError::Conversion {
@@ -125,29 +124,23 @@ pub fn read_world(
         });
     }
 
-    // ULevel: read properties to find Actors array
-    let archive = FArchiveUE::new(reader, pkg.version.clone());
-    let mut pr = pkg.property_reader(archive);
+    header.archive.seek(SeekFrom::Start(start_offset))?;
+    let pr = PropertyReader::new(&header.names);
 
-    if !pr.find_property("Actors")? {
+    if !pr.find_property(&mut header.archive, "Actors")? {
         return Err(UnrealError::Conversion {
             asset_type: "Level",
             detail: format!("level '{}' has no Actors array", export_name),
         });
     }
 
-    let actor_count = pr.archive().read_serial_size()? as usize;
-    drop(pr); // release reader borrow
+    let actor_count = reader::read_i32(&mut header.archive)? as usize;
 
     let mut actors = Vec::new();
     for _ in 0..actor_count {
-        let archive = FArchiveUE::new(reader, pkg.version.clone());
-        let mut pr = pkg.property_reader(archive);
+        let actor_ref = reader::read_package_index(&mut header.archive)?;
 
-        let actor_ref = pr.archive().read_package_index()?;
-        drop(pr); // release reader borrow
-
-        if let Some(actor) = try_read_actor(pkg, actor_ref, reader)? {
+        if let Some(actor) = try_read_actor(header, actor_ref)? {
             actors.push(actor);
         }
     }
@@ -159,71 +152,69 @@ pub fn read_world(
     })
 }
 
-/// Try to read an actor from a package index reference.
 fn try_read_actor(
-    pkg: &UPackage,
-    actor_ref: PackageIndex,
-    reader: &mut (dyn solid_rs::traits::ReadSeek),
+    header: &mut uasset::AssetHeader<std::io::Cursor<&[u8]>>,
+    actor_ref: i32,
 ) -> Result<Option<ActorInstance>, UnrealError> {
-    if !actor_ref.is_export() {
-        return Ok(None);
-    }
+    if actor_ref <= 0 { return Ok(None); }
 
-    let export_idx = (actor_ref.0 - 1) as usize;
-    let export = match pkg.exports.get(export_idx) {
+    let export_idx = (actor_ref - 1) as usize;
+    let export = match header.exports.get(export_idx) {
         Some(e) => e,
         None => return Ok(None),
     };
 
-    let class_name = pkg.resolve_export_class_name(export.class_index);
-    let actor_name = pkg.resolve_name(export.object_name);
-
-    let start_offset = if pkg.version.is_ue5() {
-        export.serial_offset as u64
-    } else {
-        export.serial_offset as u64
+    let class_name = match export.class() {
+        uasset::ObjectReference::Import { import_index } => {
+            header.imports.get(import_index)
+                .and_then(|i| header.resolve_name(&i.object_name).ok())
+                .map(|c| c.to_string()).unwrap_or_default()
+        }
+        uasset::ObjectReference::Export { export_index } => {
+            header.exports.get(export_index)
+                .and_then(|e| header.resolve_name(&e.object_name).ok())
+                .map(|c| c.to_string()).unwrap_or_default()
+        }
+        uasset::ObjectReference::None => String::new(),
     };
 
-    reader.seek(SeekFrom::Start(start_offset))?;
-    let archive = FArchiveUE::new(reader, pkg.version.clone());
-    let mut pr = pkg.property_reader(archive);
+    let actor_name = header.resolve_name(&export.object_name)
+        .unwrap_or_default().to_string();
+
+    let start_offset = export.serial_offset as u64;
+    header.archive.seek(SeekFrom::Start(start_offset))?;
+
+    let pr = PropertyReader::new(&header.names);
 
     let mut transform = Mat4::IDENTITY;
     let mut components = Vec::new();
 
     loop {
-        match pr.read_tag()? {
+        match pr.read_tag(&mut header.archive)? {
             None => break,
             Some(tag) => {
-                let ar = pr.archive();
                 match tag.name.as_str() {
                     "RootComponent" => {
-                        let comp_ref = ar.read_package_index()?;
-                        drop(pr); // release reader borrow before recursion
+                        let comp_ref = reader::read_package_index(&mut header.archive)?;
 
-                        if comp_ref.is_export() {
-                            let comp_idx = (comp_ref.0 - 1) as usize;
-                            if let Some(result) = try_read_scene_component(pkg, comp_idx, reader)? {
+                        if comp_ref > 0 {
+                            let comp_idx = (comp_ref - 1) as usize;
+                            if let Some(result) = try_read_scene_component(header, comp_idx)? {
                                 transform = result.transform;
                                 components.push(result.component);
                             }
                         }
 
-                        // Re-acquire borrow
-                        reader.seek(SeekFrom::Start(start_offset))?;
-                        let archive = FArchiveUE::new(reader, pkg.version.clone());
-                        pr = pkg.property_reader(archive);
-
-                        // Re-find RootComponent to update position
-                        // Actually, we just need to continue the loop from the cached position
-                        // For now, skip remaining properties
-                        pr.skip_remaining_properties()?;
                         break;
                     }
                     _ => {
-                        let data_start = ar.pos;
-                        if tag.raw.next_offset > data_start {
-                            ar.seek_to(tag.raw.next_offset)?;
+                        let next = tag.raw.next_offset;
+                        let pos = match header.archive.stream_position() {
+                            Ok(p) => p,
+                            Err(_) => 0,
+                        };
+                        if next > pos {
+                            header.archive.seek(SeekFrom::Start(next))?;
                         }
                     }
                 }
@@ -239,29 +230,36 @@ fn try_read_actor(
     }))
 }
 
-/// Try to read a scene component (USceneComponent or subclass).
 fn try_read_scene_component(
-    pkg: &UPackage,
+    header: &mut uasset::AssetHeader<std::io::Cursor<&[u8]>>,
     export_idx: usize,
-    reader: &mut (dyn solid_rs::traits::ReadSeek),
 ) -> Result<Option<ComponentReadResult>, UnrealError> {
-    let export = match pkg.exports.get(export_idx) {
+    let export = match header.exports.get(export_idx) {
         Some(e) => e,
         None => return Ok(None),
     };
 
-    let class_name = pkg.resolve_export_class_name(export.class_index);
-    let comp_name = pkg.resolve_name(export.object_name);
-
-    let start_offset = if pkg.version.is_ue5() {
-        export.serial_offset as u64
-    } else {
-        export.serial_offset as u64
+    let class_name = match export.class() {
+        uasset::ObjectReference::Import { import_index } => {
+            header.imports.get(import_index)
+                .and_then(|i| header.resolve_name(&i.object_name).ok())
+                .map(|c| c.to_string()).unwrap_or_default()
+        }
+        uasset::ObjectReference::Export { export_index } => {
+            header.exports.get(export_index)
+                .and_then(|e| header.resolve_name(&e.object_name).ok())
+                .map(|c| c.to_string()).unwrap_or_default()
+        }
+        uasset::ObjectReference::None => String::new(),
     };
 
-    reader.seek(SeekFrom::Start(start_offset))?;
-    let archive = FArchiveUE::new(reader, pkg.version.clone());
-    let mut pr = pkg.property_reader(archive);
+    let comp_name = header.resolve_name(&export.object_name)
+        .unwrap_or_default().to_string();
+
+    let start_offset = export.serial_offset as u64;
+    header.archive.seek(SeekFrom::Start(start_offset))?;
+
+    let pr = PropertyReader::new(&header.names);
 
     let mut relative_location = Vec3::ZERO;
     let mut relative_rotation = Vec3::ZERO;
@@ -269,49 +267,48 @@ fn try_read_scene_component(
     let mut component: Option<ActorComponent> = None;
 
     loop {
-        match pr.read_tag()? {
+        match pr.read_tag(&mut header.archive)? {
             None => break,
             Some(tag) => {
-                let ar = pr.archive();
                 match tag.name.as_str() {
                     "RelativeLocation" => {
                         if tag.type_name == "Vector" {
-                            let x = ar.read_f64()?;
-                            let y = ar.read_f64()?;
-                            let z = ar.read_f64()?;
+                            let x = reader::read_f64(&mut header.archive)?;
+                            let y = reader::read_f64(&mut header.archive)?;
+                            let z = reader::read_f64(&mut header.archive)?;
                             relative_location = Vec3::new(x as f32, y as f32, z as f32);
                         } else if tag.type_name == "Vector3f" {
-                            let x = ar.read_f32()?;
-                            let y = ar.read_f32()?;
-                            let z = ar.read_f32()?;
+                            let x = reader::read_f32(&mut header.archive)?;
+                            let y = reader::read_f32(&mut header.archive)?;
+                            let z = reader::read_f32(&mut header.archive)?;
                             relative_location = Vec3::new(x, y, z);
                         }
                     }
                     "RelativeRotation" => {
                         if tag.struct_name == "Rotator" {
-                            let pitch = ar.read_f64()?;
-                            let yaw = ar.read_f64()?;
-                            let roll = ar.read_f64()?;
+                            let pitch = reader::read_f64(&mut header.archive)?;
+                            let yaw = reader::read_f64(&mut header.archive)?;
+                            let roll = reader::read_f64(&mut header.archive)?;
                             relative_rotation = Vec3::new(pitch as f32, yaw as f32, roll as f32);
                         }
                     }
                     "RelativeScale3D" => {
                         if tag.struct_name == "Vector" {
-                            let x = ar.read_f64()?;
-                            let y = ar.read_f64()?;
-                            let z = ar.read_f64()?;
+                            let x = reader::read_f64(&mut header.archive)?;
+                            let y = reader::read_f64(&mut header.archive)?;
+                            let z = reader::read_f64(&mut header.archive)?;
                             relative_scale = Vec3::new(x as f32, y as f32, z as f32);
                         } else if tag.struct_name == "Vector3f" {
-                            let x = ar.read_f32()?;
-                            let y = ar.read_f32()?;
-                            let z = ar.read_f32()?;
+                            let x = reader::read_f32(&mut header.archive)?;
+                            let y = reader::read_f32(&mut header.archive)?;
+                            let z = reader::read_f32(&mut header.archive)?;
                             relative_scale = Vec3::new(x, y, z);
                         }
                     }
                     "StaticMesh" => {
-                        let mesh_ref = ar.read_package_index()?;
-                        if mesh_ref.is_export() {
-                            let mesh_idx = (mesh_ref.0 - 1) as usize;
+                        let mesh_ref = reader::read_package_index(&mut header.archive)?;
+                        if mesh_ref > 0 {
+                            let mesh_idx = (mesh_ref - 1) as usize;
                             component = Some(ActorComponent::StaticMesh(StaticMeshComponent {
                                 name: comp_name.clone(),
                                 static_mesh_export_idx: Some(mesh_idx),
@@ -321,9 +318,9 @@ fn try_read_scene_component(
                         }
                     }
                     "SkeletalMesh" => {
-                        let mesh_ref = ar.read_package_index()?;
-                        if mesh_ref.is_export() {
-                            let mesh_idx = (mesh_ref.0 - 1) as usize;
+                        let mesh_ref = reader::read_package_index(&mut header.archive)?;
+                        if mesh_ref > 0 {
+                            let mesh_idx = (mesh_ref - 1) as usize;
                             component = Some(ActorComponent::SkeletalMesh(SkeletalMeshComponent {
                                 name: comp_name.clone(),
                                 skeletal_mesh_export_idx: Some(mesh_idx),
@@ -332,9 +329,13 @@ fn try_read_scene_component(
                         }
                     }
                     _ => {
-                        let data_start = ar.pos;
-                        if tag.raw.next_offset > data_start {
-                            ar.seek_to(tag.raw.next_offset)?;
+                        let next = tag.raw.next_offset;
+                        let pos = match header.archive.stream_position() {
+                            Ok(p) => p,
+                            Err(_) => 0,
+                        };
+                        if next > pos {
+                            header.archive.seek(SeekFrom::Start(next))?;
                         }
                     }
                 }
@@ -362,5 +363,3 @@ struct ComponentReadResult {
     transform: Mat4,
     component: ActorComponent,
 }
-
-

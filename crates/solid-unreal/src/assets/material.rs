@@ -1,13 +1,11 @@
-use std::io::SeekFrom;
+use std::io::{Seek, SeekFrom};
 
 use glam::{Vec3, Vec4};
 
-use crate::archive::FArchiveUE;
 use crate::error::UnrealError;
+use crate::reader;
 use crate::uobject::property::PropertyReader;
-use crate::UPackage;
 
-/// Parsed material data from a UMaterial or UMaterialInstanceConstant.
 #[derive(Debug, Clone)]
 pub struct MaterialAsset {
     pub name: String,
@@ -36,44 +34,26 @@ pub struct MaterialTextures {
 
 #[derive(Debug, Clone)]
 pub struct TextureSlot {
-    /// Index into the package's export table for the referenced texture.
     pub export_index: Option<usize>,
-    /// UV channel index.
     pub uv_index: u32,
 }
 
-/// Read a UMaterialInstanceConstant or UMaterial from a package export.
 pub fn read_material(
-    pkg: &UPackage,
+    header: &mut uasset::AssetHeader<std::io::Cursor<&[u8]>>,
     export_idx: usize,
-    reader: &mut (dyn solid_rs::traits::ReadSeek),
 ) -> Result<MaterialAsset, UnrealError> {
-    let export = pkg.exports.get(export_idx).ok_or_else(|| UnrealError::Parse {
+    let export = header.exports.get(export_idx).ok_or_else(|| UnrealError::Parse {
         context: "read_material",
         detail: format!("export index {export_idx} out of range"),
     })?;
 
-    let export_name = pkg.resolve_name(export.object_name);
-    let _class_name = if export.class_index.is_export() {
-        let class_idx = (export.class_index.0 - 1) as usize;
-        pkg.resolve_name(
-            pkg.exports.get(class_idx).map(|e| e.object_name)
-                .unwrap_or(crate::types::FName::new(0, 0)),
-        )
-    } else {
-        String::new()
-    };
+    let export_name = header.resolve_name(&export.object_name)
+        .unwrap_or_default().to_string();
 
-    let start_offset = if pkg.version.is_ue5() {
-        export.serial_offset as u64
-    } else {
-        export.serial_offset as u64
-    };
+    let start_offset = export.serial_offset as u64;
+    header.archive.seek(SeekFrom::Start(start_offset))?;
 
-    reader.seek(SeekFrom::Start(start_offset))?;
-
-    let archive = FArchiveUE::new(reader, pkg.version.clone());
-    let mut pr = pkg.property_reader(archive);
+    let pr = PropertyReader::new(&header.names);
 
     let mut mat = MaterialAsset {
         name: export_name,
@@ -91,36 +71,38 @@ pub fn read_material(
     };
 
     loop {
-        match pr.read_tag()? {
+        match pr.read_tag(&mut header.archive)? {
             None => break,
             Some(tag) => {
-                let ar = pr.archive();
                 match tag.name.as_str() {
                     "BaseColor" => {
-                        // FColor or FLinearColor property
                         if tag.type_name == "LinearColor" {
                             mat.base_color = Vec4::new(
-                                ar.read_f32()?,
-                                ar.read_f32()?,
-                                ar.read_f32()?,
-                                ar.read_f32()?,
+                                reader::read_f32(&mut header.archive)?,
+                                reader::read_f32(&mut header.archive)?,
+                                reader::read_f32(&mut header.archive)?,
+                                reader::read_f32(&mut header.archive)?,
                             );
                         } else if tag.type_name == "Color" {
-                            let packed = ar.read_u32()?;
+                            let packed = reader::read_u32(&mut header.archive)?;
                             let b = ((packed >> 0) & 0xFF) as f32 / 255.0;
                             let g = ((packed >> 8) & 0xFF) as f32 / 255.0;
                             let r = ((packed >> 16) & 0xFF) as f32 / 255.0;
                             let a = ((packed >> 24) & 0xFF) as f32 / 255.0;
                             mat.base_color = Vec4::new(r, g, b, a);
                         } else {
-                            let data_start = ar.pos;
-                            if tag.raw.next_offset > data_start {
-                                ar.seek_to(tag.raw.next_offset)?;
+                            let next = tag.raw.next_offset;
+                            let pos = match header.archive.stream_position() {
+                                Ok(p) => p,
+                                Err(_) => 0,
+                            };
+                            if next > pos {
+                                header.archive.seek(SeekFrom::Start(next))?;
                             }
                         }
                     }
                     "Metallic" | "Roughness" | "Specular" | "Opacity" | "OpacityMaskClipValue" => {
-                        let val = ar.read_f32()?;
+                        let val = reader::read_f32(&mut header.archive)?;
                         match tag.name.as_str() {
                             "Metallic" => mat.metallic = val,
                             "Roughness" => mat.roughness = val,
@@ -133,46 +115,44 @@ pub fn read_material(
                     "EmissiveColor" => {
                         if tag.type_name == "LinearColor" {
                             mat.emissive_color = Vec3::new(
-                                ar.read_f32()?,
-                                ar.read_f32()?,
-                                ar.read_f32()?,
+                                reader::read_f32(&mut header.archive)?,
+                                reader::read_f32(&mut header.archive)?,
+                                reader::read_f32(&mut header.archive)?,
                             );
-                            let _a = ar.read_f32()?; // alpha
+                            let _a = reader::read_f32(&mut header.archive)?;
                         } else {
-                            let data_start = ar.pos;
-                            if tag.raw.next_offset > data_start {
-                                ar.seek_to(tag.raw.next_offset)?;
+                            let next = tag.raw.next_offset;
+                            let pos = match header.archive.stream_position() {
+                                Ok(p) => p,
+                                Err(_) => 0,
+                            };
+                            if next > pos {
+                                header.archive.seek(SeekFrom::Start(next))?;
                             }
                         }
                     }
                     "BlendMode" => {
-                        // ByteProperty (u8)
-                        mat.blend_mode = ar.read_u8()? as u32;
+                        mat.blend_mode = reader::read_u8(&mut header.archive)? as u32;
                     }
                     "ShadingModel" => {
-                        // ByteProperty (u8)
-                        mat.shading_model = ar.read_u8()? as u32;
+                        mat.shading_model = reader::read_u8(&mut header.archive)? as u32;
                     }
                     "TwoSided" => {
-                        // BoolProperty (u32)
-                        mat.two_sided = ar.read_u32()? != 0;
+                        mat.two_sided = reader::read_u32(&mut header.archive)? != 0;
                     }
-                    // Material instance parameter values
                     "ParameterValues" | "ScalarParameterValues"
                     | "VectorParameterValues" | "TextureParameterValues" => {
-                        // These are arrays of parameter structs in MIC.
-                        // For TextureParameterValues, each entry has a name + texture reference.
-                        parse_parameter_values(&mut pr, tag, &mut mat)?;
+                        parse_parameter_values(&pr, &mut header.archive, &tag, &mut mat)?;
                     }
-                    // Parent material (for MIC)
-                    "Parent" => {
-                        // ObjectProperty — reference to parent material
-                        // We skip this for now; in a full impl we'd recurse
-                    }
+                    "Parent" => {}
                     _ => {
-                        let data_start = ar.pos;
-                        if tag.raw.next_offset > data_start {
-                            ar.seek_to(tag.raw.next_offset)?;
+                        let next = tag.raw.next_offset;
+                        let pos = match header.archive.stream_position() {
+                            Ok(p) => p,
+                            Err(_) => 0,
+                        };
+                        if next > pos {
+                            header.archive.seek(SeekFrom::Start(next))?;
                         }
                     }
                 }
@@ -183,50 +163,41 @@ pub fn read_material(
     Ok(mat)
 }
 
-/// Parse texture/material parameter value arrays from MIC/MPC.
 fn parse_parameter_values(
-    pr: &mut PropertyReader,
-    tag: crate::uobject::property::PropertyTagInfo,
+    _pr: &PropertyReader,
+    ar: &mut uasset::Archive<std::io::Cursor<&[u8]>>,
+    tag: &crate::uobject::property::PropertyTagInfo,
     _mat: &mut MaterialAsset,
 ) -> Result<(), UnrealError> {
-    let ar = pr.archive();
-
     match tag.name.as_str() {
         "TextureParameterValues" => {
-            // FTextureParameterValue array
-            // Each entry: ParameterName (FName), ParameterValue (Texture2D ObjectPtr)
-            let count = ar.read_serial_size()? as usize;
+            let count = reader::read_i32(ar)? as usize;
             for _ in 0..count {
-                let _param_name = ar.read_fname()?;
-                let _texture_ref = ar.read_package_index()?; // FPackageIndex to the texture
-                // TODO: map param_name to the correct texture slot and resolve the export index
+                let _param_name = reader::read_fname(ar)?;
+                let _texture_ref = reader::read_package_index(ar)?;
             }
         }
         "ScalarParameterValues" => {
-            // Each entry: ParameterName (FName), ParameterValue (f32)
-            let count = ar.read_serial_size()? as usize;
+            let count = reader::read_i32(ar)? as usize;
             for _ in 0..count {
-                let _param_name = ar.read_fname()?;
-                let _value = ar.read_f32()?;
-                // TODO: map param_name to material properties (e.g., "Roughness" -> mat.roughness)
+                let _param_name = reader::read_fname(ar)?;
+                let _value = reader::read_f32(ar)?;
             }
         }
         "VectorParameterValues" => {
-            // Each entry: ParameterName (FName), ParameterValue (FLinearColor = 4xf32)
-            let count = ar.read_serial_size()? as usize;
+            let count = reader::read_i32(ar)? as usize;
             for _ in 0..count {
-                let _param_name = ar.read_fname()?;
-                let _r = ar.read_f32()?;
-                let _g = ar.read_f32()?;
-                let _b = ar.read_f32()?;
-                let _a = ar.read_f32()?;
+                let _param_name = reader::read_fname(ar)?;
+                let _r = reader::read_f32(ar)?;
+                let _g = reader::read_f32(ar)?;
+                let _b = reader::read_f32(ar)?;
+                let _a = reader::read_f32(ar)?;
             }
         }
         _ => {
-            // Skip unknown array
-            let count = ar.read_serial_size()? as usize;
+            let count = reader::read_i32(ar)? as usize;
             for _ in 0..count {
-                let _ = ar.read_i32()?;
+                let _ = reader::read_i32(ar)?;
             }
         }
     }

@@ -380,7 +380,6 @@ dependencies = [
 name = "solid-unreal"
 version = "0.1.0"
 dependencies = [
- "binread",
  "bitflags",
  "flate2",
  "glam",
@@ -480,8 +479,7 @@ checksum = "9ea3136b675547379c4bd395ca6b938e5ad3c3d20fad76e7fe85f9e0d011419c"
 [[package]]
 name = "uasset"
 version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a86440974b171b4b71b3b931daa5d3aed19a5b08cdc43f00f9641f0639a6ea17"
+source = "git+https://github.com/Far-Beyond-Pulsar/UASSET#a7a61fd3f40daa250305cbef9a56d1decf60d9c9"
 dependencies = [
  "binread",
  "bit_field",

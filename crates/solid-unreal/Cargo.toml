@@ -17,8 +17,7 @@ thiserror = { workspace = true }
 flate2    = { workspace = true }
 lz4_flex  = { workspace = true }
 bitflags  = "2"
-uasset = "0.6.0"
-binread = "2.2.0"
+uasset = { git = "https://github.com/Far-Beyond-Pulsar/UASSET" }
 
 [features]
 configurator = ["solid-rs/configurator"]

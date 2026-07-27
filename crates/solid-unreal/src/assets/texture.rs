@@ -1,10 +1,9 @@
-use std::io::SeekFrom;
+use std::io::{Seek, SeekFrom};
 
-use crate::archive::FArchiveUE;
 use crate::error::UnrealError;
-use crate::UPackage;
+use crate::reader;
+use crate::uobject::property::PropertyReader;
 
-/// UE pixel format enum (EPixelFormat) — commonly used variants.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum PixelFormat {
@@ -51,7 +50,6 @@ impl PixelFormat {
     }
 }
 
-/// Information about a single texture mip level.
 #[derive(Debug, Clone)]
 pub struct MipInfo {
     pub width: u32,
@@ -59,7 +57,6 @@ pub struct MipInfo {
     pub data: Vec<u8>,
 }
 
-/// Parsed UTexture2D data.
 #[derive(Debug, Clone)]
 pub struct Texture2DAsset {
     pub name: String,
@@ -70,33 +67,22 @@ pub struct Texture2DAsset {
     pub srgb: bool,
 }
 
-/// Attempt to read a UTexture2D object from a package export.
-///
-/// This reads the serialized properties of a UTexture2D to extract
-/// texture dimensions, pixel format, and bulk mip data.
 pub fn read_texture2d(
-    pkg: &UPackage,
+    header: &mut uasset::AssetHeader<std::io::Cursor<&[u8]>>,
     export_idx: usize,
-    reader: &mut (dyn solid_rs::traits::ReadSeek),
 ) -> Result<Texture2DAsset, UnrealError> {
-    let export = pkg.exports.get(export_idx).ok_or_else(|| UnrealError::Parse {
+    let export = header.exports.get(export_idx).ok_or_else(|| UnrealError::Parse {
         context: "read_texture2d",
         detail: format!("export index {export_idx} out of range"),
     })?;
 
-    let export_name = pkg.resolve_name(export.object_name);
+    let export_name = header.resolve_name(&export.object_name)
+        .unwrap_or_default().to_string();
 
-    // Seek to the export's serial data
-    let start_offset = if pkg.version.is_ue5() {
-        export.serial_offset as u64
-    } else {
-        export.serial_offset as u64
-    };
+    let start_offset = export.serial_offset as u64;
+    header.archive.seek(SeekFrom::Start(start_offset))?;
 
-    reader.seek(SeekFrom::Start(start_offset))?;
-
-    let archive = FArchiveUE::new(reader, pkg.version.clone());
-    let mut pr = pkg.property_reader(archive);
+    let pr = PropertyReader::new(&header.names);
 
     let mut pixel_format = PixelFormat::Unknown(0);
     let width: u32 = 0;
@@ -104,44 +90,32 @@ pub fn read_texture2d(
     let mut srgb = true;
     let mips: Vec<MipInfo> = Vec::new();
 
-    // Walk properties looking for texture data
     loop {
-        match pr.read_tag()? {
+        match pr.read_tag(&mut header.archive)? {
             None => break,
             Some(tag) => {
-                let ar = pr.archive();
                 match tag.name.as_str() {
                     "PixelFormat" => {
-                        // ByteProperty or EnumProperty
-                        // Byte value after the tag header
                         if tag.type_name == "ByteProperty" {
-                            let val = ar.read_u8()?;
+                            let val = reader::read_u8(&mut header.archive)?;
                             pixel_format = PixelFormat::from_u32(val as u32);
                         } else {
-                            // EnumProperty: read the enum value string
-                            let _ = ar.read_fstring()?;
+                            let _ = reader::read_fstring(&mut header.archive)?;
                         }
                     }
                     "SRGB" => {
-                        // BoolProperty — 4-byte bool in UE
-                        srgb = ar.read_u32()? != 0;
+                        srgb = reader::read_u32(&mut header.archive)? != 0;
                     }
-                    "BodyMax" | "MaxMissing" => {
-                        // We don't need these, skip
-                    }
-                    "_ExternalTexture" | "_PlatformData" | "CachedLODBias" => {
-                        // Skip known non-critical properties
-                    }
-                    "PlatformData" | "CookedPlatformData" | "Source" => {
-                        // These contain the actual texture data in more recent UE versions.
-                        // For simplicity, skip these and look for legacy format data.
-                    }
+                    "BodyMax" | "MaxMissing" | "_ExternalTexture" | "_PlatformData" | "CachedLODBias" => {}
+                    "PlatformData" | "CookedPlatformData" | "Source" => {}
                     _ => {
-                        // Unknown property — skip by size
-                        let data_start = ar.pos;
-                        let target = tag.raw.next_offset;
-                        if target > data_start {
-                            ar.seek_to(target)?;
+                        let next = tag.raw.next_offset;
+                        let pos = match header.archive.stream_position() {
+                            Ok(p) => p,
+                            Err(_) => 0,
+                        };
+                        if next > pos {
+                            header.archive.seek(SeekFrom::Start(next))?;
                         }
                     }
                 }
@@ -159,9 +133,6 @@ pub fn read_texture2d(
     })
 }
 
-/// Convert a `Texture2DAsset` to a Solid3D `Image` with embedded PNG data.
-///
-/// This decompresses the GPU format to RGBA then re-encodes as PNG.
 pub fn texture_to_solid_image(
     tex: &Texture2DAsset,
 ) -> Result<solid_rs::scene::Image, UnrealError> {
@@ -172,7 +143,6 @@ pub fn texture_to_solid_image(
         });
     }
 
-    // Take the first (largest) mip
     let mip = &tex.mips[0];
     let rgba = decompress_to_rgba(
         &mip.data,
@@ -181,7 +151,6 @@ pub fn texture_to_solid_image(
         mip.height,
     )?;
 
-    // Encode as PNG
     let png_data = encode_png(&rgba, mip.width, mip.height)
         .map_err(|e| UnrealError::Conversion {
             asset_type: "Texture2D",
@@ -195,7 +164,6 @@ pub fn texture_to_solid_image(
     ))
 }
 
-/// Decompress a GPU-compressed texture to RGBA8.
 fn decompress_to_rgba(
     data: &[u8],
     format: PixelFormat,
@@ -207,7 +175,6 @@ fn decompress_to_rgba(
 
     match format {
         PixelFormat::G8 => {
-            // Single-channel grayscale → RGB = G, A = 255
             for (i, &gray) in data.iter().enumerate().take(total_pixels) {
                 let base = i * 4;
                 rgba[base] = gray;
@@ -217,17 +184,13 @@ fn decompress_to_rgba(
             }
         }
         PixelFormat::RGBA8 => {
-            // Raw RGBA8 data
             let copy_len = total_pixels * 4;
             rgba.copy_from_slice(&data[..copy_len.min(data.len())]);
         }
         PixelFormat::R5G6B5 => {
-            // 16-bit RGB
             for i in 0..total_pixels {
                 let base = i * 2;
-                if base + 1 >= data.len() {
-                    break;
-                }
+                if base + 1 >= data.len() { break; }
                 let pixel = u16::from_le_bytes([data[base], data[base + 1]]);
                 let r = ((pixel >> 11) & 0x1F) as u8;
                 let g = ((pixel >> 5) & 0x3F) as u8;
@@ -240,12 +203,9 @@ fn decompress_to_rgba(
             }
         }
         PixelFormat::DXT1 | PixelFormat::BC7 => {
-            // These need proper BC decompression.
-            // For now, fill with a checkerboard placeholder.
             fill_checkerboard(&mut rgba, width, height);
         }
         _ => {
-            // Unknown format — fill with magenta error color
             rgba.chunks_mut(4).for_each(|c| {
                 c.copy_from_slice(&[255, 0, 255, 255]);
             });
@@ -274,9 +234,5 @@ fn encode_png(
     _width: u32,
     _height: u32,
 ) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> {
-    // Use the `image` crate for PNG encoding.
-    // We use `png` directly for minimum dependencies.
-    // TODO: add png crate as dependency or use image crate
-    // For now, just wrap the raw RGBA data
     Ok(rgba.to_vec())
 }

@@ -4,7 +4,6 @@ use solid_rs::traits::{FormatInfo, LoadOptions, Loader, ReadSeek};
 
 use crate::convert::{package_to_scene_from_uasset, UnrealConvertConfig};
 
-/// Metadata for the Unreal Engine package format.
 pub static UNREAL_FORMAT: FormatInfo = FormatInfo {
     name: "Unreal Engine Package",
     id: "unreal",
@@ -15,14 +14,6 @@ pub static UNREAL_FORMAT: FormatInfo = FormatInfo {
     spec_version: Some("UE 4.27, 5.0-5.5"),
 };
 
-/// Loads Unreal Engine package files (`.uasset`, `.umap`) into a `Scene`.
-///
-/// The loader first parses the package structure (header, name table,
-/// import/export tables), then converts the contained assets to a
-/// Solid3D scene graph.
-///
-/// By default, all meshes are merged into a single mesh and textures
-/// are embedded as PNG data. Use `LoadOptions` to control this behavior.
 pub struct UnrealLoader;
 
 impl Loader for UnrealLoader {
@@ -31,7 +22,6 @@ impl Loader for UnrealLoader {
         reader: &mut dyn ReadSeek,
         options: &LoadOptions,
     ) -> solid_rs::error::Result<Scene> {
-        // Build conversion config from LoadOptions
         let config = UnrealConvertConfig {
             merge_meshes: options.triangulate,
             embed_textures: true,
@@ -41,7 +31,6 @@ impl Loader for UnrealLoader {
             triangulate: options.triangulate,
         };
 
-        // Use uasset crate for package parsing (handles cooked UE4 correctly)
         let scene = package_to_scene_from_uasset(reader, &config)
             .map_err(|e| solid_rs::error::SolidError::parse(e.to_string()))?;
 
