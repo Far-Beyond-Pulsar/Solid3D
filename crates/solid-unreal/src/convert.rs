@@ -68,7 +68,7 @@ pub fn package_to_scene(
         export_names.insert(name.clone(), i);
     }
 
-    // Classify each export
+        // Classify each export
     for (export_idx, export) in pkg.exports.iter().enumerate() {
         let class_name = resolve_export_class_name(pkg, export.class_index);
         match class_name.as_str() {
@@ -84,13 +84,13 @@ pub fn package_to_scene(
                 }
                 let _ = rewind_to_export(pkg, export_idx, reader);
             }
-            "StaticMesh" => {
+            "StaticMesh" | "CubeBuilder" | "BrushComponent" => {
                 if let Ok(mesh) = crate::assets::static_mesh::read_static_mesh(pkg, export_idx, reader) {
                     mesh_exports.push((export_idx, mesh));
                 }
                 let _ = rewind_to_export(pkg, export_idx, reader);
             }
-            "World" | "Level" | "WorldPartition" | "BlueprintGeneratedClass" => {
+            "World" | "Level" | "WorldPartition" | "PersistentLevel" | "BlueprintGeneratedClass" => {
                 if let Ok(level) = crate::assets::world::read_world(pkg, export_idx, reader) {
                     level_exports.push((export_idx, level));
                 }
