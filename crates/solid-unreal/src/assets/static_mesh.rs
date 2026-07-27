@@ -345,53 +345,58 @@ pub fn read_cube_builder(
     let export_name = pkg.resolve_name(export.object_name);
 
     let start_offset = export.serial_offset as u64;
+    // Read the RAW bytes at the serial offset and scan for valid vertex data
+    // Skip property tags (Vertices tag header: name(8)+type(8)+size(4)+arr_idx(4)+inner(8)=32 bytes)
+    // and scan the remaining bytes for valid 3×f32 vertex positions
+    
     reader.seek(SeekFrom::Start(start_offset))?;
-
-    let archive = FArchiveUE::new(reader, pkg.version.clone());
-    let mut pr = pkg.property_reader(archive);
-
-    // Look for the "Vertices" property (TArray<FVector>)
-    if pr.find_property("Vertices")? {
-        let count = pr.archive().read_i32()? as usize;
-        if count > 0 && count < 10000 {
-            let mut positions = Vec::with_capacity(count);
-            for _ in 0..count {
-                let x = pr.archive().read_f32()?;
-                let y = pr.archive().read_f32()?;
-                let z = pr.archive().read_f32()?;
+    let mut raw_data = vec![0u8; export.serial_size as usize];
+    reader.read_exact(&mut raw_data).ok();
+    
+    // Scan every offset for a valid sequence of 3 consecutive f32 values within reasonable range
+    // representing UE4 units (typically -100000 to 100000)
+    let mut best_positions: Vec<Vec3> = Vec::new();
+    
+    for start_byte in (32..raw_data.len().saturating_sub(12)).step_by(1) {
+        // Try both 12-byte (f32×3) and 24-byte (f64×3) strides
+        for stride in &[12usize, 24] {
+            let mut positions = Vec::new();
+            let mut valid = true;
+            let count_max = (raw_data.len() - start_byte) / stride;
+            if count_max < 3 || count_max > 500 { continue; }
+            
+            for i in 0..count_max {
+                let off = start_byte + i * stride;
+                let (x, y, z) = if *stride == 12 {
+                    (f32::from_le_bytes(raw_data[off..off+4].try_into().unwrap()),
+                     f32::from_le_bytes(raw_data[off+4..off+8].try_into().unwrap()),
+                     f32::from_le_bytes(raw_data[off+8..off+12].try_into().unwrap()))
+                } else {
+                    (f64::from_le_bytes(raw_data[off..off+8].try_into().unwrap()) as f32,
+                     f64::from_le_bytes(raw_data[off+8..off+16].try_into().unwrap()) as f32,
+                     f64::from_le_bytes(raw_data[off+16..off+24].try_into().unwrap()) as f32)
+                };
+                if !x.is_finite() || !y.is_finite() || !z.is_finite() || 
+                   x.abs() > 1e6 || y.abs() > 1e6 || z.abs() > 1e6 { valid = false; break; }
                 positions.push(Vec3::new(x, y, z));
             }
-            if positions.len() >= 3 {
-                // Fan triangulation from centroid
-                let centroid = positions.iter().sum::<Vec3>() / positions.len() as f32;
-                let ue_verts: Vec<UnrealVertex> = positions.iter().map(|p| {
-                    UnrealVertex { position: *p, ..Default::default() }
-                }).collect();
-                let mut sorted: Vec<(usize, f32)> = positions.iter().enumerate().map(|(i, p)| {
-                    let dir = (*p - centroid).normalize_or_zero();
-                    (i, f32::atan2(dir.z, dir.x))
-                }).collect();
-                sorted.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
-                let mut indices = Vec::new();
-                for i in 0..sorted.len() {
-                    let a = sorted[i].0 as u32;
-                    let b = sorted[(i + 1) % sorted.len()].0 as u32;
-                    indices.push(a); indices.push(b); indices.push(sorted[0].0 as u32);
+            
+            if valid && positions.len() > best_positions.len() {
+                // Verify coordinates look like BSP geometry (not all identical)
+                let min_x = positions.iter().map(|p| p.x).fold(f32::MAX, f32::min);
+                let max_x = positions.iter().map(|p| p.x).fold(f32::MIN, f32::max);
+                let range = (max_x - min_x).abs();
+                if range > 1.0 && range < 100000.0 {
+                    best_positions = positions;
+                    println!("[RAW] Found {} vertices at byte offset {} with {}b stride (range={})", 
+                             best_positions.len(), start_byte, stride, range);
                 }
-                let num_verts = ue_verts.len() as u32;
-                let num_idx = indices.len() as u32;
-                return Ok(StaticMeshAsset {
-                    name: export_name,
-                    lod_count: 1,
-                    lods: vec![StaticMeshLOD {
-                        vertices: ue_verts,
-                        indices,
-                        sections: vec![MeshSection { material_index: 0, first_index: 0, num_indices: num_idx, first_vertex: 0, num_vertices: num_verts }],
-                        material_names: vec!["Default".to_string()],
-                    }],
-                });
             }
         }
+    }
+
+    if best_positions.len() >= 3 {
+        return build_mesh_from_positions(export_name, best_positions);
     }
 
     // No Vertices found — fall back to a simple unit box
@@ -412,6 +417,37 @@ pub fn read_cube_builder(
     for face in &faces {
         indices.push(face[0]); indices.push(face[1]); indices.push(face[2]);
         indices.push(face[0]); indices.push(face[2]); indices.push(face[3]);
+    }
+    let num_verts = ue_verts.len() as u32;
+    let num_idx = indices.len() as u32;
+    Ok(StaticMeshAsset {
+        name: export_name,
+        lod_count: 1,
+        lods: vec![StaticMeshLOD {
+            vertices: ue_verts,
+            indices,
+            sections: vec![MeshSection { material_index: 0, first_index: 0, num_indices: num_idx, first_vertex: 0, num_vertices: num_verts }],
+            material_names: vec!["Default".to_string()],
+        }],
+    })
+}
+
+/// Build a StaticMeshAsset from a list of 3D positions with fan triangulation.
+fn build_mesh_from_positions(export_name: String, positions: Vec<Vec3>) -> Result<StaticMeshAsset, UnrealError> {
+    let centroid = positions.iter().sum::<Vec3>() / positions.len() as f32;
+    let ue_verts: Vec<UnrealVertex> = positions.iter().map(|p| {
+        UnrealVertex { position: *p, ..Default::default() }
+    }).collect();
+    let mut sorted: Vec<(usize, f32)> = positions.iter().enumerate().map(|(i, p)| {
+        let dir = (*p - centroid).normalize_or_zero();
+        (i, f32::atan2(dir.z, dir.x))
+    }).collect();
+    sorted.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
+    let mut indices = Vec::new();
+    for i in 0..sorted.len() {
+        let a = sorted[i].0 as u32;
+        let b = sorted[(i + 1) % sorted.len()].0 as u32;
+        indices.push(a); indices.push(b); indices.push(sorted[0].0 as u32);
     }
     let num_verts = ue_verts.len() as u32;
     let num_idx = indices.len() as u32;
@@ -457,30 +493,17 @@ pub fn read_brush_component(
     // Read the object reference (FPackageIndex)
     let brush_ref = pr.archive().read_package_index()?;
 
-    if !brush_ref.is_export() {
-        // Brush reference might be null or import - can't follow
-        return Err(UnrealError::Conversion {
-            asset_type: "BrushComponent",
-            detail: format!("BrushComponent '{export_name}' Brush reference is not an export"),
-        });
+    if brush_ref.is_export() {
+        let brush_export_idx = (brush_ref.0 - 1) as usize;
+        let brush_class = pkg.resolve_export_class_name(pkg.exports[brush_export_idx].class_index);
+        if brush_class == "CubeBuilder" {
+            return read_cube_builder(pkg, brush_export_idx, reader);
+        }
     }
 
-    let brush_export_idx = (brush_ref.0 - 1) as usize;
-    let brush_name = pkg.resolve_name(pkg.exports[brush_export_idx].object_name);
-    println!("[BRUSH] '{export_name}' Brush -> export[{brush_export_idx}] '{brush_name}'");
-
-    // The brush might be a UModel with BSP geometry, or a CubeBuilder.
-    // For now, try reading the referenced export as a CubeBuilder if it is one.
-    let brush_class = pkg.resolve_export_class_name(pkg.exports[brush_export_idx].class_index);
-    if brush_class == "CubeBuilder" {
-        return read_cube_builder(pkg, brush_export_idx, reader);
-    }
-
-    // If the Brush is a UModel, the serial data has BSP nodes/geom which is complex.
-    // For now, return error.
     Err(UnrealError::Conversion {
         asset_type: "BrushComponent",
-        detail: format!("Brush references '{brush_class}' which is not yet supported"),
+        detail: format!("BrushComponent '{export_name}' Brush ref={:?}", brush_ref),
     })
 }
 

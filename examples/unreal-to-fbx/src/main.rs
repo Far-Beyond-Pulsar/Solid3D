@@ -3,11 +3,7 @@ use std::time::Instant;
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
-
-    if args.len() < 2 {
-        eprintln!("Usage: unreal-to-fbx <input.umap> [output.fbx]");
-        std::process::exit(1);
-    }
+    if args.len() < 2 { eprintln!("Usage: unreal-to-fbx <input.umap>"); std::process::exit(1); }
 
     let input_path = PathBuf::from(&args[1]);
     let output_path = if args.len() >= 3 {
@@ -18,7 +14,7 @@ fn main() {
         out
     };
 
-    println!("=== Unreal → FBX Converter ===");
+    println!("=== Unreal \u{2192} FBX Converter ===");
     println!("Input:  {}", input_path.display());
     println!("Output: {}", output_path.display());
     println!();
@@ -59,34 +55,15 @@ fn main() {
     println!("Lights:     {}", scene.lights.len());
     println!("Animations: {}", scene.animations.len());
 
-    // Print per-mesh details
     for (i, mesh) in scene.meshes.iter().enumerate() {
-        println!(
-            "  Mesh[{}] '{}': {} vertices, {} primitives, bounds={:?}",
-            i,
-            mesh.name,
-            mesh.vertex_count(),
-            mesh.primitives.len(),
-            mesh.bounds,
-        );
+        println!("  Mesh[{}] '{}': {} vertices, {} primitives, bounds={:?}",
+            i, mesh.name, mesh.vertex_count(), mesh.primitives.len(), mesh.bounds);
     }
-
-    // Print per-material details
     for (i, mat) in scene.materials.iter().enumerate() {
-        println!(
-            "  Material[{}] '{}': base={:?}, metal={}, rough={}, emissive={:?}, alpha={:?}",
-            i,
-            mat.name,
-            mat.base_color_factor,
-            mat.metallic_factor,
-            mat.roughness_factor,
-            mat.emissive_factor,
-            mat.alpha_mode,
-        );
+        println!("  Material[{}] '{}': base={:?}, metal={}, rough={}, emissive={:?}, alpha={:?}",
+            i, mat.name, mat.base_color_factor, mat.metallic_factor, mat.roughness_factor,
+            mat.emissive_factor, mat.alpha_mode);
     }
-
-
-
     println!();
 
     // 4. Save as FBX
@@ -96,11 +73,7 @@ fn main() {
     match registry.save_file(&scene, &output_path) {
         Ok(()) => {
             let save_elapsed = save_start.elapsed();
-            println!(
-                "Saved to '{}' in {:.2}s",
-                output_path.display(),
-                save_elapsed.as_secs_f64()
-            );
+            println!("Saved to '{}' in {:.2}s", output_path.display(), save_elapsed.as_secs_f64());
         }
         Err(e) => {
             eprintln!("ERROR: Failed to save FBX: {e}");

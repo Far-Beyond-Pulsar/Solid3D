@@ -17,6 +17,7 @@ thiserror = { workspace = true }
 flate2    = { workspace = true }
 lz4_flex  = { workspace = true }
 bitflags  = "2"
+uasset = "0.6.0"
 
 [features]
 configurator = ["solid-rs/configurator"]

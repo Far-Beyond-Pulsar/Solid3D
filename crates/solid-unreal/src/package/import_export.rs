@@ -136,7 +136,6 @@ fn read_export_table_cooked(
         let object_name = archive.read_fname()?;
         let object_flags = archive.read_u32()?;
         let serial_size = archive.read_i32()? as i64;
-        let _pad = archive.read_u32()?;
         let serial_offset = archive.read_i32()? as i64;
         let _package_guid = if has_guid {
             archive.read_guid()?

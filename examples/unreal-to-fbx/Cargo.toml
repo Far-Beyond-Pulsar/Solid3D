@@ -8,3 +8,4 @@ solid-rs  = { path = "../../crates/solid-rs" }
 solid-fbx = { path = "../../crates/solid-fbx" }
 solid-unreal  = { path = "../../crates/solid-unreal" }
 solid-obj = { path = "../../crates/solid-obj" }
+uasset    = "0.6.0"

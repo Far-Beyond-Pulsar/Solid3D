@@ -1,10 +1,8 @@
 use std::io::Read;
-
 use solid_rs::scene::Scene;
 use solid_rs::traits::{FormatInfo, LoadOptions, Loader, ReadSeek};
 
-use crate::convert::{package_to_scene, UnrealConvertConfig};
-use crate::package::reader::UPackage;
+use crate::convert::{package_to_scene_from_uasset, UnrealConvertConfig};
 
 /// Metadata for the Unreal Engine package format.
 pub static UNREAL_FORMAT: FormatInfo = FormatInfo {
@@ -33,27 +31,9 @@ impl Loader for UnrealLoader {
         reader: &mut dyn ReadSeek,
         options: &LoadOptions,
     ) -> solid_rs::error::Result<Scene> {
-        // Get file length for bounds checking
-        let file_length = {
-            let pos = reader
-                .seek(std::io::SeekFrom::Current(0))
-                .map_err(|e| solid_rs::error::SolidError::Io(e))?;
-            let end = reader
-                .seek(std::io::SeekFrom::End(0))
-                .map_err(|e| solid_rs::error::SolidError::Io(e))?;
-            reader
-                .seek(std::io::SeekFrom::Start(pos))
-                .map_err(|e| solid_rs::error::SolidError::Io(e))?;
-            end
-        };
-
-        // Parse the package
-        let pkg = UPackage::read(reader, file_length)
-            .map_err(|e| solid_rs::error::SolidError::parse(e.to_string()))?;
-
         // Build conversion config from LoadOptions
         let config = UnrealConvertConfig {
-            merge_meshes: options.triangulate, // reuse — merge is primary use case
+            merge_meshes: options.triangulate,
             embed_textures: true,
             max_texture_size: options.max_texture_size.unwrap_or(2048),
             flatten_hierarchy: true,
@@ -61,8 +41,8 @@ impl Loader for UnrealLoader {
             triangulate: options.triangulate,
         };
 
-        // Convert to scene
-        let scene = package_to_scene(&pkg, reader, &config)
+        // Use uasset crate for package parsing (handles cooked UE4 correctly)
+        let scene = package_to_scene_from_uasset(reader, &config)
             .map_err(|e| solid_rs::error::SolidError::parse(e.to_string()))?;
 
         Ok(scene)
@@ -76,8 +56,6 @@ impl Loader for UnrealLoader {
         let mut magic = [0u8; 4];
         if reader.read_exact(&mut magic).is_ok() {
             let val = u32::from_be_bytes(magic);
-            // UE package magic is 0x9E2A83C1 (big-endian), but stored as little-endian
-            // in the file. Check both orientations.
             if val == 0x9E2A_83C1 || val == 0xC183_2A9E || val == 0x83C1_2A9E {
                 return 0.9;
             }
