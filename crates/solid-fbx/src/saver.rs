@@ -163,6 +163,22 @@ impl<'w> FbxWriter<'w> {
             + scene.lights.len()
             + skin_obj_count
             + anim_obj_count;
+        self.line("Documents:  {")?;
+        self.indent += 1;
+        self.line("Count: 1")?;
+        self.line("Document: 1, \"\", \"Scene\"  {")?;
+        self.indent += 1;
+        self.line("Properties70:  {")?;
+        self.indent += 1;
+        self.line("P: \"SourceObject\", \"object\", \"\", \"\"")?;
+        self.indent -= 1;
+        self.line("}")?;
+        self.line("RootNode: 0")?;
+        self.indent -= 1;
+        self.line("}")?;
+        self.indent -= 1;
+        self.line("}")?;
+        self.blank()?;
         self.line("Definitions:  {")?;
         self.indent += 1;
         self.line("Version: 100")?;
@@ -927,13 +943,8 @@ impl<'w> FbxWriter<'w> {
         let items: Vec<String> = data
             .iter()
             .map(|v| {
-                let s = format!("{v}");
-                // Always include a decimal point so the ASCII parser creates ArrFloat64
-                if s.contains('.') || s.contains('e') || s.contains('E') {
-                    s
-                } else {
-                    format!("{v}.0")
-                }
+                let rounded = if v.abs() < 1e-10 { 0.0 } else { *v };
+                format!("{rounded:.9}")
             })
             .collect();
         self.line(&format!("a: {}", items.join(",")))?;
