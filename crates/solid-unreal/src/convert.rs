@@ -3,6 +3,7 @@ use std::io::{Read, SeekFrom};
 use glam::Vec3;
 
 use crate::assets::static_mesh::{read_cube_builder, read_static_mesh};
+use crate::assets::world::{read_world, ActorComponent, LevelAsset};
 use crate::error::UnrealError;
 
 #[derive(Debug, Clone)]
@@ -223,8 +224,67 @@ pub fn package_to_scene_from_uasset(
         }
     }
 
+    // Process World / Level exports for actor hierarchy
+    for ei in 0..header.exports.len() {
+        let class_name = &class_of[ei];
+        if class_name != "World" && class_name != "WorldPartition" {
+            continue;
+        }
+        if let Ok(level) = read_world(&mut header, ei) {
+            process_level_actors(&level, &mut header, &mut builder, root);
+        }
+    }
+
     let scene = builder.build();
     if _config.merge_meshes { Ok(merge_all_meshes(scene)) } else { Ok(scene) }
+}
+
+fn process_level_actors(
+    level: &LevelAsset,
+    header: &mut uasset::AssetHeader<std::io::Cursor<&[u8]>>,
+    builder: &mut solid_rs::builder::SceneBuilder,
+    parent_node: solid_rs::scene::NodeId,
+) {
+    for actor in &level.actors {
+        let actor_node = builder.add_child_node(parent_node, &actor.name);
+        builder.set_transform(actor_node, solid_rs::geometry::Transform::from_matrix(actor.transform));
+
+        for component in &actor.components {
+            match component {
+                ActorComponent::StaticMesh(smc) => {
+                    if let Some(mesh_idx) = smc.static_mesh_export_idx {
+                        if let Ok(sm) = read_static_mesh(header, mesh_idx) {
+                            if let Some(lod) = sm.lods.first() {
+                                if !lod.vertices.is_empty() {
+                                    let verts: Vec<Vec3> = lod.vertices.iter().map(|v| v.position).collect();
+                                    let mesh = build_mesh_from_verts(&verts, &sm.name);
+                                    let mesh_idx = builder.push_mesh(mesh);
+                                    let mesh_node = builder.add_child_node(actor_node, &sm.name);
+                                    builder.attach_mesh(mesh_node, mesh_idx);
+                                }
+                            }
+                        }
+                    }
+                }
+                ActorComponent::SkeletalMesh(skc) => {
+                    if let Some(mesh_idx) = skc.skeletal_mesh_export_idx {
+                        if let Ok(sm) = read_static_mesh(header, mesh_idx) {
+                            if let Some(lod) = sm.lods.first() {
+                                if !lod.vertices.is_empty() {
+                                    let verts: Vec<Vec3> = lod.vertices.iter().map(|v| v.position).collect();
+                                    let mesh = build_mesh_from_verts(&verts, &sm.name);
+                                    let mesh_idx = builder.push_mesh(mesh);
+                                    let mesh_node = builder.add_child_node(actor_node, &sm.name);
+                                    builder.attach_mesh(mesh_node, mesh_idx);
+                                }
+                            }
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
 }
 
 fn merge_all_meshes(mut scene: solid_rs::scene::Scene) -> solid_rs::scene::Scene {

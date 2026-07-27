@@ -178,24 +178,30 @@ fn try_read_actor(
         uasset::ObjectReference::None => String::new(),
     };
 
-    let actor_name = header.resolve_name(&export.object_name)
+    let mut actor_name = header.resolve_name(&export.object_name)
         .unwrap_or_default().to_string();
 
     let start_offset = export.serial_offset as u64;
     header.archive.seek(SeekFrom::Start(start_offset))?;
 
-    let pr = PropertyReader::new(&header.names);
-
     let mut transform = Mat4::IDENTITY;
     let mut components = Vec::new();
 
     loop {
-        match pr.read_tag(&mut header.archive)? {
+        let tag = {
+            let pr = PropertyReader::new(&header.names);
+            pr.read_tag(&mut header.archive)?
+        };
+        match tag {
             None => break,
             Some(tag) => {
                 match tag.name.as_str() {
                     "RootComponent" => {
                         let comp_ref = reader::read_package_index(&mut header.archive)?;
+                        let after_root_pos = match header.archive.stream_position() {
+                            Ok(p) => p,
+                            Err(_) => 0,
+                        };
 
                         if comp_ref > 0 {
                             let comp_idx = (comp_ref - 1) as usize;
@@ -205,17 +211,28 @@ fn try_read_actor(
                             }
                         }
 
-                        break;
+                        if after_root_pos > 0 {
+                            header.archive.seek(SeekFrom::Start(after_root_pos))?;
+                        }
+                    }
+                    "ActorLabel" => {
+                        if tag.type_name == "StrProperty" {
+                            let label = reader::read_fstring(&mut header.archive)?;
+                            if !label.is_empty() {
+                                actor_name = label;
+                            }
+                        } else {
+                            let skip_to = tag.raw.next_offset + tag.raw.size as u64;
+                            header.archive.seek(SeekFrom::Start(skip_to))?;
+                        }
+                    }
+                    "Tags" => {
+                        let skip_to = tag.raw.next_offset + tag.raw.size as u64;
+                        header.archive.seek(SeekFrom::Start(skip_to))?;
                     }
                     _ => {
-                        let next = tag.raw.next_offset;
-                        let pos = match header.archive.stream_position() {
-                            Ok(p) => p,
-                            Err(_) => 0,
-                        };
-                        if next > pos {
-                            header.archive.seek(SeekFrom::Start(next))?;
-                        }
+                        let skip_to = tag.raw.next_offset + tag.raw.size as u64;
+                        header.archive.seek(SeekFrom::Start(skip_to))?;
                     }
                 }
             }
@@ -259,50 +276,61 @@ fn try_read_scene_component(
     let start_offset = export.serial_offset as u64;
     header.archive.seek(SeekFrom::Start(start_offset))?;
 
-    let pr = PropertyReader::new(&header.names);
-
     let mut relative_location = Vec3::ZERO;
     let mut relative_rotation = Vec3::ZERO;
     let mut relative_scale = Vec3::ONE;
     let mut component: Option<ActorComponent> = None;
 
     loop {
-        match pr.read_tag(&mut header.archive)? {
+        let tag = {
+            let pr = PropertyReader::new(&header.names);
+            pr.read_tag(&mut header.archive)?
+        };
+        match tag {
             None => break,
             Some(tag) => {
                 match tag.name.as_str() {
                     "RelativeLocation" => {
-                        if tag.type_name == "Vector" {
+                        if tag.struct_name == "Vector" || tag.type_name == "Vector" {
                             let x = reader::read_f64(&mut header.archive)?;
                             let y = reader::read_f64(&mut header.archive)?;
                             let z = reader::read_f64(&mut header.archive)?;
                             relative_location = Vec3::new(x as f32, y as f32, z as f32);
-                        } else if tag.type_name == "Vector3f" {
+                        } else if tag.struct_name == "Vector3f" || tag.type_name == "Vector3f" {
                             let x = reader::read_f32(&mut header.archive)?;
                             let y = reader::read_f32(&mut header.archive)?;
                             let z = reader::read_f32(&mut header.archive)?;
                             relative_location = Vec3::new(x, y, z);
+                        } else {
+                            let skip_to = tag.raw.next_offset + tag.raw.size as u64;
+                            header.archive.seek(SeekFrom::Start(skip_to))?;
                         }
                     }
                     "RelativeRotation" => {
-                        if tag.struct_name == "Rotator" {
+                        if tag.struct_name == "Rotator" || tag.type_name == "Rotator" {
                             let pitch = reader::read_f64(&mut header.archive)?;
                             let yaw = reader::read_f64(&mut header.archive)?;
                             let roll = reader::read_f64(&mut header.archive)?;
                             relative_rotation = Vec3::new(pitch as f32, yaw as f32, roll as f32);
+                        } else {
+                            let skip_to = tag.raw.next_offset + tag.raw.size as u64;
+                            header.archive.seek(SeekFrom::Start(skip_to))?;
                         }
                     }
                     "RelativeScale3D" => {
-                        if tag.struct_name == "Vector" {
+                        if tag.struct_name == "Vector" || tag.type_name == "Vector" {
                             let x = reader::read_f64(&mut header.archive)?;
                             let y = reader::read_f64(&mut header.archive)?;
                             let z = reader::read_f64(&mut header.archive)?;
                             relative_scale = Vec3::new(x as f32, y as f32, z as f32);
-                        } else if tag.struct_name == "Vector3f" {
+                        } else if tag.struct_name == "Vector3f" || tag.type_name == "Vector3f" {
                             let x = reader::read_f32(&mut header.archive)?;
                             let y = reader::read_f32(&mut header.archive)?;
                             let z = reader::read_f32(&mut header.archive)?;
                             relative_scale = Vec3::new(x, y, z);
+                        } else {
+                            let skip_to = tag.raw.next_offset + tag.raw.size as u64;
+                            header.archive.seek(SeekFrom::Start(skip_to))?;
                         }
                     }
                     "StaticMesh" => {
@@ -315,6 +343,9 @@ fn try_read_scene_component(
                                 transform: Mat4::IDENTITY,
                                 materials: Vec::new(),
                             }));
+                        } else {
+                            let skip_to = tag.raw.next_offset + tag.raw.size as u64;
+                            header.archive.seek(SeekFrom::Start(skip_to))?;
                         }
                     }
                     "SkeletalMesh" => {
@@ -326,17 +357,14 @@ fn try_read_scene_component(
                                 skeletal_mesh_export_idx: Some(mesh_idx),
                                 transform: Mat4::IDENTITY,
                             }));
+                        } else {
+                            let skip_to = tag.raw.next_offset + tag.raw.size as u64;
+                            header.archive.seek(SeekFrom::Start(skip_to))?;
                         }
                     }
                     _ => {
-                        let next = tag.raw.next_offset;
-                        let pos = match header.archive.stream_position() {
-                            Ok(p) => p,
-                            Err(_) => 0,
-                        };
-                        if next > pos {
-                            header.archive.seek(SeekFrom::Start(next))?;
-                        }
+                        let skip_to = tag.raw.next_offset + tag.raw.size as u64;
+                        header.archive.seek(SeekFrom::Start(skip_to))?;
                     }
                 }
             }

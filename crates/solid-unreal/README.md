@@ -10,12 +10,14 @@ Converts UE4/UE5 packages into the Solid3D scene model for export to any support
 |---------|--------|-------|
 | Package structure (header, names, imports, exports) | ✅ | Via [`uasset`](https://github.com/Far-Beyond-Pulsar/UASSET) |
 | BSP geometry (CubeBuilder) | ✅ | Inline vertex data from map brushes |
-| BSP geometry (Model/Polys) | ❌ | Not yet implemented |
 | **Cooked** `UStaticMesh` (`FStaticMeshRenderData`) | ✅ | Vertex positions, normals, tangents, UVs, colors |
 | **Uncooked** `UStaticMesh` (editor meshes) | ❌ | No baked render data — skip or pre-cook |
-| `UTexture2D` | ⚠️ | Structure parsed, mip extraction WIP |
-| `UMaterial` / `UMaterialInstanceConstant` | ⚠️ | Parameter values readable, PBR mapping WIP |
-| `UWorld` / `ULevel` actor hierarchy | ⚠️ | Export scanning works, full actor graph WIP |
+| `UTexture2D` (mip data extraction) | ✅ | Bulk data + PlatformData parsing |
+| `UMaterial` / `UMaterialInstanceConstant` (PBR mapping) | ✅ | Scalar, vector, texture parameter mapping |
+| `UWorld` / `ULevel` actor hierarchy | ✅ | Actor transforms, components, scene graph |
+| `FStaticMeshSection` (per-section materials) | ✅ | NumTriangles, first index, vertex ranges |
+| Property tags (UE4.20+ GUID format) | ✅ | Version-aware via `uasset::Archive::file_version` |
+| BSP geometry (Model/Polys) | ❌ | Not yet implemented |
 | Skeletal meshes | ❌ | Not yet implemented |
 | Landscapes | ❌ | Not yet implemented |
 

@@ -164,34 +164,64 @@ pub fn read_material(
 }
 
 fn parse_parameter_values(
-    _pr: &PropertyReader,
+    pr: &PropertyReader,
     ar: &mut uasset::Archive<std::io::Cursor<&[u8]>>,
     tag: &crate::uobject::property::PropertyTagInfo,
-    _mat: &mut MaterialAsset,
+    mat: &mut MaterialAsset,
 ) -> Result<(), UnrealError> {
     match tag.name.as_str() {
         "TextureParameterValues" => {
             let count = reader::read_i32(ar)? as usize;
             for _ in 0..count {
-                let _param_name = reader::read_fname(ar)?;
-                let _texture_ref = reader::read_package_index(ar)?;
+                let param_name = reader::read_fname(ar)?;
+                let param_str = pr.resolve_name(&param_name);
+                let texture_ref = reader::read_package_index(ar)?;
+                let export_index = if texture_ref > 0 {
+                    Some((texture_ref - 1) as usize)
+                } else {
+                    None
+                };
+                let slot = TextureSlot { export_index, uv_index: 0 };
+                match param_str.as_str() {
+                    "NormalMap" | "Normal" => mat.textures.normal = Some(slot),
+                    "BaseColorMap" | "Diffuse" => mat.textures.base_color = Some(slot),
+                    "MetallicMap" | "RoughnessMap" => mat.textures.metallic_roughness = Some(slot),
+                    "EmissiveMap" => mat.textures.emissive = Some(slot),
+                    "OpacityMap" => mat.textures.opacity = Some(slot),
+                    "AmbientOcclusionMap" => mat.textures.ambient_occlusion = Some(slot),
+                    _ => {}
+                }
             }
         }
         "ScalarParameterValues" => {
             let count = reader::read_i32(ar)? as usize;
             for _ in 0..count {
-                let _param_name = reader::read_fname(ar)?;
-                let _value = reader::read_f32(ar)?;
+                let param_name = reader::read_fname(ar)?;
+                let param_str = pr.resolve_name(&param_name);
+                let value = reader::read_f32(ar)?;
+                match param_str.as_str() {
+                    "Roughness" => mat.roughness = value,
+                    "Metallic" => mat.metallic = value,
+                    "Specular" => mat.specular = value,
+                    "Opacity" => mat.opacity = value,
+                    _ => {}
+                }
             }
         }
         "VectorParameterValues" => {
             let count = reader::read_i32(ar)? as usize;
             for _ in 0..count {
-                let _param_name = reader::read_fname(ar)?;
-                let _r = reader::read_f32(ar)?;
-                let _g = reader::read_f32(ar)?;
-                let _b = reader::read_f32(ar)?;
-                let _a = reader::read_f32(ar)?;
+                let param_name = reader::read_fname(ar)?;
+                let param_str = pr.resolve_name(&param_name);
+                let r = reader::read_f32(ar)?;
+                let g = reader::read_f32(ar)?;
+                let b = reader::read_f32(ar)?;
+                let a = reader::read_f32(ar)?;
+                match param_str.as_str() {
+                    "BaseColor" => mat.base_color = Vec4::new(r, g, b, a),
+                    "EmissiveColor" => mat.emissive_color = Vec3::new(r, g, b),
+                    _ => {}
+                }
             }
         }
         _ => {

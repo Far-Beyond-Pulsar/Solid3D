@@ -1,4 +1,4 @@
-use std::io::{Seek, SeekFrom};
+use std::io::{Read, Seek, SeekFrom};
 
 use crate::error::UnrealError;
 use crate::reader;
@@ -67,6 +67,69 @@ pub struct Texture2DAsset {
     pub srgb: bool,
 }
 
+fn read_bulk_data<R: Read + Seek>(
+    archive: &mut uasset::Archive<R>,
+    bulk_data_start_offset: i64,
+) -> Result<Vec<u8>, UnrealError> {
+    let bulk_flags = reader::read_i32(archive)?;
+    let _element_count = reader::read_i32(archive)?;
+    let size_on_disk = reader::read_i64(archive)?;
+    let offset_in_file = reader::read_i64(archive)?;
+
+    if size_on_disk <= 0 {
+        return Ok(Vec::new());
+    }
+
+    const BULKDATA_DATA_IN_PAYLOAD: i32 = 0x100;
+
+    if (bulk_flags & BULKDATA_DATA_IN_PAYLOAD) != 0 {
+        let mut buf = vec![0u8; size_on_disk as usize];
+        archive.read_exact(&mut buf)?;
+        Ok(buf)
+    } else {
+        let data_pos = bulk_data_start_offset + offset_in_file;
+        if data_pos < 0 {
+            return Ok(Vec::new());
+        }
+        let prev = archive.stream_position()?;
+        archive.seek(SeekFrom::Start(data_pos as u64))?;
+        let mut buf = vec![0u8; size_on_disk as usize];
+        archive.read_exact(&mut buf)?;
+        archive.seek(SeekFrom::Start(prev))?;
+        Ok(buf)
+    }
+}
+
+fn read_platform_data<R: Read + Seek>(
+    archive: &mut uasset::Archive<R>,
+    bulk_data_start_offset: i64,
+) -> Result<(u32, u32, PixelFormat, Vec<MipInfo>), UnrealError> {
+    let size_x = reader::read_i32(archive)? as u32;
+    let size_y = reader::read_i32(archive)? as u32;
+    let _num_slices = reader::read_i32(archive)?;
+    let pf_val = reader::read_u32(archive)?;
+    let pf = PixelFormat::from_u32(pf_val);
+    let _first_mip = reader::read_i32(archive)?;
+
+    let mip_count = reader::read_i32(archive)?;
+    let count = mip_count.max(0) as usize;
+    let mut mips = Vec::with_capacity(count);
+
+    for _ in 0..count {
+        let mip_x = reader::read_i32(archive)? as u32;
+        let mip_y = reader::read_i32(archive)? as u32;
+        let _mip_z = reader::read_i32(archive)?;
+        let data = read_bulk_data(archive, bulk_data_start_offset)?;
+        mips.push(MipInfo {
+            width: mip_x,
+            height: mip_y,
+            data,
+        });
+    }
+
+    Ok((size_x, size_y, pf, mips))
+}
+
 pub fn read_texture2d(
     header: &mut uasset::AssetHeader<std::io::Cursor<&[u8]>>,
     export_idx: usize,
@@ -85,13 +148,14 @@ pub fn read_texture2d(
     let pr = PropertyReader::new(&header.names);
 
     let mut pixel_format = PixelFormat::Unknown(0);
-    let width: u32 = 0;
-    let height: u32 = 0;
+    let mut width: u32 = 0;
+    let mut height: u32 = 0;
     let mut srgb = true;
-    let mips: Vec<MipInfo> = Vec::new();
+    let mut mips: Vec<MipInfo> = Vec::new();
+    let bulk_data_start_offset = header.bulk_data_start_offset;
 
     loop {
-        match pr.read_tag(&mut header.archive)? {
+        match pr.read_tag_archive(&mut header.archive)? {
             None => break,
             Some(tag) => {
                 match tag.name.as_str() {
@@ -106,17 +170,20 @@ pub fn read_texture2d(
                     "SRGB" => {
                         srgb = reader::read_u32(&mut header.archive)? != 0;
                     }
-                    "BodyMax" | "MaxMissing" | "_ExternalTexture" | "_PlatformData" | "CachedLODBias" => {}
-                    "PlatformData" | "CookedPlatformData" | "Source" => {}
+                    "PlatformData" | "CookedPlatformData" => {
+                        let (w, h, pf, mip_data) = read_platform_data(
+                            &mut header.archive,
+                            bulk_data_start_offset,
+                        )?;
+                        width = w;
+                        height = h;
+                        pixel_format = pf;
+                        mips = mip_data;
+                    }
                     _ => {
                         let next = tag.raw.next_offset;
-                        let pos = match header.archive.stream_position() {
-                            Ok(p) => p,
-                            Err(_) => 0,
-                        };
-                        if next > pos {
-                            header.archive.seek(SeekFrom::Start(next))?;
-                        }
+                        let size = tag.raw.size.max(0) as u64;
+                        header.archive.seek(SeekFrom::Start(next + size))?;
                     }
                 }
             }
@@ -185,7 +252,8 @@ fn decompress_to_rgba(
         }
         PixelFormat::RGBA8 => {
             let copy_len = total_pixels * 4;
-            rgba.copy_from_slice(&data[..copy_len.min(data.len())]);
+            let end = copy_len.min(data.len());
+            rgba[..end].copy_from_slice(&data[..end]);
         }
         PixelFormat::R5G6B5 => {
             for i in 0..total_pixels {
