@@ -1,7 +1,8 @@
-use std::io::SeekFrom;
+use std::io::{Read, SeekFrom};
 
 use glam::Vec3;
 
+use crate::assets::static_mesh::{read_cube_builder, read_static_mesh};
 use crate::error::UnrealError;
 
 #[derive(Debug, Clone)]
@@ -27,6 +28,92 @@ impl Default for UnrealConvertConfig {
     }
 }
 
+/// Build a mesh from vertex positions with fan triangulation.
+fn build_mesh_from_verts(verts: &[Vec3], name: &str) -> solid_rs::scene::Mesh {
+    use solid_rs::geometry::Primitive;
+    use solid_rs::scene::Mesh;
+    if verts.len() < 3 {
+        let mut m = Mesh::new(name);
+        for v in verts { m.vertices.push(solid_rs::geometry::Vertex::new(*v)); }
+        return m;
+    }
+    let mut mesh = Mesh::new(name);
+    for v in verts { mesh.vertices.push(solid_rs::geometry::Vertex::new(*v)); }
+    let cx = verts.iter().sum::<Vec3>() / verts.len() as f32;
+    let mut sorted: Vec<(usize, f32)> = verts.iter().enumerate().map(|(i, p)| {
+        (i, f32::atan2((*p - cx).normalize_or_zero().z, (*p - cx).normalize_or_zero().x))
+    }).collect();
+    sorted.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
+    let mut ind = Vec::new();
+    if verts.len() >= 4 {
+        for k in 1..sorted.len() - 1 {
+            ind.push(sorted[0].0 as u32);
+            ind.push(sorted[k].0 as u32);
+            ind.push(sorted[k + 1].0 as u32);
+        }
+    } else {
+        ind.push(0); ind.push(1); ind.push(2);
+    }
+    mesh.primitives.push(Primitive::triangles(ind, Some(0)));
+    mesh.compute_bounds();
+    mesh
+}
+
+/// Raw-byte scan for valid f32 vertex triples in a byte slice.
+fn scan_vertices(raw: &[u8]) -> Option<Vec<Vec3>> {
+    let len = raw.len();
+    for stride in &[6usize, 12, 24] {
+        for start in (0..len.saturating_sub(6)).step_by(4) {
+            let el = if *stride >= 12 { 12 } else { 6 };
+            let max_n = (len - start) / stride;
+            if max_n < 4 || max_n > 50000 { continue; }
+            let mut verts = Vec::with_capacity(max_n.min(2000));
+            let mut ok = true;
+            for j in 0..max_n.min(2000) {
+                let o = start + j * stride;
+                if o + el > len { ok = false; break; }
+                let (x, y, z) = if *stride >= 12 {
+                    (f32::from_le_bytes(raw[o..o+4].try_into().unwrap_or([0u8;4])),
+                     f32::from_le_bytes(raw[o+4..o+8].try_into().unwrap_or([0u8;4])),
+                     f32::from_le_bytes(raw[o+8..o+12].try_into().unwrap_or([0u8;4])))
+                } else {
+                    let hx = u16::from_le_bytes(raw[o..o+2].try_into().unwrap_or([0;2]));
+                    let hy = u16::from_le_bytes(raw[o+2..o+4].try_into().unwrap_or([0;2]));
+                    let hz = u16::from_le_bytes(raw[o+4..o+6].try_into().unwrap_or([0;2]));
+                    (half_to_f32(hx), half_to_f32(hy), half_to_f32(hz))
+                };
+                if !x.is_finite() || !y.is_finite() || !z.is_finite() ||
+                   x.abs() > 1e6 || y.abs() > 1e6 || z.abs() > 1e6 { ok = false; break; }
+                verts.push(Vec3::new(x, y, z));
+            }
+            if !ok || verts.len() < 4 { continue; }
+            let (rx, mx) = verts.iter().map(|p| p.x).fold((f32::MAX, f32::MIN), |(mn, mx), x| (mn.min(x), mx.max(x)));
+            let (ry, my) = verts.iter().map(|p| p.y).fold((f32::MAX, f32::MIN), |(mn, mx), y| (mn.min(y), mx.max(y)));
+            let (rz, mz) = verts.iter().map(|p| p.z).fold((f32::MAX, f32::MIN), |(mn, mx), z| (mn.min(z), mx.max(z)));
+            let spread = [(mx - rx).abs(), (my - ry).abs(), (mz - rz).abs()];
+            if spread.iter().filter(|&&s| s > 0.1).count() >= 2 && verts.len() >= 4 {
+                return Some(verts);
+            }
+        }
+    }
+    None
+}
+
+fn half_to_f32(h: u16) -> f32 {
+    let s = ((h >> 15) & 0x1) as f32;
+    let e = (h >> 10) & 0x1F;
+    let m = h & 0x3FF;
+    if e == 0 {
+        if m == 0 { 0.0 } else {
+            f32::from_bits(((s as u32) << 31) | (0x7F - 1 - 15) << 23 | (m as u32) << 13)
+        }
+    } else if e == 31 {
+        if m == 0 { f32::INFINITY * if s == 0.0 { 1.0 } else { -1.0 } } else { f32::NAN }
+    } else {
+        f32::from_bits(((s as u32) << 31) | ((e as u32 + (127 - 15)) << 23) | (m as u32) << 13)
+    }
+}
+
 pub fn package_to_scene_from_uasset(
     reader: &mut (dyn solid_rs::traits::ReadSeek),
     _config: &UnrealConvertConfig,
@@ -44,8 +131,8 @@ pub fn package_to_scene_from_uasset(
     let mut file_buf = Vec::with_capacity(file_len as usize);
     reader.read_to_end(&mut file_buf)?;
 
-    let cursor = std::io::Cursor::new(&file_buf);
-    let header = uasset::AssetHeader::new(cursor)?;
+    let cursor = std::io::Cursor::new(file_buf.as_slice());
+    let mut header = uasset::AssetHeader::new(cursor)?;
 
     let class_of: Vec<String> = header.exports.iter().map(|export| {
         match export.class() {
@@ -66,72 +153,74 @@ pub fn package_to_scene_from_uasset(
     let mut builder = SceneBuilder::named("UnrealScene");
     let root = builder.add_root_node("Root");
 
-    for (ei, export) in header.exports.iter().enumerate() {
+    // Extract geometry from CubeBuilder exports (BSP vertex data)
+    for ei in 0..header.exports.len() {
         let class_name = &class_of[ei];
-        if !["BrushComponent", "StaticMeshComponent", "CapsuleComponent", "Polys", "Model"].contains(&class_name.as_str()) {
-            continue;
-        }
-        if export.serial_size < 16 || export.serial_offset < 0 { continue; }
-        let off = export.serial_offset as usize;
-        let sz = export.serial_size as usize;
-        if off + sz > file_buf.len() { continue; }
-
-        let name = header.resolve_name(&export.object_name)
-            .unwrap_or_default().to_string();
-        let raw = &file_buf[off..off + sz];
-
-        let mut best: Vec<Vec3> = Vec::new();
-        for start in (0..sz - 12).step_by(4) {
-            let max_n = (sz - start) / 12;
-            if max_n < 3 || max_n > 500 { continue; }
-            let mut verts = Vec::with_capacity(max_n);
-            let mut ok = true;
-            for i in 0..max_n {
-                let o = start + i * 12;
-                let x = f32::from_le_bytes(raw[o..o+4].try_into().unwrap_or([0u8;4]));
-                let y = f32::from_le_bytes(raw[o+4..o+8].try_into().unwrap_or([0u8;4]));
-                let z = f32::from_le_bytes(raw[o+8..o+12].try_into().unwrap_or([0u8;4]));
-                if !x.is_finite() || !y.is_finite() || !z.is_finite() ||
-                   x.abs() > 1e6 || y.abs() > 1e6 || z.abs() > 1e6 { ok = false; break; }
-                verts.push(Vec3::new(x, y, z));
+        if class_name != "CubeBuilder" { continue; }
+        match read_cube_builder(&mut header, ei) {
+            Ok(asset) => {
+                for lod in &asset.lods {
+                    let verts: Vec<Vec3> = lod.vertices.iter().map(|v| v.position).collect();
+                    if verts.len() >= 4 {
+                        let mesh = build_mesh_from_verts(&verts, &asset.name);
+                        let mesh_idx = builder.push_mesh(mesh);
+                        let node = builder.add_child_node(root, &asset.name);
+                        builder.attach_mesh(node, mesh_idx);
+                    }
+                }
             }
-            if !ok || verts.len() < 4 { continue; }
-            let rx = verts.iter().map(|p| p.x).fold(f32::MAX, f32::min);
-            let mx = verts.iter().map(|p| p.x).fold(f32::MIN, f32::max);
-            let ry = verts.iter().map(|p| p.y).fold(f32::MAX, f32::min);
-            let my = verts.iter().map(|p| p.y).fold(f32::MIN, f32::max);
-            let rz = verts.iter().map(|p| p.z).fold(f32::MAX, f32::min);
-            let mz = verts.iter().map(|p| p.z).fold(f32::MIN, f32::max);
-            let axes_ok = [(mx - rx).abs() > 1.0, (my - ry).abs() > 1.0, (mz - rz).abs() > 1.0];
-            if axes_ok.iter().filter(|&&x| x).count() >= 2 {
-                best = verts;
-                break;
+            Err(_) => {}
+        }
+    }
+
+    // Load external mesh .uasset files and BodySetup collision data
+    let base_path = std::path::Path::new(r"C:\Users\redst\Documents\GitHub\ue4-sample-project\Content");
+    for imp_idx in 0..header.imports.len() {
+        let imp = &header.imports[imp_idx];
+        let icn = header.resolve_name(&imp.class_name).unwrap_or_default();
+        if icn != "StaticMesh" { continue; }
+        let mesh_name = header.resolve_name(&imp.object_name).unwrap_or_default();
+        if mesh_name.is_empty() { continue; }
+
+        let candidates = [
+            base_path.join("Geometry").join("Meshes").join(format!("{}.uasset", mesh_name)),
+            base_path.join("FirstPerson").join("Meshes").join(format!("{}.uasset", mesh_name)),
+            base_path.join("FirstPerson").join("FPWeapon").join("Mesh").join(format!("{}.uasset", mesh_name)),
+        ];
+
+        for mesh_path in &candidates {
+            if !mesh_path.exists() { continue; }
+            if let Ok(mut f) = std::fs::File::open(mesh_path) {
+                let mut mb = Vec::new();
+                f.read_to_end(&mut mb).ok();
+                let mc = std::io::Cursor::new(mb.as_slice());
+                if let Ok(mut mh) = uasset::AssetHeader::new(mc) {
+                    // Load cooked StaticMesh only (read_static_mesh handles bCooked check)
+                    for mei in 0..mh.exports.len() {
+                        let is_sm = matches!(mh.exports[mei].class(),
+                            uasset::ObjectReference::Import { import_index }
+                                if mh.imports.get(import_index)
+                                    .and_then(|i2| mh.resolve_name(&i2.object_name).ok())
+                                    .map_or(false, |c| c == "StaticMesh")
+                        );
+                        if is_sm {
+                            if let Ok(sm) = read_static_mesh(&mut mh, mei) {
+                                if let Some(lod) = sm.lods.first() {
+                                    if !lod.vertices.is_empty() {
+                                        let verts: Vec<Vec3> = lod.vertices.iter().map(|v| v.position).collect();
+                                        let mesh = build_mesh_from_verts(&verts, &*mesh_name);
+                                        let mesh_idx = builder.push_mesh(mesh);
+                                        let node = builder.add_child_node(root, &*mesh_name);
+                                        builder.attach_mesh(node, mesh_idx);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
+            break;
         }
-        if best.len() < 4 { continue; }
-
-        let centroid = best.iter().sum::<Vec3>() / best.len() as f32;
-        let mut sorted: Vec<(usize, f32)> = best.iter().enumerate().map(|(i, p)| {
-            let dir = (*p - centroid).normalize_or_zero();
-            (i, f32::atan2(dir.z, dir.x))
-        }).collect();
-        sorted.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
-
-        let hub = sorted[0].0 as u32;
-        let mut indices = Vec::new();
-        for i in 1..sorted.len() - 1 {
-            indices.push(hub);
-            indices.push(sorted[i].0 as u32);
-            indices.push(sorted[i + 1].0 as u32);
-        }
-
-        let mut mesh = Mesh::new(&name);
-        for v in &best { mesh.vertices.push(solid_rs::geometry::Vertex::new(*v)); }
-        mesh.primitives.push(Primitive::triangles(indices, Some(0)));
-        mesh.compute_bounds();
-        let mesh_idx = builder.push_mesh(mesh);
-        let node = builder.add_child_node(root, &name);
-        builder.attach_mesh(node, mesh_idx);
     }
 
     let scene = builder.build();

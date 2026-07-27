@@ -68,26 +68,23 @@ pub fn read_static_mesh(
 
     let pr = PropertyReader::new(&header.names);
 
+    // Try property-tagged reading first for editor assets
     loop {
-        match pr.read_tag(&mut header.archive)? {
-            None => break,
-            Some(tag) => {
+        match pr.read_tag_archive(&mut header.archive) {
+            Ok(Some(tag)) => {
                 match tag.name.as_str() {
                     "BodySetup" | "NavCollision" | "LightMap" | "ShadowMap"
                     | "StreamingDistanceMultiplier" | "CustomizedCollision" => {}
                     "StaticMaterials" => {}
                     "RenderData" | "CookedRenderData" | "MeshDescription" | "MeshDescriptionCooked" => {
-                        let next_off = tag.raw.next_offset;
-                        let lod_data = parse_render_data(&mut header.archive)?;
-                        if let Some(lods) = lod_data {
-                            return Ok(StaticMeshAsset {
-                                name: export_name,
-                                lod_count: lods.len() as u32,
-                                lods,
-                            });
-                        }
-                        if next_off > tag.raw.next_offset {
-                            header.archive.seek(SeekFrom::Start(next_off))?;
+                        if let Ok(Some(lods)) = parse_render_data(&mut header.archive) {
+                            if !lods.is_empty() {
+                                return Ok(StaticMeshAsset {
+                                    name: export_name,
+                                    lod_count: lods.len() as u32,
+                                    lods,
+                                });
+                            }
                         }
                     }
                     _ => {
@@ -97,11 +94,67 @@ pub fn read_static_mesh(
                             Err(_) => 0,
                         };
                         if next > pos {
-                            header.archive.seek(SeekFrom::Start(next))?;
+                            header.archive.seek(SeekFrom::Start(next)).ok();
                         }
                     }
                 }
             }
+            Ok(None) => break,
+            Err(_) => break,
+        }
+    }
+
+    // Fallback: seek past UObject properties (None terminator), then read
+    // FStripDataFlags(8), bCooked(4), BodySetup(4), etc. before render data.
+    header.archive.seek(SeekFrom::Start(start_offset))?;
+    
+    // Skip UObject properties by fast-scanning for None terminator
+    // (FName with index=0 or name="None")
+    for _ in 0..200 {
+        let name_idx = reader::read_i32(&mut header.archive).unwrap_or(0);
+        if name_idx == 0 { break; }
+        let _name_num = reader::read_i32(&mut header.archive);
+        let _type_idx = reader::read_i32(&mut header.archive);
+        let _type_num = reader::read_i32(&mut header.archive);
+        let size = reader::read_i32(&mut header.archive).unwrap_or(0);
+        let _arr_idx = reader::read_i32(&mut header.archive);
+        // Skip type-specific extra data + property data
+        if size > 0 && size < 100000 {
+            let pos = header.archive.stream_position().unwrap_or(0);
+            header.archive.seek(std::io::SeekFrom::Start(pos + size as u64)).ok();
+        }
+    }
+
+    // Skip FStripDataFlags (2 x uint32)
+    let _ = reader::read_u32(&mut header.archive);
+    let _ = reader::read_u32(&mut header.archive);
+    // bCooked flag: if true, read baked render data
+    let b_cooked = reader::read_u32(&mut header.archive).unwrap_or(0) != 0;
+    if b_cooked {
+        // Skip HasTangents, BodySetup, etc. before RenderData
+        let _ = reader::read_u32(&mut header.archive); // HasTangents
+        let _ = reader::read_package_index(&mut header.archive); // BodySetup
+        // Now we should be at the render data
+        if let Ok(Some(lods)) = parse_render_data(&mut header.archive) {
+            if !lods.is_empty() {
+                return Ok(StaticMeshAsset {
+                    name: export_name,
+                    lod_count: lods.len() as u32,
+                    lods,
+                });
+            }
+        }
+    }
+
+    // Direct fallback: try raw render data from export offset
+    header.archive.seek(SeekFrom::Start(start_offset))?;
+    if let Ok(Some(lods)) = parse_render_data(&mut header.archive) {
+        if !lods.is_empty() {
+            return Ok(StaticMeshAsset {
+                name: export_name,
+                lod_count: lods.len() as u32,
+                lods,
+            });
         }
     }
 
@@ -111,158 +164,176 @@ pub fn read_static_mesh(
     })
 }
 
+/// Parse FStaticMeshRenderData using the CUE4Parse reference layout.
+/// LODs array first (TArray<FStaticMeshLODResources>), then bounds, screen sizes.
 fn parse_render_data(
     ar: &mut uasset::Archive<std::io::Cursor<&[u8]>>,
 ) -> Result<Option<Vec<StaticMeshLOD>>, UnrealError> {
-    let _clamp_vertex_paint = reader::read_u32(ar)?;
-    let _uv_channel_count = reader::read_i32(ar)?;
-    let _uv_channel_validity = reader::read_i32(ar)?;
-    let _padding1 = reader::read_i32(ar)?;
-    let _padding2 = reader::read_i32(ar)?;
-
-    let _bLODsShareLighting = reader::read_u32(ar)?;
-
+    // Read LOD array count
     let lod_count = reader::read_i32(ar)? as usize;
-    let mut lods = Vec::with_capacity(lod_count);
+    if lod_count == 0 || lod_count > 8 { return Ok(None); }
 
+    let mut lods = Vec::with_capacity(lod_count);
     for _ in 0..lod_count {
-        let lod = read_static_mesh_lod(ar)?;
+        let lod = read_lod_resources(ar)?;
         lods.push(lod);
     }
 
-    if lods.is_empty() {
-        return Ok(None);
-    }
-
+    if lods.is_empty() { return Ok(None); }
     Ok(Some(lods))
 }
 
-fn read_static_mesh_lod(
+/// Parse FStaticMeshLODResources.
+/// Starts with FStripDataFlags (2 x uint32), then sections TArray, then vertex buffers.
+fn read_lod_resources(
     ar: &mut uasset::Archive<std::io::Cursor<&[u8]>>,
 ) -> Result<StaticMeshLOD, UnrealError> {
-    let section_count = reader::read_i32(ar)? as usize;
-    let mut sections = Vec::with_capacity(section_count);
+    // FStripDataFlags: GlobalStripFlags + ClassStripFlags
+    let _global_strip = reader::read_u32(ar)?;
+    let _class_strip = reader::read_u32(ar)?;
 
-    for _ in 0..section_count {
-        let material_index = reader::read_i32(ar)? as usize;
-        let first_index = reader::read_u32(ar)?;
-        let num_indices = reader::read_u32(ar)?;
-        let first_vertex = reader::read_u32(ar)?;
-        let num_vertices = reader::read_u32(ar)?;
-
-        let _min_x = reader::read_f32(ar)?;
-        let _min_y = reader::read_f32(ar)?;
-        let _min_z = reader::read_f32(ar)?;
-        let _max_x = reader::read_f32(ar)?;
-        let _max_y = reader::read_f32(ar)?;
-        let _max_z = reader::read_f32(ar)?;
-        let _b_frustum_cull = reader::read_u32(ar)?;
-        let _b_force_opaque = reader::read_u32(ar)?;
+    // Sections TArray: count + elements
+    let sec_count = reader::read_i32(ar)? as usize;
+    let mut sections = Vec::with_capacity(sec_count);
+    for _ in 0..sec_count {
+        let mat_idx = reader::read_i32(ar)? as usize;
+        let first_idx = reader::read_i32(ar)? as u32;
+        let num_tris = reader::read_i32(ar)? as u32;
+        let min_vert = reader::read_i32(ar)? as u32;
+        let max_vert = reader::read_i32(ar)? as u32;
+        let _enable_collision = reader::read_u32(ar)? != 0;
+        let _cast_shadow = reader::read_u32(ar)? != 0;
+        // bForceOpaque (depends on version, try read)
+        let _force_opaque = reader::read_u32(ar).unwrap_or(0) != 0;
 
         sections.push(MeshSection {
-            material_index,
-            first_index,
-            num_indices,
-            first_vertex,
-            num_vertices,
+            material_index: mat_idx,
+            first_index: first_idx,
+            num_indices: num_tris * 3,
+            first_vertex: min_vert,
+            num_vertices: max_vert - min_vert + 1,
         });
     }
 
-    let index_count = reader::read_i32(ar)? as usize;
-    let use_16_bit_indices = reader::read_u32(ar)? != 0;
-    let mut indices = Vec::with_capacity(index_count);
+    // Vertex buffers: position, static mesh, color
+    let positions = read_position_buffer(ar)?;
+    let (normals, tangents, uvs) = read_static_mesh_vertex_buffer(ar, positions.len())?;
+    let colors = read_color_buffer(ar, positions.len())?;
 
-    if use_16_bit_indices {
-        for _ in 0..index_count {
+    // Index buffer: FRawStaticIndexBuffer = count + 16-bit flag + indices
+    let idx_count = reader::read_i32(ar)? as usize;
+    let use_16 = reader::read_u32(ar)? != 0;
+    let mut indices = Vec::with_capacity(idx_count);
+    for _ in 0..idx_count {
+        if use_16 {
             indices.push(reader::read_u16(ar)? as u32);
-        }
-    } else {
-        for _ in 0..index_count {
+        } else {
             indices.push(reader::read_u32(ar)?);
         }
     }
 
-    let vertex_count = reader::read_i32(ar)? as usize;
-    let mut vertices = vec![UnrealVertex::default(); vertex_count];
-
-    let pos_count = reader::read_i32(ar)? as usize;
-    let use_half_floats = reader::read_u32(ar)? != 0;
-    for i in 0..pos_count.min(vertex_count) {
-        if use_half_floats {
-            let x = half_to_f32(reader::read_u16(ar)?);
-            let y = half_to_f32(reader::read_u16(ar)?);
-            let z = half_to_f32(reader::read_u16(ar)?);
-            vertices[i].position = Vec3::new(x, y, z);
-        } else {
-            let x = reader::read_f32(ar)?;
-            let y = reader::read_f32(ar)?;
-            let z = reader::read_f32(ar)?;
-            vertices[i].position = Vec3::new(x, y, z);
+    let vertices: Vec<UnrealVertex> = (0..positions.len()).map(|i| {
+        UnrealVertex {
+            position: positions.get(i).copied().unwrap_or(Vec3::ZERO),
+            normal: normals.get(i).copied().unwrap_or(Vec3::ZERO),
+            tangent: tangents.get(i).copied().unwrap_or(Vec4::ZERO),
+            uv: [
+                uvs.get(i).copied().unwrap_or(Vec2::ZERO),
+                Vec2::ZERO, Vec2::ZERO, Vec2::ZERO,
+            ],
+            color: colors.get(i).copied().unwrap_or([255u8; 4]),
         }
-    }
-
-    read_static_mesh_vertex_buffer(ar, &mut vertices, vertex_count)?;
-
-    let material_names = Vec::new();
+    }).collect();
 
     Ok(StaticMeshLOD {
         vertices,
         indices,
         sections,
-        material_names,
+        material_names: Vec::new(),
     })
 }
 
+/// FPositionVertexBuffer: num_vertices + stride(12=float or 6=half) + data
+fn read_position_buffer(
+    ar: &mut uasset::Archive<std::io::Cursor<&[u8]>>,
+) -> Result<Vec<Vec3>, UnrealError> {
+    let num = reader::read_i32(ar)? as usize;
+    let stride = reader::read_u32(ar)?; // 12 = float, 6 = half, 8 = packed?
+    let use_half = stride == 6;
+    let mut verts = Vec::with_capacity(num);
+    for _ in 0..num {
+        if use_half {
+            let x = half_to_f32(reader::read_u16(ar)?);
+            let y = half_to_f32(reader::read_u16(ar)?);
+            let z = half_to_f32(reader::read_u16(ar)?);
+            verts.push(Vec3::new(x, y, z));
+        } else {
+            let x = reader::read_f32(ar)?;
+            let y = reader::read_f32(ar)?;
+            let z = reader::read_f32(ar)?;
+            verts.push(Vec3::new(x, y, z));
+        }
+    }
+    Ok(verts)
+}
+
+/// FStaticMeshVertexBuffer: num_verts, num_uvs, precision flags, then normals/tangents/UVs
 fn read_static_mesh_vertex_buffer(
     ar: &mut uasset::Archive<std::io::Cursor<&[u8]>>,
-    vertices: &mut [UnrealVertex],
-    vertex_count: usize,
-) -> Result<(), UnrealError> {
+    count: usize,
+) -> Result<(Vec<Vec3>, Vec<Vec4>, Vec<Vec2>), UnrealError> {
     let num_tex_coords = reader::read_i32(ar)? as usize;
     let _b_use_full_precision_uvs = reader::read_u32(ar)?;
     let _b_use_high_precision_tangents = reader::read_u32(ar)?;
 
-    for i in 0..vertex_count {
-        let packed = reader::read_u32(ar)?;
-        vertices[i].normal = unpack_normal(packed);
-    }
+    let mut normals = Vec::with_capacity(count);
+    let mut tangents = Vec::with_capacity(count);
+    let mut uvs = Vec::with_capacity(count);
 
-    for i in 0..vertex_count {
+    for _ in 0..count {
         let packed = reader::read_u32(ar)?;
-        vertices[i].tangent = unpack_tangent(packed);
+        normals.push(unpack_normal(packed));
     }
-
-    let tex_coord_size = if _b_use_full_precision_uvs == 0 { 4 } else { 8 };
-    for i in 0..vertex_count {
-        for uv_channel in 0..num_tex_coords.min(4) {
-            if tex_coord_size == 4 {
-                let u = half_to_f32(reader::read_u16(ar)?);
-                let v = half_to_f32(reader::read_u16(ar)?);
-                vertices[i].uv[uv_channel] = Vec2::new(u, v);
-            } else {
+    for _ in 0..count {
+        let packed = reader::read_u32(ar)?;
+        tangents.push(unpack_tangent(packed));
+    }
+    for _ in 0..count {
+        if num_tex_coords > 0 {
+            if _b_use_full_precision_uvs != 0 {
                 let u = reader::read_f32(ar)?;
                 let v = reader::read_f32(ar)?;
-                vertices[i].uv[uv_channel] = Vec2::new(u, v);
+                uvs.push(Vec2::new(u, v));
+            } else {
+                let u = half_to_f32(reader::read_u16(ar)?);
+                let v = half_to_f32(reader::read_u16(ar)?);
+                uvs.push(Vec2::new(u, v));
             }
-        }
-        for uv_channel in num_tex_coords..4 {
-            vertices[i].uv[uv_channel] = Vec2::ZERO;
-        }
-    }
-
-    if let Ok(pos) = ar.stream_position() {
-        let _ = pos;
-        for i in 0..vertex_count {
-            let color_packed = reader::read_u32(ar)?;
-            let b = (color_packed >> 0) & 0xFF;
-            let g = (color_packed >> 8) & 0xFF;
-            let r = (color_packed >> 16) & 0xFF;
-            let a = (color_packed >> 24) & 0xFF;
-            vertices[i].color = [r as u8, g as u8, b as u8, a as u8];
+        } else {
+            uvs.push(Vec2::ZERO);
         }
     }
 
-    Ok(())
+    Ok((normals, tangents, uvs))
+}
+
+/// FColorVertexBuffer: num_vertices + colors (4 x uint8 packed as uint32)
+fn read_color_buffer(
+    ar: &mut uasset::Archive<std::io::Cursor<&[u8]>>,
+    count: usize,
+) -> Result<Vec<[u8; 4]>, UnrealError> {
+    let num = reader::read_i32(ar)? as usize;
+    let mut colors = Vec::with_capacity(num.min(count));
+    for _ in 0..num.min(count) {
+        let packed = reader::read_u32(ar)?;
+        colors.push([
+            ((packed >> 16) & 0xFF) as u8,
+            ((packed >> 8) & 0xFF) as u8,
+            ((packed >> 0) & 0xFF) as u8,
+            ((packed >> 24) & 0xFF) as u8,
+        ]);
+    }
+    Ok(colors)
 }
 
 fn unpack_normal(packed: u32) -> Vec3 {
@@ -455,23 +526,16 @@ pub fn read_brush_component(
 }
 
 fn half_to_f32(h: u16) -> f32 {
-    let sign = ((h >> 15) & 0x1) as f32;
-    let exp = (h >> 10) & 0x1F;
-    let mant = h & 0x3FF;
-
-    if exp == 0 {
-        if mant == 0 {
-            0.0
-        } else {
-            f32::from_bits(((sign as u32) << 31) | (0x7F - 1 - 15) << 23 | (mant as u32) << 13)
+    let s = ((h >> 15) & 0x1) as f32;
+    let e = (h >> 10) & 0x1F;
+    let m = h & 0x3FF;
+    if e == 0 {
+        if m == 0 { 0.0 } else {
+            f32::from_bits(((s as u32) << 31) | (0x7F - 1 - 15) << 23 | (m as u32) << 13)
         }
-    } else if exp == 31 {
-        if mant == 0 {
-            f32::INFINITY * if sign == 0.0 { 1.0 } else { -1.0 }
-        } else {
-            f32::NAN
-        }
+    } else if e == 31 {
+        if m == 0 { f32::INFINITY * if s == 0.0 { 1.0 } else { -1.0 } } else { f32::NAN }
     } else {
-        f32::from_bits(((sign as u32) << 31) | ((exp as u32 + (127 - 15)) << 23) | (mant as u32) << 13)
+        f32::from_bits(((s as u32) << 31) | ((e as u32 + (127 - 15)) << 23) | (m as u32) << 13)
     }
 }
