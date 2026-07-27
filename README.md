@@ -31,6 +31,7 @@ are pulled in à-la-carte.
 | [`solid-ply`](crates/solid-ply) | ✅ stable | PLY ASCII + binary LE/BE load; ASCII + binary LE/BE save; double precision; point clouds; multi-UV; tangents |
 | [`solid-blend`](crates/solid-blend) | ✅ stable | Blender `.blend` load + save via headless Blender bridge |
 | [`solid-x`](crates/solid-x) | ✅ stable | Legacy DirectX `.x` ASCII load + save |
+| [`solid-unreal`](crates/solid-unreal) | ✅ stable | Unreal Engine `.uasset` / `.umap` loader; cooked `UStaticMesh` (positions, normals, UVs), `UTexture2D` (mip data), `UMaterial` (PBR), `UWorld`/`ULevel` actor graph, BSP brush geometry |
 | [`solid-mdl`](crates/solid-mdl) | ✅ stable | Quake MDL binary load + save; 8-bit indexed textures with Quake palette; 162 precomputed anorms; vertex decompression |
 | `solid-usd` | 🔜 planned | OpenUSD / USDA / USDC loader + saver |
 
@@ -42,15 +43,16 @@ Add the core crate plus whichever format crates you need:
 
 ```toml
 [dependencies]
-solid-rs   = "0.1"
-solid-fbx  = "0.1"   # Autodesk FBX
-solid-obj  = "0.1"   # Wavefront OBJ
-solid-gltf = "0.1"   # glTF 2.0 / GLB
-solid-stl  = "0.1"   # Stereolithography STL
-solid-ply  = "0.1"   # Stanford PLY
-solid-blend = "0.1"  # Blender .blend
-solid-x     = "0.1"  # DirectX .x
-solid-mdl   = "0.1"  # Quake MDL
+solid-rs     = "0.1"
+solid-fbx    = "0.1"   # Autodesk FBX
+solid-obj    = "0.1"   # Wavefront OBJ
+solid-gltf   = "0.1"   # glTF 2.0 / GLB
+solid-stl    = "0.1"   # Stereolithography STL
+solid-ply    = "0.1"   # Stanford PLY
+solid-blend  = "0.1"   # Blender .blend
+solid-x      = "0.1"   # DirectX .x
+solid-mdl    = "0.1"   # Quake MDL
+solid-unreal = "0.1"   # Unreal Engine .uasset / .umap
 ```
 
 ### Load a file
@@ -219,6 +221,38 @@ cargo run -p fbx-to-obj -- input.fbx output.obj
 ## Format Feature Details
 
 Legend: ✅ supported · ⚠️ partial · ❌ not supported · — not applicable to this format
+
+---
+
+### Unreal Engine — `.uasset` / `.umap` ([`solid-unreal`](crates/solid-unreal))
+
+Extensions: `.uasset`, `.umap` · MIME: `application/x-ue-package`
+
+| Feature | Load | Notes |
+|---------|------|-------|
+| **Encoding** | | |
+| UE4 packages (4.10–4.27) | ✅ | Via [`uasset`](https://github.com/Far-Beyond-Pulsar/UASSET) |
+| UE5 packages (5.0–5.6) | ✅ | |
+| Cooked (shipping) packages | ✅ | Baked `FStaticMeshRenderData` |
+| Uncooked (editor) packages | ⚠️ | Only BSP geometry; pre-cook for meshes |
+| **Package structure** | | |
+| Name table (ANSI / wide / hashed) | ✅ | |
+| Import / export tables | ✅ | |
+| Object properties (tagged format) | ✅ | Version-aware GUID handling (UE4.20+) |
+| **Geometry** | | |
+| Cooked `UStaticMesh` (positions, normals, tangents, UVs, colors) | ✅ | Full `FStaticMeshRenderData` via CUE4Parse reference |
+| `FStaticMeshSection` (per-section materials) | ✅ | `NumTriangles`, first index, vertex ranges |
+| BSP brushes (`CubeBuilder`) | ✅ | Inline vertex extraction |
+| Skeletal meshes | ❌ | |
+| **Materials** | | |
+| `UMaterial` / `UMaterialInstanceConstant` | ✅ | Scalar, vector, texture parameter → PBR mapping |
+| `TextureParameterValues` → texture slots | ✅ | Normal, base color, metallic/roughness, emissive, opacity, AO |
+| **Textures** | | |
+| `UTexture2D` mip extraction | ✅ | `FTexturePlatformData` with bulk data |
+| **Scene graph** | | |
+| `UWorld` / `ULevel` actors | ✅ | Actor transforms, RootComponent hierarchy |
+| `StaticMeshComponent` / `SkeletalMeshComponent` | ✅ | Mesh references with placement transforms |
+| `SceneComponent` (RelativeLocation, Rotation, Scale3D) | ✅ | Full TRS → Mat4 conversion |
 
 ---
 
