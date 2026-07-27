@@ -1,6 +1,6 @@
 # solid-stl
 
-STL (Stereolithography) binary and ASCII loader and saver for the [SolidRS](https://github.com/Far-Beyond-Pulsar/solid-rs) ecosystem.
+STL (Stereolithography) binary and ASCII loader and saver for the [SolidRS](https://github.com/Far-Beyond-Pulsar/Solid3D) ecosystem.
 
 ## Feature Matrix
 
