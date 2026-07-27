@@ -1,0 +1,10 @@
+[package]
+name    = "unreal-to-fbx"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+solid-rs  = { path = "../../crates/solid-rs" }
+solid-fbx = { path = "../../crates/solid-fbx" }
+solid-unreal  = { path = "../../crates/solid-unreal" }
+solid-obj = { path = "../../crates/solid-obj" }

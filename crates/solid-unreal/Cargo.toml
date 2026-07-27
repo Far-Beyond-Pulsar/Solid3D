@@ -1,0 +1,25 @@
+[package]
+name         = "solid-unreal"
+description  = "Unreal Engine package (uasset/umap) loader for SolidRS"
+version.workspace    = true
+edition.workspace    = true
+authors.workspace    = true
+license.workspace    = true
+repository.workspace = true
+homepage.workspace   = true
+keywords     = ["unreal", "uasset", "umap", "3d", "scene"]
+categories   = ["graphics", "rendering", "game-development"]
+
+[dependencies]
+solid-rs  = { workspace = true }
+glam      = { workspace = true }
+thiserror = { workspace = true }
+flate2    = { workspace = true }
+lz4_flex  = { workspace = true }
+bitflags  = "2"
+
+[features]
+configurator = ["solid-rs/configurator"]
+
+[dev-dependencies]
+solid-rs = { workspace = true }

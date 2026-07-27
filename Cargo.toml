@@ -10,7 +10,9 @@ members  = [
     "crates/solid-x",
     "crates/solid-mdl",
     "crates/solid-usd",
+    "crates/solid-unreal",
     "examples/fbx-to-obj",
+    "examples/unreal-to-fbx",
 ]
 resolver = "2"
 

@@ -24,6 +24,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
 
 [[package]]
+name = "bitflags"
+version = "2.13.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b588b76d00fde79687d7646a9b5bdf3cc0f655e0bbd080335a95d7e96f3587da"
+
+[[package]]
 name = "bumpalo"
 version = "3.20.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -305,6 +311,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "solid-unreal"
+version = "0.1.0"
+dependencies = [
+ "bitflags",
+ "flate2",
+ "glam",
+ "lz4_flex",
+ "solid-rs",
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "solid-usd"
 version = "0.1.0"
 dependencies = [
@@ -385,6 +403,16 @@ name = "unicode-ident"
 version = "1.0.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e6e4313cd5fcd3dad5cafa179702e2b244f760991f45397d14d4ebf38247da75"
+
+[[package]]
+name = "unreal-to-fbx"
+version = "0.1.0"
+dependencies = [
+ "solid-fbx",
+ "solid-obj",
+ "solid-rs",
+ "solid-unreal",
+]
 
 [[package]]
 name = "zip"
