@@ -70,7 +70,6 @@ pub fn package_to_scene(
     for (export_idx, export) in pkg.exports.iter().enumerate() {
         let class_name = pkg.resolve_export_class_name(export.class_index);
         if class_name.is_empty() { continue; }
-        println!("[CLASS] export[{export_idx}] class='{class_name}'");
 
         match class_name.as_str() {
             "Texture2D" => {
@@ -160,18 +159,19 @@ pub fn package_to_scene(
             }
         }
 
-        let mat_idx = solid_materials.len();
+        let mat_idx = builder.push_material(solid_mat.clone());
         mat_export_to_material_index.insert(*export_idx, mat_idx);
-        solid_materials.push(solid_mat);
+        solid_materials.push(solid_mat); // keep local copy for material_index fallback
     }
 
     // 5. Add a default material if none exist
     if solid_materials.is_empty() {
+        let default_mat = Material::solid_color("DefaultMaterial", Vec4::new(0.8, 0.8, 0.8, 1.0));
+        builder.push_material(default_mat);
         solid_materials.push(Material::solid_color("DefaultMaterial", Vec4::new(0.8, 0.8, 0.8, 1.0)));
     }
 
-    // 6. Convert meshes
-    let mut solid_meshes: Vec<Mesh> = Vec::new();
+    // 6. Convert meshes — push directly to the builder so indices are valid
     let mut mesh_export_to_mesh_index: HashMap<usize, usize> = HashMap::new();
 
     for (export_idx, mesh_asset) in &mesh_exports {
@@ -201,9 +201,8 @@ pub fn package_to_scene(
             }
 
             solid_mesh.compute_bounds();
-            let mesh_idx = solid_meshes.len();
+            let mesh_idx = builder.push_mesh(solid_mesh);
             mesh_export_to_mesh_index.insert(*export_idx, mesh_idx);
-            solid_meshes.push(solid_mesh);
         }
     }
 
