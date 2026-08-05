@@ -13,7 +13,7 @@
 mod common;
 use common::*;
 
-use glam::Vec3;
+use glam::{Vec3, Vec4};
 use solid_fbx::{FbxLoader, FbxSaver};
 use solid_rs::prelude::*;
 use std::io::Cursor;
@@ -461,4 +461,126 @@ fn binary_save_round_trip_all_features_parses() {
     assert_eq!(loaded.meshes.len(), 1);
     assert_eq!(loaded.cameras.len(), 1);
     assert_eq!(loaded.nodes.len(), scene.nodes.len());
+}
+
+// ── #17  Triangle lists written as a single polygon ───────────────────────────
+
+/// Round-trip a mesh whose triangles do not nest inside each primitive (i.e.
+/// `2,3,0` ends past the previous triangle's first vertex). The saver must
+/// negate the last index of *each* triangle, not just the primitive's.
+fn triangle_polygon_round_trip(save: fn(&Scene, &mut Vec<u8>)) -> Scene {
+    let mut b = SceneBuilder::new();
+    let mut mesh = Mesh::new("TriPair");
+    mesh.vertices = (0..4)
+        .map(|i| Vertex::new(Vec3::new(i as f32, 0.0, 0.0)).with_normal(Vec3::Z))
+        .collect();
+    mesh.primitives = vec![Primitive::triangles(vec![0, 1, 2, 2, 3, 0], None)];
+    let mi = b.push_mesh(mesh);
+    let r = b.add_root_node("Root");
+    b.attach_mesh(r, mi);
+    let scene = b.build();
+
+    let mut buf = Vec::new();
+    save(&scene, &mut buf);
+    let mut cursor = Cursor::new(buf);
+    FbxLoader
+        .load(&mut cursor, &LoadOptions::default())
+        .unwrap()
+}
+
+fn assert_triangle_list_preserved(loaded: &Scene) {
+    assert_eq!(loaded.meshes.len(), 1);
+    let mesh = &loaded.meshes[0];
+    let prim = &mesh.primitives[0];
+    assert_eq!(
+        prim.indices.len(),
+        6,
+        "must stay exactly two triangles, got {:?}",
+        prim.indices
+    );
+    let pos: Vec<f32> = prim
+        .indices
+        .iter()
+        .map(|&i| mesh.vertices[i as usize].position.x)
+        .collect();
+    assert_eq!(pos, vec![0.0, 1.0, 2.0, 2.0, 3.0, 0.0]);
+}
+
+#[test]
+fn ascii_round_trip_preserves_triangle_list() {
+    let loaded = triangle_polygon_round_trip(|s, b| {
+        FbxSaver
+            .save(s, b, &SaveOptions::default())
+            .unwrap()
+    });
+    assert_triangle_list_preserved(&loaded);
+}
+
+#[test]
+fn binary_round_trip_preserves_triangle_list() {
+    let loaded = triangle_polygon_round_trip(|s, b| FbxSaver.save_binary(s, b).unwrap());
+    assert_triangle_list_preserved(&loaded);
+}
+
+// ── #18  LayerElementMaterial writes primitive positions, not material index ──
+
+fn multi_material_round_trip(save: fn(&Scene, &mut Vec<u8>)) -> Scene {
+    let mut b = SceneBuilder::new();
+    let mut mat_a = Material::new("MatA");
+    mat_a.base_color_factor = Vec4::new(1.0, 0.0, 0.0, 1.0);
+    let mut mat_b = Material::new("MatB");
+    mat_b.base_color_factor = Vec4::new(0.0, 1.0, 0.0, 1.0);
+    let a = b.push_material(mat_a);
+    let bmat = b.push_material(mat_b);
+
+    let mut mesh = Mesh::new("MultiMat");
+    mesh.vertices = (0..9)
+        .map(|i| Vertex::new(Vec3::new(i as f32, 0.0, 0.0)).with_normal(Vec3::Z))
+        .collect();
+    // Order A, B, A — primitive positions 0,1,2 but local material indices 0,1,0.
+    mesh.primitives = vec![
+        Primitive::triangles(vec![0, 1, 2], Some(a)),
+        Primitive::triangles(vec![3, 4, 5], Some(bmat)),
+        Primitive::triangles(vec![6, 7, 8], Some(a)),
+    ];
+    let mi = b.push_mesh(mesh);
+    let r = b.add_root_node("Root");
+    b.attach_mesh(r, mi);
+    let scene = b.build();
+
+    let mut buf = Vec::new();
+    save(&scene, &mut buf);
+    let mut cursor = Cursor::new(buf);
+    FbxLoader
+        .load(&mut cursor, &LoadOptions::default())
+        .unwrap()
+}
+
+fn assert_materials_grouped(loaded: &Scene) {
+    assert_eq!(loaded.meshes.len(), 1);
+    let prims = &loaded.meshes[0].primitives;
+    assert_eq!(prims.len(), 2, "A,B,A must group back into exactly two primitives");
+    assert_eq!(prims[0].indices, vec![0, 1, 2, 6, 7, 8]);
+    assert_eq!(prims[1].indices, vec![3, 4, 5]);
+    assert_eq!(prims[0].material_index, Some(0), "repeated A must map to scene material 0");
+    assert_eq!(prims[1].material_index, Some(1));
+    assert_eq!(loaded.materials.len(), 2);
+    assert_eq!(loaded.materials[0].name, "MatA");
+    assert_eq!(loaded.materials[1].name, "MatB");
+}
+
+#[test]
+fn ascii_round_trip_preserves_material_grouping() {
+    let loaded = multi_material_round_trip(|s, b| {
+        FbxSaver
+            .save(s, b, &SaveOptions::default())
+            .unwrap()
+    });
+    assert_materials_grouped(&loaded);
+}
+
+#[test]
+fn binary_round_trip_preserves_material_grouping() {
+    let loaded = multi_material_round_trip(|s, b| FbxSaver.save_binary(s, b).unwrap());
+    assert_materials_grouped(&loaded);
 }

@@ -25,6 +25,7 @@ pub mod keys {
     pub const GENERATE_NORMALS: &str = "generate_normals";
     pub const TRIANGULATE: &str = "triangulate";
     pub const MERGE_VERTICES: &str = "merge_vertices";
+    pub const MERGE_MESHES: &str = "merge_meshes";
     pub const FLIP_UV_V: &str = "flip_uv_v";
     pub const MAX_TEXTURE_SIZE: &str = "max_texture_size";
 }
@@ -234,6 +235,12 @@ impl OptionsSchema {
                 false,
             ))
             .with(OptionField::bool(
+                keys::MERGE_MESHES,
+                "Merge meshes",
+                "Merge all meshes into a single mesh when the format supports it.",
+                false,
+            ))
+            .with(OptionField::bool(
                 keys::FLIP_UV_V,
                 "Flip UV (V)",
                 "Flip the vertical texture coordinate: v' = 1 − v.",
@@ -309,6 +316,7 @@ impl OptionValues {
         o.generate_normals = self.bool_or(keys::GENERATE_NORMALS, o.generate_normals);
         o.triangulate = self.bool_or(keys::TRIANGULATE, o.triangulate);
         o.merge_vertices = self.bool_or(keys::MERGE_VERTICES, o.merge_vertices);
+        o.merge_meshes = self.bool_or(keys::MERGE_MESHES, o.merge_meshes);
         o.flip_uv_v = self.bool_or(keys::FLIP_UV_V, o.flip_uv_v);
         let mts = self.i64_or(keys::MAX_TEXTURE_SIZE, 0);
         o.max_texture_size = if mts > 0 { Some(mts as u32) } else { None };
@@ -324,9 +332,10 @@ mod tests {
     fn base_schema_has_the_common_fields() {
         let s = OptionsSchema::base_load_options();
         let ks: Vec<&str> = s.fields.iter().map(|f| f.key.as_str()).collect();
-        assert_eq!(s.fields.len(), 5);
+        assert_eq!(s.fields.len(), 6);
         assert!(ks.contains(&keys::GENERATE_NORMALS));
         assert!(ks.contains(&keys::MAX_TEXTURE_SIZE));
+        assert!(ks.contains(&keys::MERGE_MESHES));
     }
 
     #[test]

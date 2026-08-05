@@ -38,7 +38,7 @@ impl Loader for ObjLoader {
         let mut src = String::new();
         reader.read_to_string(&mut src).map_err(SolidError::Io)?;
 
-        let obj = parse_obj(&src);
+        let obj = parse_obj(&src)?;
 
         // Try to load MTL files from base_dir
         let mtl_data = if let Some(base) = &options.base_dir {

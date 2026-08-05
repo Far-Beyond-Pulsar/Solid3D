@@ -5,6 +5,8 @@
 
 use std::collections::HashMap;
 
+use solid_rs::SolidError;
+
 // ── Document ──────────────────────────────────────────────────────────────────
 
 /// Top-level result of parsing a `.obj` file.
@@ -115,7 +117,7 @@ impl Default for MtlMaterial {
 // ── OBJ Parser ────────────────────────────────────────────────────────────────
 
 /// Parse a Wavefront OBJ text string into [`ObjData`].
-pub(crate) fn parse_obj(src: &str) -> ObjData {
+pub(crate) fn parse_obj(src: &str) -> Result<ObjData, SolidError> {
     let mut data = ObjData::default();
     let mut current_group = ObjGroup {
         name: String::from("default"),
@@ -152,9 +154,7 @@ pub(crate) fn parse_obj(src: &str) -> ObjData {
                 }
             }
             "f" => {
-                if let Some(face) = parse_face(rest, &data, current_smoothing_group) {
-                    current_faces.push(face);
-                }
+                current_faces.push(parse_face(rest, &data, current_smoothing_group)?);
             }
             "s" => {
                 current_smoothing_group = if rest == "off" || rest == "0" {
@@ -213,7 +213,7 @@ pub(crate) fn parse_obj(src: &str) -> ObjData {
         data.groups.push(current_group);
     }
 
-    data
+    Ok(data)
 }
 
 // ── MTL Parser ────────────────────────────────────────────────────────────────
@@ -361,11 +361,17 @@ fn resolve_idx(raw: i64, len: usize) -> Option<usize> {
 }
 
 /// Parse an OBJ face line like `1/2/3 4//5 6`.
-fn parse_face(rest: &str, data: &ObjData, smoothing_group: u32) -> Option<ObjFace> {
+///
+/// Returns an error instead of silently dropping faces that reference
+/// out-of-range vertices (or have too few corners).
+fn parse_face(rest: &str, data: &ObjData, smoothing_group: u32) -> Result<ObjFace, SolidError> {
     let mut refs = Vec::new();
     for token in rest.split_whitespace() {
         let mut parts = token.splitn(3, '/');
-        let vi_raw: i64 = parts.next()?.parse().ok()?;
+        let vi_raw: i64 = parts
+            .next()
+            .and_then(|s| s.parse().ok())
+            .ok_or_else(|| SolidError::parse(format!("bad OBJ face vertex '{token}'")))?;
         let vt_raw: Option<i64> =
             parts
                 .next()
@@ -375,20 +381,43 @@ fn parse_face(rest: &str, data: &ObjData, smoothing_group: u32) -> Option<ObjFac
                 .next()
                 .and_then(|s| if s.is_empty() { None } else { s.parse().ok() });
 
-        let vi = resolve_idx(vi_raw, data.positions.len())?;
-        let vt = vt_raw.and_then(|i| resolve_idx(i, data.uvs.len()));
-        let vn = vn_raw.and_then(|i| resolve_idx(i, data.normals.len()));
+        let vi = resolve_idx(vi_raw, data.positions.len()).ok_or_else(|| {
+            SolidError::parse(format!(
+                "OBJ face vertex index {vi_raw} out of range ({} vertices)",
+                data.positions.len()
+            ))
+        })?;
+        let vt = match vt_raw {
+            Some(i) => Some(resolve_idx(i, data.uvs.len()).ok_or_else(|| {
+                SolidError::parse(format!(
+                    "OBJ face uv index {i} out of range ({} uvs)",
+                    data.uvs.len()
+                ))
+            })?),
+            None => None,
+        };
+        let vn = match vn_raw {
+            Some(i) => Some(resolve_idx(i, data.normals.len()).ok_or_else(|| {
+                SolidError::parse(format!(
+                    "OBJ face normal index {i} out of range ({} normals)",
+                    data.normals.len()
+                ))
+            })?),
+            None => None,
+        };
 
         refs.push((vi, vt, vn));
     }
-    if refs.len() >= 3 {
-        Some(ObjFace {
-            refs,
-            smoothing_group,
-        })
-    } else {
-        None
+    if refs.len() < 3 {
+        return Err(SolidError::parse(format!(
+            "OBJ face has {} corners (needs at least 3)",
+            refs.len()
+        )));
     }
+    Ok(ObjFace {
+        refs,
+        smoothing_group,
+    })
 }
 
 /// Strip leading option flags (`-bm 1.0`, `-s 1 1`, etc.) from a texture path.

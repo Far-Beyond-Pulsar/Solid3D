@@ -48,6 +48,28 @@ fn test_load_invalid_data() {
     assert!(result.is_err());
 }
 
+// ── #28: merge_meshes wired independently of triangulate ─────────────────────
+
+#[test]
+fn load_options_merge_meshes_default_false() {
+    let opts = solid_rs::traits::LoadOptions::default();
+    assert!(!opts.merge_meshes, "merge_meshes must default to false");
+    assert!(!opts.triangulate, "triangulate must default to false");
+}
+
+#[test]
+fn merge_meshes_does_not_imply_triangulate() {
+    // Regression guard for #28: the Unreal converter config mapping is a pure
+    // function of LoadOptions, verified in crate unit tests. Here we assert
+    // the common option struct keeps the two concerns separate.
+    let opts = solid_rs::traits::LoadOptions {
+        merge_meshes: true,
+        ..solid_rs::traits::LoadOptions::default()
+    };
+    assert!(opts.merge_meshes);
+    assert!(!opts.triangulate, "merging meshes must not flip triangulate");
+}
+
 #[test]
 fn test_format_info() {
     let loader = UnrealLoader;

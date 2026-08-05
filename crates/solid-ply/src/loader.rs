@@ -136,7 +136,17 @@ fn read_scalar(data: &[u8], offset: usize, ty: ScalarType, be: bool) -> f64 {
 fn parse_ascii_body(elements: &[Element], body: &[u8]) -> Result<(Vec<Vertex>, Vec<u32>)> {
     let text =
         std::str::from_utf8(body).map_err(|_| SolidError::parse("PLY: body is not valid UTF-8"))?;
-    let mut lines = text.lines();
+    let all_lines: Vec<&str> = text.lines().collect();
+    let mut line_idx = 0usize;
+
+    let mut next_line = |idx: &mut usize| -> Result<&str> {
+        let line = all_lines
+            .get(*idx)
+            .copied()
+            .ok_or_else(|| SolidError::parse("PLY: body ended early (truncated file)"))?;
+        *idx += 1;
+        Ok(line)
+    };
 
     let mut vertices: Vec<Vertex> = Vec::new();
     let mut indices: Vec<u32> = Vec::new();
@@ -184,8 +194,18 @@ fn parse_ascii_body(elements: &[Element], body: &[u8]) -> Result<(Vec<Vertex>, V
                     )
                 });
 
+                // Reject hostile/truncated files before allocating: the declared
+                // count must not exceed the number of remaining lines.
+                if elem.count > all_lines.len() - line_idx {
+                    return Err(SolidError::parse(format!(
+                        "PLY: vertex element declares {} rows but only {} lines remain",
+                        elem.count,
+                        all_lines.len() - line_idx
+                    )));
+                }
+
                 for _ in 0..elem.count {
-                    let line = lines.next().unwrap_or("");
+                    let line = next_line(&mut line_idx)?;
                     let vals: Vec<f64> = line
                         .split_whitespace()
                         .map(|s| s.parse::<f64>().unwrap_or(0.0))
@@ -228,20 +248,33 @@ fn parse_ascii_body(elements: &[Element], body: &[u8]) -> Result<(Vec<Vertex>, V
             }
             "face" => {
                 for _ in 0..elem.count {
-                    let line = lines.next().unwrap_or("");
-                    let nums: Vec<u32> = line
+                    let line = next_line(&mut line_idx)?;
+                    let nums: Vec<i64> = line
                         .split_whitespace()
-                        .filter_map(|s| s.parse::<u32>().ok())
+                        .map(|s| s.parse::<i64>().unwrap_or(0))
                         .collect();
 
                     if let Some(&count) = nums.first() {
                         let count = count as usize;
-                        if count >= 3 && nums.len() > count {
+                        if nums.len() < 1 + count {
+                            return Err(SolidError::parse(format!(
+                                "PLY: face declares {count} vertices but provides {}",
+                                nums.len() - 1
+                            )));
+                        }
+                        if count >= 3 {
                             // Fan triangulation: (0, i, i+1) for i in 1..count-1
                             for i in 1..(count - 1) {
-                                indices.push(nums[1]);
-                                indices.push(nums[1 + i]);
-                                indices.push(nums[2 + i]);
+                                for &corner in [nums[1], nums[1 + i], nums[2 + i]].iter() {
+                                    let vi = corner as usize;
+                                    if vi >= vertices.len() {
+                                        return Err(SolidError::parse(format!(
+                                            "PLY: face vertex index {vi} out of range ({} vertices)",
+                                            vertices.len()
+                                        )));
+                                    }
+                                    indices.push(vi as u32);
+                                }
                             }
                         }
                     }
@@ -249,9 +282,15 @@ fn parse_ascii_body(elements: &[Element], body: &[u8]) -> Result<(Vec<Vertex>, V
             }
             _ => {
                 // Skip unknown elements.
-                for _ in 0..elem.count {
-                    lines.next();
+                if elem.count > all_lines.len() - line_idx {
+                    return Err(SolidError::parse(format!(
+                        "PLY: element '{}' declares {} rows but only {} lines remain",
+                        elem.name,
+                        elem.count,
+                        all_lines.len() - line_idx
+                    )));
                 }
+                line_idx += elem.count;
             }
         }
     }
@@ -312,6 +351,30 @@ fn parse_binary_body(
                     )
                 });
 
+                // Reject truncated/hostile files before allocating: for a
+                // scalar-only element the declared count times the row size
+                // must fit in the remaining body.
+                let row_size: usize = elem
+                    .properties
+                    .iter()
+                    .map(|p| match p.prop_type {
+                        PropType::Scalar(st) => st.byte_size(),
+                        PropType::List { .. } => 0,
+                    })
+                    .sum();
+                if elem.properties.iter().all(|p| matches!(p.prop_type, PropType::Scalar(_))) {
+                    let total = elem.count.checked_mul(row_size).ok_or_else(|| {
+                        SolidError::parse("PLY: vertex element count overflows")
+                    })?;
+                    if cursor + total > body.len() {
+                        return Err(SolidError::parse(format!(
+                            "PLY: vertex element declares {} rows ({total} bytes) but only {} bytes remain",
+                            elem.count,
+                            body.len() - cursor
+                        )));
+                    }
+                }
+
                 for _ in 0..elem.count {
                     let mut prop_vals: Vec<f64> = Vec::with_capacity(elem.properties.len());
 
@@ -338,12 +401,16 @@ fn parse_binary_body(
                                 let cnt =
                                     read_scalar(body, cursor, count_type, big_endian) as usize;
                                 cursor += count_type.byte_size();
-                                if cursor + cnt * value_type.byte_size() > body.len() {
+                                let list_bytes =
+                                    cnt.checked_mul(value_type.byte_size()).ok_or_else(|| {
+                                        SolidError::parse("PLY: list size overflows")
+                                    })?;
+                                if cursor + list_bytes > body.len() {
                                     return Err(SolidError::parse(
                                         "PLY: unexpected end of binary vertex list data",
                                     ));
                                 }
-                                cursor += cnt * value_type.byte_size();
+                                cursor += list_bytes;
                                 prop_vals.push(0.0); // placeholder to keep index alignment
                             }
                         }
@@ -393,6 +460,11 @@ fn parse_binary_body(
                     for prop in &elem.properties {
                         match prop.prop_type {
                             PropType::Scalar(st) => {
+                                if cursor + st.byte_size() > body.len() {
+                                    return Err(SolidError::parse(
+                                        "PLY: unexpected end of binary face data",
+                                    ));
+                                }
                                 cursor += st.byte_size();
                             }
                             PropType::List {
@@ -412,12 +484,16 @@ fn parse_binary_body(
                                     .iter()
                                     .any(|n| prop.name.eq_ignore_ascii_case(n));
 
+                                let list_bytes = cnt.checked_mul(value_type.byte_size()).ok_or_else(|| {
+                                    SolidError::parse("PLY: face list size overflows")
+                                })?;
+                                if cursor + list_bytes > body.len() {
+                                    return Err(SolidError::parse(
+                                        "PLY: unexpected end of binary face data",
+                                    ));
+                                }
+
                                 for _ in 0..cnt {
-                                    if cursor + value_type.byte_size() > body.len() {
-                                        return Err(SolidError::parse(
-                                            "PLY: unexpected end of binary face data",
-                                        ));
-                                    }
                                     let val =
                                         read_scalar(body, cursor, value_type, big_endian) as u32;
                                     cursor += value_type.byte_size();
@@ -426,6 +502,18 @@ fn parse_binary_body(
                                     }
                                 }
                             }
+                        }
+                    }
+
+                    // Validate every referenced vertex, even for degenerate
+                    // (sub-triangle) faces, so bad indices never slip through.
+                    for &corner in &face_verts {
+                        let vi = corner as usize;
+                        if vi >= vertices.len() {
+                            return Err(SolidError::parse(format!(
+                                "PLY: face vertex index {vi} out of range ({} vertices)",
+                                vertices.len()
+                            )));
                         }
                     }
 
@@ -444,6 +532,11 @@ fn parse_binary_body(
                     for prop in &elem.properties {
                         match prop.prop_type {
                             PropType::Scalar(st) => {
+                                if cursor + st.byte_size() > body.len() {
+                                    return Err(SolidError::parse(
+                                        "PLY: unexpected end of binary data",
+                                    ));
+                                }
                                 cursor += st.byte_size();
                             }
                             PropType::List {
@@ -458,7 +551,16 @@ fn parse_binary_body(
                                 let cnt =
                                     read_scalar(body, cursor, count_type, big_endian) as usize;
                                 cursor += count_type.byte_size();
-                                cursor += cnt * value_type.byte_size();
+                                let list_bytes =
+                                    cnt.checked_mul(value_type.byte_size()).ok_or_else(|| {
+                                        SolidError::parse("PLY: list size overflows")
+                                    })?;
+                                if cursor + list_bytes > body.len() {
+                                    return Err(SolidError::parse(
+                                        "PLY: unexpected end of binary data",
+                                    ));
+                                }
+                                cursor += list_bytes;
                             }
                         }
                     }

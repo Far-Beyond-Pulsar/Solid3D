@@ -93,11 +93,14 @@ pub fn parse_ascii(data: &[u8]) -> Result<(String, Vec<StlTriangle>)> {
     let mut triangles = Vec::new();
     let mut current_normal = Vec3::ZERO;
     let mut verts: Vec<Vec3> = Vec::new();
+    let mut saw_stl_keyword = false;
 
     for line in text.lines().map(|l| l.trim()) {
         if line.starts_with("solid") {
+            saw_stl_keyword = true;
             name = line[5..].trim().to_string();
         } else if line.starts_with("facet normal") {
+            saw_stl_keyword = true;
             let parts: Vec<&str> = line.split_whitespace().collect();
             if parts.len() >= 5 {
                 current_normal = Vec3::new(
@@ -107,6 +110,7 @@ pub fn parse_ascii(data: &[u8]) -> Result<(String, Vec<StlTriangle>)> {
                 );
             }
         } else if line.starts_with("vertex") {
+            saw_stl_keyword = true;
             let parts: Vec<&str> = line.split_whitespace().collect();
             if parts.len() >= 4 {
                 verts.push(Vec3::new(
@@ -116,6 +120,7 @@ pub fn parse_ascii(data: &[u8]) -> Result<(String, Vec<StlTriangle>)> {
                 ));
             }
         } else if line.starts_with("endfacet") {
+            saw_stl_keyword = true;
             if verts.len() >= 3 {
                 triangles.push(StlTriangle {
                     normal: current_normal,
@@ -125,6 +130,12 @@ pub fn parse_ascii(data: &[u8]) -> Result<(String, Vec<StlTriangle>)> {
             }
             verts.clear();
         }
+    }
+
+    if !saw_stl_keyword {
+        return Err(SolidError::parse(
+            "STL: file is not an ASCII STL (no 'solid', 'facet' or 'vertex' found)",
+        ));
     }
     Ok((name, triangles))
 }

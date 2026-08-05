@@ -368,8 +368,27 @@ pub fn read_cube_builder(
 
     header.archive.seek(SeekFrom::Start(start_offset))?;
     let mut raw_data = vec![0u8; data_len];
-    header.archive.reader.read_exact(&mut raw_data).ok();
+    header.archive.reader.read_exact(&mut raw_data)?;
 
+    let positions = scan_cube_builder_positions(&raw_data);
+
+    if positions.len() < 3 {
+        // #29: never fabricate geometry — surface the failure instead.
+        return Err(UnrealError::Parse {
+            context: "read_cube_builder",
+            detail: format!(
+                "could not extract vertex positions from CubeBuilder export '{export_name}'"
+            ),
+        });
+    }
+
+    build_mesh_from_positions(export_name, positions)
+}
+
+/// Brute-force scan of a CubeBuilder export's raw bytes for a run of finite
+/// vertex triples (f32 stride 12 or f64 stride 24). Returns an empty vec when
+/// nothing usable is found.
+fn scan_cube_builder_positions(raw_data: &[u8]) -> Vec<Vec3> {
     let mut best_positions: Vec<Vec3> = Vec::new();
 
     for start_byte in (32..raw_data.len().saturating_sub(12)).step_by(1) {
@@ -406,40 +425,7 @@ pub fn read_cube_builder(
         }
     }
 
-    if best_positions.len() >= 3 {
-        return build_mesh_from_positions(export_name, best_positions);
-    }
-
-    let box_verts = [
-        Vec3::new(-50.0, -50.0, -50.0), Vec3::new(50.0, -50.0, -50.0),
-        Vec3::new(50.0, 50.0, -50.0), Vec3::new(-50.0, 50.0, -50.0),
-        Vec3::new(-50.0, -50.0, 50.0), Vec3::new(50.0, -50.0, 50.0),
-        Vec3::new(50.0, 50.0, 50.0), Vec3::new(-50.0, 50.0, 50.0),
-    ];
-    let faces: [[u32; 4]; 6] = [
-        [0, 1, 2, 3], [1, 5, 6, 2], [5, 4, 7, 6],
-        [4, 0, 3, 7], [3, 2, 6, 7], [4, 5, 1, 0],
-    ];
-    let ue_verts: Vec<UnrealVertex> = box_verts.iter().map(|p| {
-        UnrealVertex { position: *p, ..Default::default() }
-    }).collect();
-    let mut indices = Vec::new();
-    for face in &faces {
-        indices.push(face[0]); indices.push(face[1]); indices.push(face[2]);
-        indices.push(face[0]); indices.push(face[2]); indices.push(face[3]);
-    }
-    let num_verts = ue_verts.len() as u32;
-    let num_idx = indices.len() as u32;
-    Ok(StaticMeshAsset {
-        name: export_name,
-        lod_count: 1,
-        lods: vec![StaticMeshLOD {
-            vertices: ue_verts,
-            indices,
-            sections: vec![MeshSection { material_index: 0, first_index: 0, num_indices: num_idx, first_vertex: 0, num_vertices: num_verts }],
-            material_names: vec!["Default".to_string()],
-        }],
-    })
+    best_positions
 }
 
 fn build_mesh_from_positions(export_name: String, positions: Vec<Vec3>) -> Result<StaticMeshAsset, UnrealError> {
@@ -537,5 +523,52 @@ fn half_to_f32(h: u16) -> f32 {
         if m == 0 { f32::INFINITY * if s == 0.0 { 1.0 } else { -1.0 } } else { f32::NAN }
     } else {
         f32::from_bits(((s as u32) << 31) | ((e as u32 + (127 - 15)) << 23) | (m as u32) << 13)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn payload_with_f32_triples(count: usize) -> Vec<u8> {
+        let mut raw = vec![0u8; 32];
+        for i in 0..count {
+            let x = (i as f32) * 10.0;
+            let y = (i as f32) * 5.0;
+            let z: f32 = 1.0;
+            raw.extend_from_slice(&x.to_le_bytes());
+            raw.extend_from_slice(&y.to_le_bytes());
+            raw.extend_from_slice(&z.to_le_bytes());
+        }
+        raw
+    }
+
+    #[test]
+    fn garbage_bytes_yield_no_positions() {
+        // #29: zero-padded / unparseable exports (e.g. truncated bulk data)
+        // must NOT be turned into a phantom 50x50x50 cube.
+        let garbage = vec![0u8; 512];
+        assert!(scan_cube_builder_positions(&garbage).is_empty());
+    }
+
+    #[test]
+    fn finite_triples_with_spread_are_found() {
+        let raw = payload_with_f32_triples(4);
+        let found = scan_cube_builder_positions(&raw);
+        assert_eq!(found.len(), 4);
+    }
+
+    #[test]
+    fn tight_cluster_without_spread_is_rejected() {
+        let mut raw = vec![0u8; 32];
+        let x: f32 = 1.0;
+        let y: f32 = 2.0;
+        let z: f32 = 3.0;
+        for _ in 0..8 {
+            raw.extend_from_slice(&x.to_le_bytes());
+            raw.extend_from_slice(&y.to_le_bytes());
+            raw.extend_from_slice(&z.to_le_bytes());
+        }
+        assert!(scan_cube_builder_positions(&raw).is_empty());
     }
 }

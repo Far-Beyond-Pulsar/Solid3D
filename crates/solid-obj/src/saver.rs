@@ -112,8 +112,11 @@ fn write_obj(scene: &Scene, w: &mut dyn Write, options: &SaveOptions) -> Result<
             if prim.material_index != last_mat {
                 match prim.material_index {
                     Some(mi) => {
-                        let mat_name = &scene.materials[mi].name;
-                        writeln!(w, "usemtl {mat_name}").map_err(SolidError::Io)?;
+                        if let Some(mat) = scene.materials.get(mi) {
+                            writeln!(w, "usemtl {}", mat.name).map_err(SolidError::Io)?;
+                        } else {
+                            writeln!(w, "usemtl (none)").map_err(SolidError::Io)?;
+                        }
                     }
                     None => {
                         writeln!(w, "usemtl (none)").map_err(SolidError::Io)?;
@@ -126,8 +129,24 @@ fn write_obj(scene: &Scene, w: &mut dyn Write, options: &SaveOptions) -> Result<
             writeln!(w, "s 1").map_err(SolidError::Io)?;
 
             // Emit triangles as faces
+            if prim.indices.len() % 3 != 0 {
+                return Err(SolidError::InvalidScene(format!(
+                    "mesh '{}': primitive index buffer length {} is not a multiple of 3",
+                    mesh.name,
+                    prim.indices.len()
+                )));
+            }
+            let n_verts = mesh.vertices.len();
             for tri in prim.indices.chunks(3) {
                 let [a, b, c] = [tri[0] as usize, tri[1] as usize, tri[2] as usize];
+                if a >= n_verts || b >= n_verts || c >= n_verts {
+                    return Err(SolidError::invalid_ref(format!(
+                        "mesh '{}': face references vertex index {} beyond {} vertices",
+                        mesh.name,
+                        [a, b, c].into_iter().max().unwrap_or(0),
+                        n_verts
+                    )));
+                }
                 let face = if has_uvs && has_normals {
                     format!(
                         "f {}/{}/{} {}/{}/{} {}/{}/{}",

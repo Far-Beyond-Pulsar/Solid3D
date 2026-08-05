@@ -42,6 +42,40 @@ struct ChannelEntry {
     anim_idx: usize,
 }
 
+/// Splits a mesh into FBX `PolygonVertexIndex` (last index of each triangle
+/// negated) plus per-polygon local material indices.
+///
+/// The local material index is the position of the primitive's material in
+/// first-appearance order across primitives, which matches the OO
+/// material→model connection order the loader maps back from. Primitives
+/// without a material get an out-of-range sentinel so the loader resolves
+/// them to "no material".
+fn mesh_polygon_data(mesh: &solid_rs::scene::Mesh) -> (Vec<i32>, Vec<i32>, Vec<usize>) {
+    let mut pvi: Vec<i32> = Vec::new();
+    let mut poly_mats: Vec<i32> = Vec::new();
+    let mut local_mats: Vec<usize> = Vec::new();
+    for prim in &mesh.primitives {
+        let local = match prim.material_index {
+            Some(mi) => match local_mats.iter().position(|&x| x == mi) {
+                Some(p) => p,
+                None => {
+                    local_mats.push(mi);
+                    local_mats.len() - 1
+                }
+            },
+            // Out-of-range sentinel: loader resolves this to no material.
+            None => local_mats.len(),
+        };
+        for (j, &vi) in prim.indices.iter().enumerate() {
+            pvi.push(if j % 3 == 2 { !(vi as i32) } else { vi as i32 });
+        }
+        for _ in 0..(prim.indices.len() / 3) {
+            poly_mats.push(local as i32);
+        }
+    }
+    (pvi, poly_mats, local_mats)
+}
+
 /// Saves a `Scene` as ASCII FBX 7.4.
 pub struct FbxSaver;
 
@@ -591,19 +625,9 @@ impl<'w> FbxWriter<'w> {
             .collect();
         self.write_f64_array("Vertices", &verts)?;
 
-        // PolygonVertexIndex from all primitives
-        let mut pvi: Vec<i32> = Vec::new();
-        for prim in &mesh.primitives {
-            let idx = &prim.indices;
-            let n = idx.len();
-            for (j, &vi) in idx.iter().enumerate() {
-                if j == n - 1 {
-                    pvi.push(!(vi as i32));
-                } else {
-                    pvi.push(vi as i32);
-                }
-            }
-        }
+        // PolygonVertexIndex from all primitives. FBX requires the last index
+        // of *each* triangle to be negated; the loader fans each polygon.
+        let (pvi, poly_mats, _local_mats) = mesh_polygon_data(mesh);
         self.write_i32_array("PolygonVertexIndex", &pvi)?;
 
         // Normals
@@ -712,13 +736,9 @@ impl<'w> FbxWriter<'w> {
                         .unwrap_or(0)],
                 )
             } else {
-                let mut poly_mats: Vec<i32> = Vec::new();
-                for (local_idx, prim) in mesh.primitives.iter().enumerate() {
-                    let tri_count = prim.indices.len() / 3;
-                    for _ in 0..tri_count {
-                        poly_mats.push(local_idx as i32);
-                    }
-                }
+                // Local material index per triangle, ordered by first
+                // appearance across primitives — this must match the OO
+                // material→model connection order the loader maps back from.
                 ("ByPolygon", poly_mats)
             };
             self.line("LayerElementMaterial: 0 {")?;
@@ -1134,18 +1154,7 @@ fn bin_build_geometry(id: i64, mesh: &solid_rs::scene::Mesh) -> BinNode {
         })
         .collect();
 
-    let mut pvi: Vec<i32> = Vec::new();
-    for prim in &mesh.primitives {
-        let idx = &prim.indices;
-        let n = idx.len();
-        for (j, &vi) in idx.iter().enumerate() {
-            if j == n - 1 {
-                pvi.push(!(vi as i32));
-            } else {
-                pvi.push(vi as i32);
-            }
-        }
-    }
+    let (pvi, poly_mats, _local_mats) = mesh_polygon_data(mesh);
 
     let mut children = vec![
         BinNode::leaf("Vertices", vec![BinProp::F64Arr(verts)]),
@@ -1200,6 +1209,43 @@ fn bin_build_geometry(id: i64, mesh: &solid_rs::scene::Mesh) -> BinNode {
                     vec![BinProp::Str("Direct".to_string())],
                 ),
                 BinNode::leaf("UV", vec![BinProp::F64Arr(uvs)]),
+            ],
+        });
+    }
+
+    let has_multi_mat = mesh.primitives.len() > 1
+        || mesh
+            .primitives
+            .first()
+            .and_then(|p| p.material_index)
+            .is_some();
+    if has_multi_mat {
+        let (mapping, mat_indices): (&str, Vec<i32>) = if mesh.primitives.len() <= 1 {
+            (
+                "AllSame",
+                vec![mesh
+                    .primitives
+                    .first()
+                    .and_then(|p| p.material_index)
+                    .map(|_| 0_i32)
+                    .unwrap_or(0)],
+            )
+        } else {
+            ("ByPolygon", poly_mats)
+        };
+        children.push(BinNode {
+            name: "LayerElementMaterial".to_string(),
+            props: vec![BinProp::Int32(0)],
+            children: vec![
+                BinNode::leaf(
+                    "MappingInformationType",
+                    vec![BinProp::Str(mapping.to_string())],
+                ),
+                BinNode::leaf(
+                    "ReferenceInformationType",
+                    vec![BinProp::Str("IndexToDirect".to_string())],
+                ),
+                BinNode::leaf("Materials", vec![BinProp::I32Arr(mat_indices)]),
             ],
         });
     }

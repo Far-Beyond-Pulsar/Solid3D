@@ -296,3 +296,16 @@ fn loader_rejects_truncated_binary() {
     let result = StlLoader.load(&mut Cursor::new(buf), &LoadOptions::default());
     assert!(result.is_err(), "truncated binary STL should be rejected");
 }
+
+// ── #22  Non-STL text must error, not produce an empty scene ──────────────────
+
+#[test]
+fn loader_rejects_non_stl_text() {
+    let text = b"this is not an STL file at all\njust some random text\n";
+    let result = StlLoader.load(&mut Cursor::new(text.to_vec()), &LoadOptions::default());
+    let err = result.unwrap_err();
+    assert!(
+        matches!(err, SolidError::Parse(_)),
+        "expected a parse error for non-STL text, got {err:?}"
+    );
+}

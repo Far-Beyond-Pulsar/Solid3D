@@ -30,6 +30,10 @@ pub struct LoadOptions {
     /// Weld duplicate vertices (same position + attributes) into one.
     pub merge_vertices: bool,
 
+    /// Merge all meshes into a single mesh when the format supports it.
+    /// Loaders that do not support merging silently ignore this.
+    pub merge_meshes: bool,
+
     /// Flip the V (vertical) texture coordinate: `v' = 1 − v`.
     /// Needed when converting between top-left and bottom-left UV origins.
     pub flip_uv_v: bool,

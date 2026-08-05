@@ -24,3 +24,4 @@ configurator = ["solid-rs/configurator"]
 [dev-dependencies]
 solid-rs = { workspace = true }
 glam     = { workspace = true }
+zip      = { workspace = true }

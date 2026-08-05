@@ -120,8 +120,6 @@ pub fn package_to_scene_from_uasset(
     _config: &UnrealConvertConfig,
 ) -> Result<solid_rs::scene::Scene, UnrealError> {
     use solid_rs::builder::SceneBuilder;
-    use solid_rs::geometry::Primitive;
-    use solid_rs::scene::Mesh;
 
     let file_len = {
         let end = reader.seek(SeekFrom::End(0))?;

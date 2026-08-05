@@ -67,8 +67,8 @@ impl Loader for UsdLoader {
 
         // --- USDZ ZIP container ---
         if data.starts_with(b"PK\x03\x04") {
-            let doc = usdz::read(Cursor::new(&data))?;
-            return convert::doc_to_scene(&doc);
+            let file = usdz::read(Cursor::new(&data))?;
+            return convert::doc_to_scene_with_assets(&file.doc, &file.assets);
         }
 
         // --- USDA text ---

@@ -28,11 +28,21 @@ use crate::document::{Attribute, Prim, Relationship, Specifier, StageMeta, UsdDo
 
 /// Convert a [`UsdDoc`] into a SolidRS [`Scene`].
 pub fn doc_to_scene(doc: &UsdDoc) -> Result<Scene, SolidError> {
+    doc_to_scene_with_assets(doc, &Default::default())
+}
+
+/// Convert a [`UsdDoc`] into a SolidRS [`Scene`], resolving asset paths
+/// (e.g. texture files inside a USDZ archive) against `assets` when present.
+pub fn doc_to_scene_with_assets(
+    doc: &UsdDoc,
+    assets: &HashMap<String, (String, Vec<u8>)>,
+) -> Result<Scene, SolidError> {
     let mut ctx = LoadCtx {
         builder: SceneBuilder::new(),
         mat_path_to_idx: HashMap::new(),
         img_path_to_idx: HashMap::new(),
         tex_count: 0,
+        assets,
     };
 
     // ── Stage name ────────────────────────────────────────────────────────
@@ -64,11 +74,12 @@ pub fn doc_to_scene(doc: &UsdDoc) -> Result<Scene, SolidError> {
 
 // ── Loading context ───────────────────────────────────────────────────────────
 
-struct LoadCtx {
+struct LoadCtx<'a> {
     builder: SceneBuilder,
     mat_path_to_idx: HashMap<String, usize>,
     img_path_to_idx: HashMap<String, usize>,
     tex_count: usize,
+    assets: &'a HashMap<String, (String, Vec<u8>)>,
 }
 
 // ── Material collection ───────────────────────────────────────────────────────
@@ -135,9 +146,20 @@ fn build_material(prim: &Prim, _path: &str, ctx: &mut LoadCtx) -> Material {
             if let Some(file_attr) = tex_shader.attr("inputs:file") {
                 if let Some(UsdValue::Asset(path)) = &file_attr.value {
                     let img_idx = *ctx.img_path_to_idx.entry(path.clone()).or_insert_with(|| {
+                        let name = path.clone();
+                        // Prefer the bytes embedded in a USDZ archive over a
+                        // bare URI (which cannot be resolved for zip contents).
+                        let source = ctx
+                            .assets
+                            .get(&crate::usdz::normalize_asset_path(path))
+                            .map(|(mime, data)| ImageSource::Embedded {
+                                mime_type: mime.clone(),
+                                data: data.clone(),
+                            })
+                            .unwrap_or_else(|| ImageSource::Uri(path.clone()));
                         let img = Image {
-                            name: path.clone(),
-                            source: ImageSource::Uri(path.clone()),
+                            name,
+                            source,
                             extensions: Default::default(),
                         };
                         ctx.builder.push_image(img)
