@@ -468,13 +468,8 @@ Model: 1, "M", "Mesh"  {
 }
 "#;
         let doc = parse_str(src);
-        let objects = doc
+        let model = doc
             .roots
-            .iter()
-            .find(|n| n.name == "Objects")
-            .expect("Objects node");
-        let model = objects
-            .children
             .iter()
             .find(|n| n.name == "Model")
             .expect("Model node");
