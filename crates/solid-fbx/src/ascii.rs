@@ -429,3 +429,86 @@ impl AsciiParser {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn parse_str(src: &str) -> FbxDocument {
+        let bytes = src.as_bytes().to_vec();
+        let mut cursor = std::io::Cursor::new(bytes);
+        parse(&mut cursor).unwrap()
+    }
+
+    /// Regression: dashed bare identifiers such as `Pre-Extrapolation`
+    /// must stay a single token instead of splitting into `Pre` +
+    /// `Extrapolation` (which spawned a bogus node on parse).
+    #[test]
+    fn dashed_bare_identifiers_stay_single_token() {
+        let tokens = tokenize("Pre-Extrapolation: 0").unwrap();
+        assert!(
+            matches!(&tokens[0], Token::Word(w) if w == "Pre-Extrapolation"),
+            "expected single dashed token, got {tokens:?}"
+        );
+    }
+
+    /// Regression: a Properties70 block with dashed properties and bare-word
+    /// values must parse without spawning bogus sibling nodes or dropping
+    /// values.
+    #[test]
+    fn dashed_identifiers_and_bare_word_values_parse() {
+        let src = r#"; FBX 7.4.0 project file
+Model: 1, "M", "Mesh"  {
+    Version: 232
+    Properties70:  {
+        Pre-Extrapolation: 0
+        Post-Extrapolation: 0
+        Shading: Flat
+    }
+}
+"#;
+        let doc = parse_str(src);
+        let objects = doc
+            .roots
+            .iter()
+            .find(|n| n.name == "Objects")
+            .expect("Objects node");
+        let model = objects
+            .children
+            .iter()
+            .find(|n| n.name == "Model")
+            .expect("Model node");
+        let props = model.child("Properties70").expect("Properties70 node");
+
+        assert!(
+            props.children.iter().any(|n| n.name == "Pre-Extrapolation"),
+            "dashed property was not parsed as a node"
+        );
+        assert!(
+            !props.children.iter().any(|n| n.name == "Extrapolation"),
+            "dashed identifier was split into a bogus 'Extrapolation' node"
+        );
+        let shading = props
+            .children
+            .iter()
+            .find(|n| n.name == "Shading")
+            .expect("Shading node");
+        assert!(
+            shading.properties.iter().any(|p| p.as_str() == Some("Flat")),
+            "bare-word value 'Flat' was dropped"
+        );
+    }
+
+    /// Regression: negative numbers still tokenise correctly after the
+    /// dashed-identifier change (`-1` must not become a word).
+    #[test]
+    fn negative_numbers_still_parse_as_integers() {
+        let tokens = tokenize("-1,2,-3.5").unwrap();
+        assert!(matches!(tokens[0], Token::Integer(-1)), "{tokens:?}");
+        assert!(matches!(tokens[2], Token::Integer(2)), "{tokens:?}");
+        assert!(
+            matches!(tokens[4], Token::Float(v) if (v - -3.5).abs() < 1e-9),
+            "{tokens:?}"
+        );
+    }
+}
