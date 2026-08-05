@@ -48,9 +48,34 @@ pub fn gltf_to_scene(
                 Image::from_uri(name, uri.clone())
             }
         } else if let Some(bv_idx) = img.buffer_view {
+            if bv_idx >= root.buffer_views.len() {
+                return Err(SolidError::parse(format!(
+                    "glTF: image references bufferView {bv_idx}, but only {} exist",
+                    root.buffer_views.len()
+                )));
+            }
             let bv = &root.buffer_views[bv_idx];
+            if bv.buffer >= buffers.len() {
+                return Err(SolidError::parse(format!(
+                    "glTF: image bufferView {bv_idx} references buffer {}, but only {} exist",
+                    bv.buffer,
+                    buffers.len()
+                )));
+            }
             let buf = &buffers[bv.buffer];
-            let data = buf[bv.byte_offset..bv.byte_offset + bv.byte_length].to_vec();
+            let start = bv.byte_offset;
+            let end = bv
+                .byte_offset
+                .checked_add(bv.byte_length)
+                .ok_or_else(|| SolidError::parse("glTF: image byte range overflow"))?;
+            if start > buf.len() || end > buf.len() {
+                return Err(SolidError::parse(format!(
+                    "glTF: image bufferView [{start}..{end}] beyond buffer {} length {}",
+                    bv.buffer,
+                    buf.len()
+                )));
+            }
+            let data = buf[start..end].to_vec();
             let mime = img.mime_type.clone().unwrap_or_else(|| "image/png".into());
             Image::embedded(name, mime, data)
         } else {
@@ -268,11 +293,64 @@ pub fn gltf_to_scene(
                 (0..n as u32).collect()
             };
 
+            // Validate every index against the primitive's own vertex count
+            // before offsetting, so out-of-range values error instead of
+            // escaping into the scene.
+            for &i in &indices {
+                if i as usize >= n {
+                    return Err(SolidError::parse(format!(
+                        "glTF: primitive index {i} out of range ({} vertices)",
+                        n
+                    )));
+                }
+            }
+
+            // Honour the glTF primitive mode. TRIANGLES is stored as-is;
+            // strips/fans are expanded into triangle lists; point/line modes
+            // cannot be represented and are rejected rather than corrupted.
+            let tri_indices: Vec<u32> = match prim.mode.unwrap_or(4) {
+                4 => indices,
+                5 => {
+                    // TRIANGLE_STRIP: every 3 consecutive indices, winding
+                    // flips on odd steps.
+                    let mut out = Vec::with_capacity(indices.len().saturating_sub(2) * 3);
+                    for (i, w) in indices.windows(3).enumerate() {
+                        if i % 2 == 0 {
+                            out.extend_from_slice(w);
+                        } else {
+                            out.push(w[0]);
+                            out.push(w[2]);
+                            out.push(w[1]);
+                        }
+                    }
+                    out
+                }
+                6 => {
+                    // TRIANGLE_FAN: (0, i, i+1) fan around the first vertex.
+                    let mut out = Vec::new();
+                    if indices.len() >= 3 {
+                        for i in 1..indices.len() - 1 {
+                            out.push(indices[0]);
+                            out.push(indices[i]);
+                            out.push(indices[i + 1]);
+                        }
+                    }
+                    out
+                }
+                other => {
+                    return Err(SolidError::unsupported(format!(
+                        "glTF primitive mode {other} (point/line primitives are not supported)"
+                    )));
+                }
+            };
+
             // Record vertex start offset before extending the shared buffer.
             let vert_offset = mesh.vertices.len();
             mesh.vertices.extend(vertices);
-            let offset_indices: Vec<u32> =
-                indices.iter().map(|&i| i + vert_offset as u32).collect();
+            let offset_indices: Vec<u32> = tri_indices
+                .iter()
+                .map(|&i| i + vert_offset as u32)
+                .collect();
             let solid_prim = Primitive::triangles(offset_indices, prim.material);
             mesh.primitives.push(solid_prim);
         }
@@ -1026,7 +1104,9 @@ pub fn scene_to_gltf(scene: &solid_rs::scene::scene::Scene) -> Result<(GltfRoot,
         gltf_node_map.insert(nid, gi);
     }
     for &nid in &ordered {
-        let node = scene.node(nid).unwrap();
+        let Some(node) = scene.node(nid) else {
+            continue;
+        };
         let t = &node.transform;
         let children: Vec<usize> = node
             .children
