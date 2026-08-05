@@ -57,8 +57,21 @@ impl FbxNode {
     }
 
     /// Third property as `&str` — the FBX object class (e.g. `"Mesh"`, `"Null"`).
+    ///
+    /// Binary FBX files conventionally leave this property empty and embed the
+    /// class in the object name as `"name\x00\x01Class"`; fall back to that
+    /// embedded class so both layouts are recognised.
     pub fn object_class(&self) -> Option<&str> {
-        self.properties.get(2).and_then(FbxProperty::as_str)
+        if let Some(s) = self.properties.get(2).and_then(FbxProperty::as_str) {
+            if !s.is_empty() {
+                return Some(s);
+            }
+        }
+        self.properties
+            .get(1)
+            .and_then(FbxProperty::as_str)
+            .and_then(|name| name.split('\x00').nth(1))
+            .map(|s| s.strip_prefix('\x01').unwrap_or(s))
     }
 
     /// First property as `f64`.
