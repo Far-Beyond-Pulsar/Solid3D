@@ -24,7 +24,7 @@ are pulled in à-la-carte.
 | Crate | Status | Description |
 |---|---|---|
 | [`solid-rs`](crates/solid-rs) | ✅ stable | Core scene types, traits, registry |
-| [`solid-fbx`](crates/solid-fbx) | ✅ stable | Autodesk FBX binary + ASCII loader; ASCII 7.4 saver; cameras, lights, vertex colours, skinning, animation |
+| [`solid-fbx`](crates/solid-fbx) | ✅ stable | Autodesk FBX binary + ASCII loader/saver; cameras, lights, vertex colours, skinning, animation |
 | [`solid-obj`](crates/solid-obj) | ✅ stable | Wavefront OBJ / MTL loader + saver; smoothing groups; PBR MTL extensions |
 | [`solid-gltf`](crates/solid-gltf) | ✅ stable | glTF 2.0 JSON + GLB load + save; skinning; animation; KHR_lights_punctual |
 | [`solid-stl`](crates/solid-stl) | ✅ stable | STL binary + ASCII load + save; smooth normals; VisCAM vertex colours |
@@ -185,20 +185,15 @@ MIME type.
 
 ---
 
-## Building
+## Format Details
 
-```bash
-# Build everything
-cargo build --workspace
+Every supported format has its full feature table below in a collapsed section.
+Use the summary line to find the format you need, then expand it for the
+per-feature load/save breakdown.
 
-# Run the full test suite (~350 tests)
-cargo test --workspace
+Legend: ✅ supported · ⚠️ partial · ❌ not supported · — not applicable to this format
 
-# Run the FBX → OBJ converter example
-cargo run -p fbx-to-obj -- input.fbx output.obj
-```
-
-### Format support matrix
+### At a glance
 
 | Format | Load | Save | Notes |
 |---|---|---|---|
@@ -218,15 +213,8 @@ cargo run -p fbx-to-obj -- input.fbx output.obj
 
 ---
 
-## Format Feature Details
-
-Legend: ✅ supported · ⚠️ partial · ❌ not supported · — not applicable to this format
-
----
-
-### Unreal Engine — `.uasset` / `.umap` ([`solid-unreal`](crates/solid-unreal))
-
-Extensions: `.uasset`, `.umap` · MIME: `application/x-ue-package`
+<details>
+<summary><strong>Unreal Engine — <code>.uasset</code> / <code>.umap</code></strong> · <code>solid-unreal</code> · extensions <code>.uasset</code>, <code>.umap</code> · MIME <code>application/x-ue-package</code> — cooked &amp; uncooked packages; UStaticMesh, UTexture2D, UMaterial, UWorld/ULevel, BSP</summary>
 
 | Feature | Load | Notes |
 |---------|------|-------|
@@ -254,11 +242,12 @@ Extensions: `.uasset`, `.umap` · MIME: `application/x-ue-package`
 | `StaticMeshComponent` / `SkeletalMeshComponent` | ✅ | Mesh references with placement transforms |
 | `SceneComponent` (RelativeLocation, Rotation, Scale3D) | ✅ | Full TRS → Mat4 conversion |
 
+</details>
+
 ---
 
-### FBX — Autodesk Filmbox ([`solid-fbx`](crates/solid-fbx))
-
-Extensions: `.fbx` · MIME: `model/fbx`
+<details>
+<summary><strong>FBX — Autodesk Filmbox</strong> · <code>solid-fbx</code> · extensions <code>.fbx</code> · MIME <code>model/fbx</code> — binary + ASCII; geometry, PBR materials, textures, lights, cameras, skinning, animation</summary>
 
 | Feature | Load | Save | Notes |
 |---|---|---|---|
@@ -267,9 +256,9 @@ Extensions: `.fbx` · MIME: `model/fbx`
 | ASCII FBX | ✅ | ✅ | v7.4 format |
 | **Geometry** | | | |
 | Positions | ✅ | ✅ | |
-| Normals (`ByPolygonVertex` / `ByVertex`) | ✅ | ✅ | |
-| UV coordinates (channel 0) | ✅ | ✅ | V-axis flipped on load/save |
-| Vertex colours (`LayerElementColor`) | ✅ | ✅ | Direct + IndexToDirect |
+| Normals (`ByPolygonVertex` / `ByVertex` / `ByControlPoint`) | ✅ | ✅ | |
+| UV coordinates (multi-channel) | ✅ | ✅ | V-axis flipped on load/save |
+| Vertex colours (`LayerElementColor`, multi-channel) | ✅ | ✅ | Direct + IndexToDirect |
 | Tangents (`LayerElementTangent`) | ✅ | ✅ | xyz + w component |
 | N-gon triangulation (`PolygonVertexIndex`) | ✅ | ✅ | Fan method |
 | Per-polygon material (`LayerElementMaterial`) | ✅ | ✅ | `AllSame` + `ByPolygon` |
@@ -303,11 +292,12 @@ Extensions: `.fbx` · MIME: `model/fbx`
 | Multi-track animation stacks | ✅ | ✅ | One `Animation` per `AnimationStack` |
 | Morph target weights | ❌ | ❌ | |
 
+</details>
+
 ---
 
-### OBJ — Wavefront ([`solid-obj`](crates/solid-obj))
-
-Extensions: `.obj`, `.mtl` · MIME: `model/obj`
+<details>
+<summary><strong>OBJ — Wavefront</strong> · <code>solid-obj</code> · extensions <code>.obj</code>, <code>.mtl</code> · MIME <code>model/obj</code> — geometry, smoothing groups, MTL materials incl. PBR extensions</summary>
 
 | Feature | Load | Save | Notes |
 |---|---|---|---|
@@ -342,11 +332,12 @@ Extensions: `.obj`, `.mtl` · MIME: `model/obj`
 | Transforms | — | — | |
 | Cameras / lights / skinning / animation | — | — | |
 
+</details>
+
 ---
 
-### glTF 2.0 — Khronos ([`solid-gltf`](crates/solid-gltf))
-
-Extensions: `.gltf`, `.glb` · MIME: `model/gltf+json`, `model/gltf-binary`
+<details>
+<summary><strong>glTF 2.0 — Khronos</strong> · <code>solid-gltf</code> · extensions <code>.gltf</code>, <code>.glb</code> · MIME <code>model/gltf+json</code>, <code>model/gltf-binary</code> — JSON + GLB; PBR materials, skinning, animation, morph targets, KHR_lights_punctual</summary>
 
 | Feature | Load | Save | Notes |
 |---|---|---|---|
@@ -389,11 +380,12 @@ Extensions: `.gltf`, `.glb` · MIME: `model/gltf+json`, `model/gltf-binary`
 | Cameras attached to nodes | ✅ | ✅ | |
 | `KHR_lights_punctual` (point / spot / directional) | ✅ | ✅ | |
 
+</details>
+
 ---
 
-### STL — Stereolithography ([`solid-stl`](crates/solid-stl))
-
-Extensions: `.stl` · MIME: `model/stl`, `application/sla`
+<details>
+<summary><strong>STL — Stereolithography</strong> · <code>solid-stl</code> · extensions <code>.stl</code> · MIME <code>model/stl</code>, <code>application/sla</code> — binary + ASCII; smooth normals, VisCAM vertex colours</summary>
 
 | Feature | Load | Save | Notes |
 |---|---|---|---|
@@ -414,11 +406,12 @@ Extensions: `.stl` · MIME: `model/stl`, `application/sla`
 | Materials / textures | — | — | Not supported by format |
 | Cameras / lights / skinning / animation | — | — | Not supported by format |
 
+</details>
+
 ---
 
-### PLY — Stanford Polygon ([`solid-ply`](crates/solid-ply))
-
-Extensions: `.ply` · MIME: `model/ply`
+<details>
+<summary><strong>PLY — Stanford Polygon</strong> · <code>solid-ply</code> · extensions <code>.ply</code> · MIME <code>model/ply</code> — ASCII + binary LE/BE; point clouds, multi-UV, tangents, double precision</summary>
 
 | Feature | Load | Save | Notes |
 |---|---|---|---|
@@ -447,11 +440,12 @@ Extensions: `.ply` · MIME: `model/ply`
 | Materials / textures | — | — | Not supported by format |
 | Cameras / lights / skinning / animation | — | — | Not supported by format |
 
+</details>
+
 ---
 
-### MDL — Quake Model ([`solid-mdl`](crates/solid-mdl))
-
-Extensions: `.mdl` · MIME: `model/mdl` · Spec: [Quake MDL format](https://book.leveldesignbook.com/appendix/resources/formats/mdl)
+<details>
+<summary><strong>MDL — Quake Model</strong> · <code>solid-mdl</code> · extensions <code>.mdl</code> · MIME <code>model/mdl</code> · spec: <a href="https://book.leveldesignbook.com/appendix/resources/formats/mdl">Quake MDL format</a> — 8-bit indexed textures, 162 anorms, frame-by-frame animation</summary>
 
 | Feature | Load | Save | Notes |
 |---|---|---|---|
@@ -476,6 +470,23 @@ Extensions: `.mdl` · MIME: `model/mdl` · Spec: [Quake MDL format](https://book
 | Bounding box quantisation | — | ✅ | Scale/translate computed from mesh bounds |
 | Normal quantisation | — | ✅ | Closest anorm via dot-product search |
 | No skin output | — | ✅ | `num_skins = 0` (texture lossy) |
+
+</details>
+
+---
+
+## Building
+
+```bash
+# Build everything
+cargo build --workspace
+
+# Run the full test suite (~350 tests)
+cargo test --workspace
+
+# Run the FBX → OBJ converter example
+cargo run -p fbx-to-obj -- input.fbx output.obj
+```
 
 ---
 
