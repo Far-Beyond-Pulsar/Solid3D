@@ -17,6 +17,11 @@ use crate::document::{FbxDocument, FbxNode, FbxProperty};
 
 const MAGIC: &[u8; 23] = b"Kaydara FBX Binary  \x00\x1a\x00";
 
+/// Hard cap on the decoded byte size of a single array property. Real FBX
+/// geometry arrays stay well below this; it exists to stop a malformed
+/// `count`/`compressed_len` field from forcing a multi-gigabyte allocation.
+const MAX_ARRAY_BYTES: usize = 1 << 30; // 1 GiB
+
 /// Peek at the first 23 bytes and check for the binary FBX magic.
 /// The reader position is restored afterwards.
 pub(crate) fn detect(reader: &mut dyn ReadSeek) -> bool {
@@ -127,9 +132,24 @@ impl<'r> BinaryParser<'r> {
     }
 
     fn read_bytes(&mut self, n: usize) -> Result<Vec<u8>> {
-        let mut buf = vec![0u8; n];
-        self.r.read_exact(&mut buf).map_err(SolidError::Io)?;
-        Ok(buf)
+        // Read incrementally so a malicious declared length cannot force a
+        // huge upfront allocation; a short read is reported as a parse error.
+        let mut out = Vec::new();
+        out.reserve(n.min(1 << 16));
+        let mut chunk = [0u8; 1 << 16];
+        let mut remaining = n;
+        while remaining > 0 {
+            let want = remaining.min(chunk.len());
+            let got = self.r.read(&mut chunk[..want]).map_err(SolidError::Io)?;
+            if got == 0 {
+                return Err(SolidError::parse(
+                    "unexpected end of file while reading property",
+                ));
+            }
+            out.extend_from_slice(&chunk[..got]);
+            remaining -= got;
+        }
+        Ok(out)
     }
 
     // ── Node reading ─────────────────────────────────────────────────────────
@@ -277,15 +297,32 @@ impl<'r> BinaryParser<'r> {
         let encoding = self.read_u32()?;
         let compressed_len = self.read_u32()? as usize;
 
+        let expected = count
+            .checked_mul(elem_size)
+            .ok_or_else(|| SolidError::parse("array byte length overflow"))?;
+        if expected > MAX_ARRAY_BYTES {
+            return Err(SolidError::parse(format!(
+                "array too large ({expected} bytes)"
+            )));
+        }
+
         let raw = self.read_bytes(compressed_len)?;
 
         match encoding {
             0 => Ok(raw), // uncompressed
             1 => {
-                // zlib-deflate
-                let mut dec = ZlibDecoder::new(&raw[..]);
-                let mut out = Vec::with_capacity(count * elem_size);
-                dec.read_to_end(&mut out).map_err(SolidError::Io)?;
+                // zlib-deflate. Bound the decoder output so a hostile stream
+                // cannot expand beyond the declared `count * elem_size`.
+                let dec = ZlibDecoder::new(&raw[..]);
+                let mut out = Vec::new();
+                out.reserve(expected.min(1 << 20));
+                let mut limited = dec.take((expected + 1) as u64);
+                limited.read_to_end(&mut out).map_err(SolidError::Io)?;
+                if out.len() > expected {
+                    return Err(SolidError::parse(
+                        "decompressed array larger than declared count",
+                    ));
+                }
                 Ok(out)
             }
             e => Err(SolidError::parse(format!(

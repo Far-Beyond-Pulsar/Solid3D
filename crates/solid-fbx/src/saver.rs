@@ -994,6 +994,7 @@ enum BinProp {
     Str(String),
     F64Arr(Vec<f64>),
     I32Arr(Vec<i32>),
+    I64Arr(Vec<i64>),
 }
 
 impl BinNode {
@@ -1075,6 +1076,15 @@ fn bin_write_prop(buf: &mut BinBuf, prop: &BinProp) {
             buf.push_u32((arr.len() * 4) as u32);
             for &v in arr {
                 buf.push_i32(v);
+            }
+        }
+        BinProp::I64Arr(arr) => {
+            buf.push_u8(b'l');
+            buf.push_u32(arr.len() as u32);
+            buf.push_u32(0); // encoding = raw
+            buf.push_u32((arr.len() * 8) as u32);
+            for &v in arr {
+                buf.push_i64(v);
             }
         }
     }
@@ -1209,13 +1219,22 @@ fn bin_build_model(id: i64, node: &solid_rs::scene::Node) -> BinNode {
     let obj_name = format!("{}\x00\x01Model", node.name);
     let t = &node.transform;
     let (rx, ry, rz) = t.rotation.to_euler(EulerRot::XYZ);
+    let node_type = if node.mesh.is_some() {
+        "Mesh"
+    } else if node.camera.is_some() {
+        "Camera"
+    } else if node.light.is_some() {
+        "Light"
+    } else {
+        "Null"
+    };
 
     BinNode {
         name: "Model".to_string(),
         props: vec![
             BinProp::Int64(id),
             BinProp::Str(obj_name),
-            BinProp::Str("Mesh".to_string()),
+            BinProp::Str(node_type.to_string()),
         ],
         children: vec![BinNode {
             name: "Properties70".to_string(),
@@ -1325,6 +1344,452 @@ fn bin_build_material(id: i64, mat: &solid_rs::scene::Material) -> BinNode {
     }
 }
 
+fn bin_build_camera_attribute(id: i64, cam: &Camera) -> BinNode {
+    let obj_name = format!("{}\x00\x01NodeAttribute", cam.name);
+    let mut props70 = Vec::new();
+    if let Projection::Perspective(p) = &cam.projection {
+        props70.push(BinNode::leaf(
+            "P",
+            vec![
+                BinProp::Str("FieldOfView".to_string()),
+                BinProp::Str("FieldOfView".to_string()),
+                BinProp::Str("Number".to_string()),
+                BinProp::Str("A+".to_string()),
+                BinProp::Float64(p.fov_y.to_degrees() as f64),
+            ],
+        ));
+        props70.push(BinNode::leaf(
+            "P",
+            vec![
+                BinProp::Str("NearPlane".to_string()),
+                BinProp::Str("double".to_string()),
+                BinProp::Str("Number".to_string()),
+                BinProp::Str(String::new()),
+                BinProp::Float64(p.z_near as f64),
+            ],
+        ));
+        if let Some(far) = p.z_far {
+            props70.push(BinNode::leaf(
+                "P",
+                vec![
+                    BinProp::Str("FarPlane".to_string()),
+                    BinProp::Str("double".to_string()),
+                    BinProp::Str("Number".to_string()),
+                    BinProp::Str(String::new()),
+                    BinProp::Float64(far as f64),
+                ],
+            ));
+        }
+    } else if let Projection::Orthographic(o) = &cam.projection {
+        props70.push(BinNode::leaf(
+            "P",
+            vec![
+                BinProp::Str("CameraProjectionType".to_string()),
+                BinProp::Str("enum".to_string()),
+                BinProp::Str(String::new()),
+                BinProp::Str(String::new()),
+                BinProp::Int32(1),
+            ],
+        ));
+        props70.push(BinNode::leaf(
+            "P",
+            vec![
+                BinProp::Str("OrthoZoom".to_string()),
+                BinProp::Str("double".to_string()),
+                BinProp::Str("Number".to_string()),
+                BinProp::Str(String::new()),
+                BinProp::Float64(o.x_mag as f64),
+            ],
+        ));
+        props70.push(BinNode::leaf(
+            "P",
+            vec![
+                BinProp::Str("NearPlane".to_string()),
+                BinProp::Str("double".to_string()),
+                BinProp::Str("Number".to_string()),
+                BinProp::Str(String::new()),
+                BinProp::Float64(o.z_near as f64),
+            ],
+        ));
+        props70.push(BinNode::leaf(
+            "P",
+            vec![
+                BinProp::Str("FarPlane".to_string()),
+                BinProp::Str("double".to_string()),
+                BinProp::Str("Number".to_string()),
+                BinProp::Str(String::new()),
+                BinProp::Float64(o.z_far as f64),
+            ],
+        ));
+    }
+
+    BinNode {
+        name: "NodeAttribute".to_string(),
+        props: vec![
+            BinProp::Int64(id),
+            BinProp::Str(obj_name),
+            BinProp::Str("Camera".to_string()),
+        ],
+        children: vec![BinNode {
+            name: "Properties70".to_string(),
+            props: vec![],
+            children: props70,
+        }],
+    }
+}
+
+fn bin_build_light_attribute(id: i64, light: &Light) -> BinNode {
+    let obj_name = format!("{}\x00\x01NodeAttribute", light.name());
+    let light_type: i32 = match light {
+        Light::Point(_) => 0,
+        Light::Directional(_) => 1,
+        Light::Spot(_) => 2,
+        Light::Area(_) => 3,
+    };
+    let c = light.color();
+    let intensity_100 = light.intensity() * 100.0;
+
+    let mut props70 = vec![
+        BinNode::leaf(
+            "P",
+            vec![
+                BinProp::Str("LightType".to_string()),
+                BinProp::Str("enum".to_string()),
+                BinProp::Str(String::new()),
+                BinProp::Str(String::new()),
+                BinProp::Int32(light_type),
+            ],
+        ),
+        BinNode::leaf(
+            "P",
+            vec![
+                BinProp::Str("Color".to_string()),
+                BinProp::Str("Color".to_string()),
+                BinProp::Str(String::new()),
+                BinProp::Str("A".to_string()),
+                BinProp::Float64(c.x as f64),
+                BinProp::Float64(c.y as f64),
+                BinProp::Float64(c.z as f64),
+            ],
+        ),
+        BinNode::leaf(
+            "P",
+            vec![
+                BinProp::Str("Intensity".to_string()),
+                BinProp::Str("Number".to_string()),
+                BinProp::Str(String::new()),
+                BinProp::Str("A+".to_string()),
+                BinProp::Float64(intensity_100 as f64),
+            ],
+        ),
+    ];
+    if let Light::Spot(s) = light {
+        props70.push(BinNode::leaf(
+            "P",
+            vec![
+                BinProp::Str("InnerAngle".to_string()),
+                BinProp::Str("Number".to_string()),
+                BinProp::Str(String::new()),
+                BinProp::Str("A+".to_string()),
+                BinProp::Float64(s.inner_cone_angle.to_degrees() as f64),
+            ],
+        ));
+        props70.push(BinNode::leaf(
+            "P",
+            vec![
+                BinProp::Str("OuterAngle".to_string()),
+                BinProp::Str("Number".to_string()),
+                BinProp::Str(String::new()),
+                BinProp::Str("A+".to_string()),
+                BinProp::Float64(s.outer_cone_angle.to_degrees() as f64),
+            ],
+        ));
+    }
+    if let Light::Area(a) = light {
+        let area_size = a.width.max(a.height);
+        props70.push(BinNode::leaf(
+            "P",
+            vec![
+                BinProp::Str("AreaSize".to_string()),
+                BinProp::Str("double".to_string()),
+                BinProp::Str("Number".to_string()),
+                BinProp::Str(String::new()),
+                BinProp::Float64(area_size as f64),
+            ],
+        ));
+    }
+
+    BinNode {
+        name: "NodeAttribute".to_string(),
+        props: vec![
+            BinProp::Int64(id),
+            BinProp::Str(obj_name),
+            BinProp::Str("Light".to_string()),
+        ],
+        children: vec![BinNode {
+            name: "Properties70".to_string(),
+            props: vec![],
+            children: props70,
+        }],
+    }
+}
+
+struct BinSkin {
+    skin_id: i64,
+    geom_id: i64,
+    node_idx: usize,
+    skin_idx: usize,
+    clusters: Vec<BinCluster>,
+}
+
+struct BinCluster {
+    cluster_id: i64,
+    joint_node_idx: usize,
+}
+
+fn bin_build_skin(entry: &BinSkin, scene: &Scene) -> Vec<BinNode> {
+    let skin = &scene.skins[entry.skin_idx];
+    let mut nodes = vec![BinNode {
+        name: "Deformer".to_string(),
+        props: vec![
+            BinProp::Int64(entry.skin_id),
+            BinProp::Str(format!("{}\x00\x01Skin", skin.name)),
+            BinProp::Str(String::new()),
+        ],
+        children: vec![BinNode::leaf("Version", vec![BinProp::Int32(101)])],
+    }];
+
+    let mesh = &scene.meshes[scene.nodes[entry.node_idx].mesh.unwrap()];
+
+    for (ji, cluster_entry) in entry.clusters.iter().enumerate() {
+        let joint_name = &scene.nodes[cluster_entry.joint_node_idx].name;
+        let ibp = skin
+            .inverse_bind_matrices
+            .get(ji)
+            .copied()
+            .unwrap_or(Mat4::IDENTITY);
+        let tl = ibp.inverse();
+        let tl_cols: Vec<f64> = tl.to_cols_array().iter().map(|&x| x as f64).collect();
+
+        let mut indexes: Vec<i32> = Vec::new();
+        let mut weights: Vec<f64> = Vec::new();
+        for (vi, v) in mesh.vertices.iter().enumerate() {
+            if let Some(sw) = &v.skin_weights {
+                for k in 0..4 {
+                    if sw.joints[k] as usize == ji && sw.weights[k] > 0.0 {
+                        indexes.push(vi as i32);
+                        weights.push(sw.weights[k] as f64);
+                        break;
+                    }
+                }
+            }
+        }
+
+        nodes.push(BinNode {
+            name: "Deformer".to_string(),
+            props: vec![
+                BinProp::Int64(cluster_entry.cluster_id),
+                BinProp::Str(format!("{}\x00\x01Cluster", joint_name)),
+                BinProp::Str(String::new()),
+            ],
+            children: vec![
+                BinNode::leaf("Version", vec![BinProp::Int32(100)]),
+                BinNode::leaf("Indexes", vec![BinProp::I32Arr(indexes)]),
+                BinNode::leaf("Weights", vec![BinProp::F64Arr(weights)]),
+                BinNode::leaf(
+                    "Transform",
+                    vec![BinProp::F64Arr(vec![
+                        1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0,
+                        0.0, 1.0,
+                    ])],
+                ),
+                BinNode::leaf("TransformLink", vec![BinProp::F64Arr(tl_cols)]),
+            ],
+        });
+    }
+    nodes
+}
+
+struct BinAnim {
+    stack_id: i64,
+    layer_id: i64,
+    anim_idx: usize,
+    channels: Vec<BinChan>,
+}
+
+struct BinChan {
+    curve_node_id: i64,
+    cx_id: i64,
+    cy_id: i64,
+    cz_id: i64,
+    chan_idx: usize,
+    anim_idx: usize,
+}
+
+fn bin_build_animation(entry: &BinAnim, scene: &Scene) -> Vec<BinNode> {
+    const FBX_TIME_UNIT: f64 = 46186158000.0;
+    let anim = &scene.animations[entry.anim_idx];
+    let mut nodes = Vec::new();
+
+    nodes.push(BinNode {
+        name: "AnimationStack".to_string(),
+        props: vec![
+            BinProp::Int64(entry.stack_id),
+            BinProp::Str(format!("{}\x00\x01AnimationStack", anim.name)),
+            BinProp::Str(String::new()),
+        ],
+        children: vec![BinNode {
+            name: "Properties70".to_string(),
+            props: vec![],
+            children: vec![BinNode::leaf(
+                "P",
+                vec![
+                    BinProp::Str("LocalStop".to_string()),
+                    BinProp::Str("KTime".to_string()),
+                    BinProp::Str("Time".to_string()),
+                    BinProp::Str(String::new()),
+                    BinProp::Int64((anim.duration() as f64 * FBX_TIME_UNIT) as i64),
+                ],
+            )],
+        }],
+    });
+
+    nodes.push(BinNode {
+        name: "AnimationLayer".to_string(),
+        props: vec![
+            BinProp::Int64(entry.layer_id),
+            BinProp::Str("BaseLayer\x00\x01AnimationLayer".to_string()),
+            BinProp::Str(String::new()),
+        ],
+        children: vec![],
+    });
+
+    for ce in &entry.channels {
+        let chan = &scene.animations[ce.anim_idx].channels[ce.chan_idx];
+        let prop_name = match &chan.target {
+            AnimationTarget::Translation(_) => "T",
+            AnimationTarget::Rotation(_) => "R",
+            AnimationTarget::Scale(_) => "S",
+            _ => "T",
+        };
+
+        nodes.push(BinNode {
+            name: "AnimationCurveNode".to_string(),
+            props: vec![
+                BinProp::Int64(ce.curve_node_id),
+                BinProp::Str(format!("AnimCurveNode::{prop_name}\x00\x01AnimationCurveNode")),
+                BinProp::Str(String::new()),
+            ],
+            children: vec![BinNode {
+                name: "Properties70".to_string(),
+                props: vec![],
+                children: vec![
+                    BinNode::leaf(
+                        "P",
+                        vec![
+                            BinProp::Str("d|X".to_string()),
+                            BinProp::Str("Number".to_string()),
+                            BinProp::Str(String::new()),
+                            BinProp::Str("A".to_string()),
+                            BinProp::Int32(0),
+                        ],
+                    ),
+                    BinNode::leaf(
+                        "P",
+                        vec![
+                            BinProp::Str("d|Y".to_string()),
+                            BinProp::Str("Number".to_string()),
+                            BinProp::Str(String::new()),
+                            BinProp::Str("A".to_string()),
+                            BinProp::Int32(0),
+                        ],
+                    ),
+                    BinNode::leaf(
+                        "P",
+                        vec![
+                            BinProp::Str("d|Z".to_string()),
+                            BinProp::Str("Number".to_string()),
+                            BinProp::Str(String::new()),
+                            BinProp::Str("A".to_string()),
+                            BinProp::Int32(0),
+                        ],
+                    ),
+                ],
+            }],
+        });
+
+        let (x_vals, y_vals, z_vals) = match &chan.target {
+            AnimationTarget::Translation(_) | AnimationTarget::Scale(_) => {
+                let x: Vec<f64> = chan.values.iter().step_by(3).map(|&v| v as f64).collect();
+                let y: Vec<f64> = chan
+                    .values
+                    .iter()
+                    .skip(1)
+                    .step_by(3)
+                    .map(|&v| v as f64)
+                    .collect();
+                let z: Vec<f64> = chan
+                    .values
+                    .iter()
+                    .skip(2)
+                    .step_by(3)
+                    .map(|&v| v as f64)
+                    .collect();
+                (x, y, z)
+            }
+            AnimationTarget::Rotation(_) => {
+                let mut x = Vec::new();
+                let mut y = Vec::new();
+                let mut z = Vec::new();
+                for i in 0..chan.times.len() {
+                    let qx = chan.values.get(i * 4).copied().unwrap_or(0.0);
+                    let qy = chan.values.get(i * 4 + 1).copied().unwrap_or(0.0);
+                    let qz = chan.values.get(i * 4 + 2).copied().unwrap_or(0.0);
+                    let qw = chan.values.get(i * 4 + 3).copied().unwrap_or(1.0);
+                    let q = Quat::from_xyzw(qx, qy, qz, qw);
+                    let (rx, ry, rz) = q.to_euler(EulerRot::XYZ);
+                    x.push(rx.to_degrees() as f64);
+                    y.push(ry.to_degrees() as f64);
+                    z.push(rz.to_degrees() as f64);
+                }
+                (x, y, z)
+            }
+            _ => (Vec::new(), Vec::new(), Vec::new()),
+        };
+
+        let key_times_fbx: Vec<i64> = chan
+            .times
+            .iter()
+            .map(|&t| (t as f64 * FBX_TIME_UNIT) as i64)
+            .collect();
+
+        for (axis_id, axis_vals) in [(ce.cx_id, &x_vals), (ce.cy_id, &y_vals), (ce.cz_id, &z_vals)] {
+            nodes.push(BinNode {
+                name: "AnimationCurve".to_string(),
+                props: vec![
+                    BinProp::Int64(axis_id),
+                    BinProp::Str("AnimCurve::\x00\x01AnimationCurve".to_string()),
+                    BinProp::Str(String::new()),
+                ],
+                children: vec![
+                    BinNode::leaf("Default", vec![BinProp::Int32(0)]),
+                    BinNode::leaf("KeyTime", vec![BinProp::I64Arr(key_times_fbx.clone())]),
+                    BinNode::leaf("KeyValueFloat", vec![BinProp::F64Arr(axis_vals.clone())]),
+                ],
+            });
+        }
+    }
+    nodes
+}
+
+fn bin_object_type(name: &str, count: usize) -> BinNode {
+    BinNode {
+        name: "ObjectType".to_string(),
+        props: vec![BinProp::Str(name.to_string())],
+        children: vec![BinNode::leaf("Count", vec![BinProp::Int32(count as i32)])],
+    }
+}
+
 fn bin_build_scene(scene: &Scene) -> Vec<BinNode> {
     let mut id_counter: i64 = 0;
     let mut next = || {
@@ -1335,8 +1800,74 @@ fn bin_build_scene(scene: &Scene) -> Vec<BinNode> {
     let geom_ids: Vec<i64> = (0..scene.meshes.len()).map(|_| next()).collect();
     let model_ids: Vec<i64> = (0..scene.nodes.len()).map(|_| next()).collect();
     let mat_ids: Vec<i64> = (0..scene.materials.len()).map(|_| next()).collect();
+    let cam_ids: Vec<i64> = (0..scene.cameras.len()).map(|_| next()).collect();
+    let light_ids: Vec<i64> = (0..scene.lights.len()).map(|_| next()).collect();
 
-    let total = scene.meshes.len() + scene.nodes.len() + scene.materials.len();
+    let mut skin_entries: Vec<BinSkin> = Vec::new();
+    for (ni, node) in scene.nodes.iter().enumerate() {
+        if let (Some(skin_idx), Some(mesh_idx)) = (node.skin, node.mesh) {
+            if skin_idx >= scene.skins.len() || mesh_idx >= scene.meshes.len() {
+                continue;
+            }
+            let skin = &scene.skins[skin_idx];
+            let skin_id = next();
+            let geom_id = geom_ids[mesh_idx];
+            let mut clusters = Vec::new();
+            for joint_node_id in &skin.joints {
+                if let Some(jni) = scene.nodes.iter().position(|n| n.id == *joint_node_id) {
+                    let cluster_id = next();
+                    clusters.push(BinCluster {
+                        cluster_id,
+                        joint_node_idx: jni,
+                    });
+                }
+            }
+            skin_entries.push(BinSkin {
+                skin_id,
+                geom_id,
+                node_idx: ni,
+                skin_idx,
+                clusters,
+            });
+        }
+    }
+
+    let mut anim_entries: Vec<BinAnim> = Vec::new();
+    for (ai, anim) in scene.animations.iter().enumerate() {
+        let stack_id = next();
+        let layer_id = next();
+        let mut channels = Vec::new();
+        for (ci, _chan) in anim.channels.iter().enumerate() {
+            let curve_node_id = next();
+            let cx_id = next();
+            let cy_id = next();
+            let cz_id = next();
+            channels.push(BinChan {
+                curve_node_id,
+                cx_id,
+                cy_id,
+                cz_id,
+                chan_idx: ci,
+                anim_idx: ai,
+            });
+        }
+        anim_entries.push(BinAnim {
+            stack_id,
+            layer_id,
+            anim_idx: ai,
+            channels,
+        });
+    }
+
+    let skin_obj_count: usize = skin_entries.iter().map(|e| 1 + e.clusters.len()).sum();
+    let anim_obj_count: usize = anim_entries.iter().map(|e| 2 + e.channels.len() * 4).sum();
+    let total = scene.meshes.len()
+        + scene.nodes.len()
+        + scene.materials.len()
+        + scene.cameras.len()
+        + scene.lights.len()
+        + skin_obj_count
+        + anim_obj_count;
 
     let header_ext = BinNode {
         name: "FBXHeaderExtension".to_string(),
@@ -1347,6 +1878,29 @@ fn bin_build_scene(scene: &Scene) -> Vec<BinNode> {
         ],
     };
 
+    let mut object_types = vec![
+        bin_object_type("Model", scene.nodes.len()),
+        bin_object_type("Geometry", scene.meshes.len()),
+        bin_object_type("Material", scene.materials.len()),
+        bin_object_type("NodeAttribute", scene.cameras.len() + scene.lights.len()),
+        bin_object_type("Deformer", skin_obj_count),
+    ];
+    object_types.push(bin_object_type(
+        "AnimationStack",
+        anim_entries.len(),
+    ));
+    object_types.push(bin_object_type(
+        "AnimationLayer",
+        anim_entries.len(),
+    ));
+    object_types.push(bin_object_type(
+        "AnimationCurveNode",
+        anim_entries.iter().map(|e| e.channels.len()).sum(),
+    ));
+    object_types.push(bin_object_type(
+        "AnimationCurve",
+        anim_entries.iter().map(|e| e.channels.len() * 3).sum(),
+    ));
     let definitions = BinNode {
         name: "Definitions".to_string(),
         props: vec![],
@@ -1354,27 +1908,8 @@ fn bin_build_scene(scene: &Scene) -> Vec<BinNode> {
             BinNode::leaf("Count", vec![BinProp::Int32(total as i32)]),
             BinNode {
                 name: "ObjectType".to_string(),
-                props: vec![BinProp::Str("Model".to_string())],
-                children: vec![BinNode::leaf(
-                    "Count",
-                    vec![BinProp::Int32(scene.nodes.len() as i32)],
-                )],
-            },
-            BinNode {
-                name: "ObjectType".to_string(),
-                props: vec![BinProp::Str("Geometry".to_string())],
-                children: vec![BinNode::leaf(
-                    "Count",
-                    vec![BinProp::Int32(scene.meshes.len() as i32)],
-                )],
-            },
-            BinNode {
-                name: "ObjectType".to_string(),
-                props: vec![BinProp::Str("Material".to_string())],
-                children: vec![BinNode::leaf(
-                    "Count",
-                    vec![BinProp::Int32(scene.materials.len() as i32)],
-                )],
+                props: vec![],
+                children: object_types,
             },
         ],
     };
@@ -1388,6 +1923,18 @@ fn bin_build_scene(scene: &Scene) -> Vec<BinNode> {
     }
     for (i, mat) in scene.materials.iter().enumerate() {
         obj_children.push(bin_build_material(mat_ids[i], mat));
+    }
+    for (i, cam) in scene.cameras.iter().enumerate() {
+        obj_children.push(bin_build_camera_attribute(cam_ids[i], cam));
+    }
+    for (i, light) in scene.lights.iter().enumerate() {
+        obj_children.push(bin_build_light_attribute(light_ids[i], light));
+    }
+    for entry in &skin_entries {
+        obj_children.extend(bin_build_skin(entry, scene));
+    }
+    for entry in &anim_entries {
+        obj_children.extend(bin_build_animation(entry, scene));
     }
     let objects = BinNode {
         name: "Objects".to_string(),
@@ -1436,6 +1983,32 @@ fn bin_build_scene(scene: &Scene) -> Vec<BinNode> {
             }
         }
 
+        if let Some(ci) = node.camera {
+            if ci < cam_ids.len() {
+                conn_children.push(BinNode::leaf(
+                    "C",
+                    vec![
+                        BinProp::Str("OO".to_string()),
+                        BinProp::Int64(cam_ids[ci]),
+                        BinProp::Int64(nid),
+                    ],
+                ));
+            }
+        }
+
+        if let Some(li) = node.light {
+            if li < light_ids.len() {
+                conn_children.push(BinNode::leaf(
+                    "C",
+                    vec![
+                        BinProp::Str("OO".to_string()),
+                        BinProp::Int64(light_ids[li]),
+                        BinProp::Int64(nid),
+                    ],
+                ));
+            }
+        }
+
         let parent_id = node
             .parent
             .and_then(|pid| node_id_map.get(&pid.0))
@@ -1450,6 +2023,111 @@ fn bin_build_scene(scene: &Scene) -> Vec<BinNode> {
             ],
         ));
     }
+
+    for entry in &skin_entries {
+        conn_children.push(BinNode::leaf(
+            "C",
+            vec![
+                BinProp::Str("OO".to_string()),
+                BinProp::Int64(entry.skin_id),
+                BinProp::Int64(entry.geom_id),
+            ],
+        ));
+        for cluster_entry in &entry.clusters {
+            conn_children.push(BinNode::leaf(
+                "C",
+                vec![
+                    BinProp::Str("OO".to_string()),
+                    BinProp::Int64(cluster_entry.cluster_id),
+                    BinProp::Int64(entry.skin_id),
+                ],
+            ));
+            let joint_nid = model_ids[cluster_entry.joint_node_idx];
+            conn_children.push(BinNode::leaf(
+                "C",
+                vec![
+                    BinProp::Str("OO".to_string()),
+                    BinProp::Int64(joint_nid),
+                    BinProp::Int64(cluster_entry.cluster_id),
+                ],
+            ));
+        }
+    }
+
+    for ae in &anim_entries {
+        conn_children.push(BinNode::leaf(
+            "C",
+            vec![
+                BinProp::Str("OO".to_string()),
+                BinProp::Int64(ae.layer_id),
+                BinProp::Int64(ae.stack_id),
+            ],
+        ));
+        conn_children.push(BinNode::leaf(
+            "C",
+            vec![
+                BinProp::Str("OO".to_string()),
+                BinProp::Int64(ae.stack_id),
+                BinProp::Int64(0),
+            ],
+        ));
+        for ce in &ae.channels {
+            let chan = &scene.animations[ce.anim_idx].channels[ce.chan_idx];
+            conn_children.push(BinNode::leaf(
+                "C",
+                vec![
+                    BinProp::Str("OO".to_string()),
+                    BinProp::Int64(ce.curve_node_id),
+                    BinProp::Int64(ae.layer_id),
+                ],
+            ));
+            let (target_node_id, prop_name_full) = match &chan.target {
+                AnimationTarget::Translation(nid) => (*nid, "Lcl Translation"),
+                AnimationTarget::Rotation(nid) => (*nid, "Lcl Rotation"),
+                AnimationTarget::Scale(nid) => (*nid, "Lcl Scaling"),
+                _ => continue,
+            };
+            if let Some(mi) = scene.nodes.iter().position(|n| n.id == target_node_id) {
+                conn_children.push(BinNode::leaf(
+                    "C",
+                    vec![
+                        BinProp::Str("OP".to_string()),
+                        BinProp::Int64(ce.curve_node_id),
+                        BinProp::Int64(model_ids[mi]),
+                        BinProp::Str(prop_name_full.to_string()),
+                    ],
+                ));
+            }
+            conn_children.push(BinNode::leaf(
+                "C",
+                vec![
+                    BinProp::Str("OP".to_string()),
+                    BinProp::Int64(ce.cx_id),
+                    BinProp::Int64(ce.curve_node_id),
+                    BinProp::Str("d|X".to_string()),
+                ],
+            ));
+            conn_children.push(BinNode::leaf(
+                "C",
+                vec![
+                    BinProp::Str("OP".to_string()),
+                    BinProp::Int64(ce.cy_id),
+                    BinProp::Int64(ce.curve_node_id),
+                    BinProp::Str("d|Y".to_string()),
+                ],
+            ));
+            conn_children.push(BinNode::leaf(
+                "C",
+                vec![
+                    BinProp::Str("OP".to_string()),
+                    BinProp::Int64(ce.cz_id),
+                    BinProp::Int64(ce.curve_node_id),
+                    BinProp::Str("d|Z".to_string()),
+                ],
+            ));
+        }
+    }
+
     let connections = BinNode {
         name: "Connections".to_string(),
         props: vec![],

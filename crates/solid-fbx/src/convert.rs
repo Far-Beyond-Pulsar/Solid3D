@@ -17,7 +17,9 @@ use glam::{EulerRot, Mat4, Quat, Vec2, Vec3, Vec4};
 
 use solid_rs::builder::SceneBuilder;
 use solid_rs::extensions::Extensions;
-use solid_rs::geometry::{Primitive, SkinWeights, Vertex};
+use solid_rs::geometry::{
+    Primitive, SkinWeights, Vertex, MAX_COLOR_CHANNELS, MAX_UV_CHANNELS,
+};
 use solid_rs::scene::camera::{OrthographicCamera, PerspectiveCamera, Projection};
 use solid_rs::scene::light::{AreaLight, DirectionalLight, LightBase, PointLight, SpotLight};
 use solid_rs::scene::Scene;
@@ -25,7 +27,7 @@ use solid_rs::scene::{
     AlphaMode, Animation, AnimationChannel, AnimationTarget, Camera, Image, ImageSource,
     Interpolation, Light, Material, Mesh, NodeId, Skin, Texture, TextureRef,
 };
-use solid_rs::{Result, SolidError};
+use solid_rs::Result;
 
 use crate::document::{FbxDocument, FbxNode, FbxProperty};
 
@@ -757,11 +759,9 @@ impl<'d> Converter<'d> {
         }
 
         let (normals, norm_indices, norm_ref_mode) = extract_normal_layer(node);
-        let (uvs, uv_indices, uv_ref_mode) = extract_uv_layer(node);
+        let uv_layers = extract_uv_layers(node);
+        let color_layers = extract_color_layers(node);
         let norm_mode = extract_mapping_mode(node, "LayerElementNormal");
-        let uv_mode = extract_mapping_mode(node, "LayerElementUV");
-
-        let (colors_data, color_indices, color_mode, color_ref_mode) = extract_color_layer(node);
 
         let (tangents, tangent_indices, tang_ref_mode) = extract_tangent_layer(node);
         let tangent_w = extract_f64_layer(node, "LayerElementTangent", "TangentW");
@@ -790,7 +790,7 @@ impl<'d> Converter<'d> {
             let pz = verts.get(vert_idx * 3 + 2).copied().unwrap_or(0.0) as f32;
 
             let ns = match norm_mode {
-                MappingMode::ByVertex => vert_idx,
+                MappingMode::ByVertex | MappingMode::ByControlPoint => vert_idx,
                 _ => flat_idx,
             };
             let ni = if norm_ref_mode == RefMode::IndexToDirect {
@@ -802,47 +802,39 @@ impl<'d> Converter<'d> {
             let ny = normals.get(ni * 3 + 1).copied().unwrap_or(0.0) as f32;
             let nz = normals.get(ni * 3 + 2).copied().unwrap_or(0.0) as f32;
 
-            let us = match uv_mode {
-                MappingMode::ByVertex => vert_idx,
-                _ => flat_idx,
-            };
-            let ui = if uv_ref_mode == RefMode::IndexToDirect {
-                uv_indices.get(us).copied().unwrap_or(us as i32) as usize
-            } else {
-                us
-            };
-            let u = uvs.get(ui * 2).copied().unwrap_or(0.0) as f32;
-            let v = uvs.get(ui * 2 + 1).copied().unwrap_or(0.0) as f32;
-
-            // Resolve vertex colour
-            let color = if !colors_data.is_empty() {
-                let cs = match color_mode {
-                    MappingMode::ByVertex => vert_idx,
-                    _ => flat_idx,
-                };
-                let ci = if color_ref_mode == RefMode::IndexToDirect {
-                    color_indices.get(cs).copied().unwrap_or(cs as i32) as usize
-                } else {
-                    cs
-                };
-                let cr = colors_data.get(ci * 4).copied().unwrap_or(1.0) as f32;
-                let cg = colors_data.get(ci * 4 + 1).copied().unwrap_or(1.0) as f32;
-                let cb = colors_data.get(ci * 4 + 2).copied().unwrap_or(1.0) as f32;
-                let ca = colors_data.get(ci * 4 + 3).copied().unwrap_or(1.0) as f32;
-                Some(Vec4::new(cr, cg, cb, ca))
-            } else {
-                None
-            };
-
             let mut vtx = Vertex::new(Vec3::new(px, py, pz))
-                .with_normal(Vec3::new(nx, ny, nz))
-                .with_uv(Vec2::new(u, 1.0 - v)); // flip V for OpenGL
-            if let Some(c) = color {
-                vtx.colors[0] = Some(c);
+                .with_normal(Vec3::new(nx, ny, nz));
+
+            // Texture coordinates — one entry per LayerElementUV channel.
+            for layer in &uv_layers {
+                if layer.channel >= MAX_UV_CHANNELS {
+                    continue;
+                }
+                let i = layer_index(layer, flat_idx, vert_idx);
+                let u = layer.data.get(i * 2).copied().unwrap_or(0.0) as f32;
+                let v = layer.data.get(i * 2 + 1).copied().unwrap_or(0.0) as f32;
+                vtx.uvs[layer.channel] = Some(Vec2::new(u, 1.0 - v)); // flip V for OpenGL
+            }
+            if uv_layers.is_empty() {
+                // Preserve historical behaviour: always expose a primary UV.
+                vtx.uvs[0] = Some(Vec2::new(0.0, 1.0));
+            }
+
+            // Vertex colours — one entry per LayerElementColor channel.
+            for layer in &color_layers {
+                if layer.channel >= MAX_COLOR_CHANNELS || layer.data.is_empty() {
+                    continue;
+                }
+                let i = layer_index(layer, flat_idx, vert_idx);
+                let cr = layer.data.get(i * 4).copied().unwrap_or(1.0) as f32;
+                let cg = layer.data.get(i * 4 + 1).copied().unwrap_or(1.0) as f32;
+                let cb = layer.data.get(i * 4 + 2).copied().unwrap_or(1.0) as f32;
+                let ca = layer.data.get(i * 4 + 3).copied().unwrap_or(1.0) as f32;
+                vtx.colors[layer.channel] = Some(Vec4::new(cr, cg, cb, ca));
             }
             if !tangents.is_empty() {
                 let ts = match tang_mode {
-                    MappingMode::ByVertex => vert_idx,
+                    MappingMode::ByVertex | MappingMode::ByControlPoint => vert_idx,
                     _ => flat_idx,
                 };
                 let ti = if tang_ref_mode == RefMode::IndexToDirect {
@@ -1342,44 +1334,92 @@ fn extract_mapping_mode(geo: &FbxNode, layer: &str) -> MappingMode {
         .unwrap_or(MappingMode::ByPolygonVertex)
 }
 
-/// Returns `(colors_f64, color_indices, mapping_mode, ref_mode)`.
-fn extract_color_layer(geo: &FbxNode) -> (Vec<f64>, Vec<i32>, MappingMode, RefMode) {
-    let layer = match geo.child("LayerElementColor") {
-        Some(l) => l,
-        None => {
-            return (
-                Vec::new(),
-                Vec::new(),
-                MappingMode::ByPolygonVertex,
-                RefMode::Direct,
-            )
-        }
+/// Extracted attribute data for one LayerElement channel.
+struct LayerData {
+    /// Declared FBX layer index (channel), e.g. the `0` in `LayerElementUV: 0`.
+    channel: usize,
+    data: Vec<f64>,
+    indices: Vec<i32>,
+    mode: MappingMode,
+    ref_mode: RefMode,
+}
+
+/// Resolve the data-array index for a polygon corner according to the
+/// layer's mapping mode (`ByVertex`/`ByControlPoint` → control-point index,
+/// `ByPolygonVertex` → flat corner index) and reference mode.
+fn layer_index(layer: &LayerData, flat_idx: usize, vert_idx: usize) -> usize {
+    let base = match layer.mode {
+        MappingMode::ByVertex | MappingMode::ByControlPoint => vert_idx,
+        _ => flat_idx,
     };
+    if layer.ref_mode == RefMode::IndexToDirect {
+        layer
+            .indices
+            .get(base)
+            .copied()
+            .unwrap_or(base as i32) as usize
+    } else {
+        base
+    }
+}
 
-    let colors = layer
-        .child("Colors")
-        .and_then(|n| n.properties.first().and_then(|p| p.to_f64_vec()))
-        .unwrap_or_default();
+/// Collect every `LayerElementUV` child (primary UV set, lightmap UV2, ...).
+fn extract_uv_layers(geo: &FbxNode) -> Vec<LayerData> {
+    extract_layer_channels(geo, "LayerElementUV", "UV", "UVIndex")
+}
 
-    let color_indices = layer
-        .child("ColorIndex")
-        .and_then(|n| n.as_i32_slice())
-        .map(|s| s.to_vec())
-        .unwrap_or_default();
+/// Collect every `LayerElementColor` child (primary and auxiliary colour sets).
+fn extract_color_layers(geo: &FbxNode) -> Vec<LayerData> {
+    extract_layer_channels(geo, "LayerElementColor", "Colors", "ColorIndex")
+}
 
-    let mapping = layer
-        .child("MappingInformationType")
-        .and_then(|n| n.as_str())
-        .map(MappingMode::from_str)
-        .unwrap_or(MappingMode::ByPolygonVertex);
-
-    let ref_mode = layer
-        .child("ReferenceInformationType")
-        .and_then(|n| n.as_str())
-        .map(RefMode::from_str)
-        .unwrap_or(RefMode::Direct);
-
-    (colors, color_indices, mapping, ref_mode)
+/// Parse all children named `layer_name` into [`LayerData`], ordered by
+/// declared layer index (FBX convention: layer index == channel index).
+fn extract_layer_channels(
+    geo: &FbxNode,
+    layer_name: &str,
+    data_key: &str,
+    index_key: &str,
+) -> Vec<LayerData> {
+    let mut layers: Vec<LayerData> = geo
+        .children_named(layer_name)
+        .map(|layer| {
+            let channel = layer
+                .properties
+                .first()
+                .and_then(FbxProperty::as_i64)
+                .map(|v| v.max(0) as usize)
+                .unwrap_or(0);
+            let data = layer
+                .child(data_key)
+                .and_then(|n| n.properties.first().and_then(|p| p.to_f64_vec()))
+                .unwrap_or_default();
+            let indices = layer
+                .child(index_key)
+                .and_then(|n| n.as_i32_slice())
+                .map(|s| s.to_vec())
+                .unwrap_or_default();
+            let mode = layer
+                .child("MappingInformationType")
+                .and_then(|n| n.as_str())
+                .map(MappingMode::from_str)
+                .unwrap_or(MappingMode::ByPolygonVertex);
+            let ref_mode = layer
+                .child("ReferenceInformationType")
+                .and_then(|n| n.as_str())
+                .map(RefMode::from_str)
+                .unwrap_or(RefMode::Direct);
+            LayerData {
+                channel,
+                data,
+                indices,
+                mode,
+                ref_mode,
+            }
+        })
+        .collect();
+    layers.sort_by_key(|l| l.channel);
+    layers
 }
 
 /// Returns `(tangents_f64, tangent_indices, ref_mode)`.
@@ -1436,33 +1476,6 @@ fn extract_normal_layer(geo: &FbxNode) -> (Vec<f64>, Vec<i32>, RefMode) {
     (normals, norm_indices, ref_mode)
 }
 
-/// Returns `(uvs_f64, uv_indices, ref_mode)`.
-fn extract_uv_layer(geo: &FbxNode) -> (Vec<f64>, Vec<i32>, RefMode) {
-    let layer = match geo.child("LayerElementUV") {
-        Some(l) => l,
-        None => return (Vec::new(), Vec::new(), RefMode::Direct),
-    };
-
-    let uvs = layer
-        .child("UV")
-        .and_then(|n| n.properties.first().and_then(|p| p.to_f64_vec()))
-        .unwrap_or_default();
-
-    let uv_indices = layer
-        .child("UVIndex")
-        .and_then(|n| n.as_i32_slice())
-        .map(|s| s.to_vec())
-        .unwrap_or_default();
-
-    let ref_mode = layer
-        .child("ReferenceInformationType")
-        .and_then(|n| n.as_str())
-        .map(RefMode::from_str)
-        .unwrap_or(RefMode::Direct);
-
-    (uvs, uv_indices, ref_mode)
-}
-
 /// Returns `(per_polygon_mat_indices, all_same_flag)`.
 fn extract_material_layer(geo: &FbxNode) -> (Vec<i32>, bool) {
     let layer = match geo.child("LayerElementMaterial") {
@@ -1507,12 +1520,14 @@ fn prop_f32_default(node: &FbxNode, idx: usize, default: f32) -> f32 {
 enum MappingMode {
     ByPolygonVertex,
     ByVertex,
+    ByControlPoint,
 }
 
 impl MappingMode {
     fn from_str(s: &str) -> Self {
         match s {
             "ByVertex" | "ByVertice" => MappingMode::ByVertex,
+            "ByControlPoint" => MappingMode::ByControlPoint,
             _ => MappingMode::ByPolygonVertex,
         }
     }

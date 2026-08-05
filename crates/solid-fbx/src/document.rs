@@ -196,11 +196,20 @@ impl FbxProperty {
         }
     }
 
-    /// Returns this property as a `Vec<i64>`, also accepting int32/int64 arrays.
+    /// Returns this property as a `Vec<i64>`, accepting int32/int64 arrays.
+    /// Float arrays are rounded to the nearest integer so that animation
+    /// `KeyTime` arrays written with a decimal point (e.g. `46186158000.0`)
+    /// still import correctly.
     pub fn to_i64_vec(&self) -> Option<Vec<i64>> {
         match self {
             FbxProperty::ArrInt64(v) => Some(v.clone()),
             FbxProperty::ArrInt32(v) => Some(v.iter().map(|&x| x as i64).collect()),
+            FbxProperty::ArrFloat64(v) => {
+                Some(v.iter().map(|&x| x.round() as i64).collect())
+            }
+            FbxProperty::ArrFloat32(v) => {
+                Some(v.iter().map(|&x| x.round() as i64).collect())
+            }
             _ => None,
         }
     }

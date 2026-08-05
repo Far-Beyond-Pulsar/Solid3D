@@ -73,8 +73,9 @@ impl Loader for FbxLoader {
         if slice.len() >= 23 && &slice[..23] == b"Kaydara FBX Binary  \x00\x1a\x00" {
             return 1.0;
         }
-        // ASCII FBX starts with `; FBX`
-        if slice.starts_with(b"; FBX") || slice.starts_with(b";FBX") {
+        // ASCII FBX starts with `; FBX` (a leading UTF-8 BOM is tolerated)
+        let ascii_head = slice.strip_prefix(&[0xEF, 0xBB, 0xBF]).unwrap_or(slice);
+        if ascii_head.starts_with(b"; FBX") || ascii_head.starts_with(b";FBX") {
             return 0.8;
         }
         0.0

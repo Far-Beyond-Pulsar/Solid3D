@@ -15,11 +15,12 @@ use crate::document::{FbxDocument, FbxNode, FbxProperty};
 // ── Detection ─────────────────────────────────────────────────────────────────
 
 /// Returns `true` if the first bytes look like an ASCII FBX file.
-/// The reader position is restored afterwards.
+/// The reader position is restored afterwards. A leading UTF-8 BOM is ignored.
 pub(crate) fn detect(reader: &mut dyn ReadSeek) -> bool {
     let mut buf = [0u8; 16];
     let n = reader.read(&mut buf).unwrap_or(0);
-    let ok = std::str::from_utf8(&buf[..n])
+    let data = buf[..n].strip_prefix(&[0xEF, 0xBB, 0xBF]).unwrap_or(&buf[..n]);
+    let ok = std::str::from_utf8(data)
         .map(|s| s.starts_with("; FBX") || s.starts_with(";FBX"))
         .unwrap_or(false);
     let _ = reader.seek(SeekFrom::Start(0));
@@ -32,6 +33,10 @@ pub(crate) fn detect(reader: &mut dyn ReadSeek) -> bool {
 pub(crate) fn parse(reader: &mut dyn ReadSeek) -> Result<FbxDocument> {
     let mut src = String::new();
     reader.read_to_string(&mut src).map_err(SolidError::Io)?;
+    // Strip a leading UTF-8 BOM if present.
+    if src.starts_with('\u{FEFF}') {
+        src.remove(0);
+    }
 
     let tokens = tokenize(&src)?;
     let mut parser = AsciiParser::new(tokens);
@@ -178,10 +183,15 @@ fn tokenize(src: &str) -> Result<Vec<Token>> {
                 }
             }
 
-            // Identifiers / keywords
+            // Identifiers / keywords. Continue through '-' so dashed bare
+            // identifiers like `Pre-Extrapolation` stay a single token.
+            // (Numbers are consumed greedily first, so `-1` / `1e-5` are
+            // unaffected.)
             c if c.is_alphabetic() || c == '_' => {
                 let mut s = String::new();
-                while pos < src.len() && (src[pos].is_alphanumeric() || src[pos] == '_') {
+                while pos < src.len()
+                    && (src[pos].is_alphanumeric() || src[pos] == '_' || src[pos] == '-')
+                {
                     s.push(src[pos]);
                     pos += 1;
                 }
@@ -405,6 +415,12 @@ impl AsciiParser {
             Token::Str(s) => {
                 self.next();
                 Some(FbxProperty::String(s))
+            }
+            // Bare identifiers are valid ASCII FBX string values; store them
+            // instead of silently discarding the token.
+            Token::Word(w) => {
+                self.next();
+                Some(FbxProperty::String(w))
             }
             _ => {
                 self.next();
