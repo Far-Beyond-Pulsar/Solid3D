@@ -43,6 +43,7 @@ fn load_options_can_be_customised() {
         generate_normals: true,
         triangulate: true,
         merge_vertices: true,
+        merge_meshes: false,
         flip_uv_v: true,
         max_texture_size: Some(1024),
         base_dir: Some("/tmp".into()),
@@ -50,6 +51,7 @@ fn load_options_can_be_customised() {
     assert!(opts.generate_normals);
     assert!(opts.triangulate);
     assert!(opts.merge_vertices);
+    assert!(!opts.merge_meshes);
     assert!(opts.flip_uv_v);
     assert_eq!(opts.max_texture_size, Some(1024));
     assert_eq!(
