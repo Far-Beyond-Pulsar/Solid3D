@@ -10,16 +10,21 @@
 
 | Capability | Load | Save |
 |---|---|---|
-| Binary FBX (v7.2 – v7.7) | ✅ | — |
+| Binary FBX (v6.1 – v7.7, 32 + 64-bit offsets) | ✅ | ✅ |
 | ASCII FBX (v7.4) | ✅ | ✅ |
 | Geometry — positions, normals, UVs | ✅ | ✅ |
 | N-gon fan triangulation | ✅ | — |
+| Tangents (`LayerElementTangent`) | ✅ | ✅ |
+| Vertex colours (`LayerElementColor`) | ✅ | ✅ |
 | Node hierarchy + local transforms | ✅ | ✅ |
 | Materials — diffuse / emissive | ✅ | ✅ |
 | Texture filename references | ✅ | ✅ |
 | Zlib-compressed array properties | ✅ | — |
 | Euler-degree ↔ quaternion conversion | ✅ | ✅ |
-| Skinning / skeletal animation | ❌ | ❌ |
+| Cameras (perspective + orthographic) | ✅ | ✅ |
+| Lights (point, directional, spot, area) | ✅ | ✅ |
+| Skeletal skinning (vertex weights, IBP matrices) | ✅ | ✅ |
+| Animation clips (translation, rotation, scale) | ✅ | ✅ |
 
 ---
 
@@ -113,7 +118,9 @@ transparently using the [`flate2`](https://crates.io/crates/flate2) crate.
 ### ASCII FBX
 
 ASCII files begin with `; FBX` and use a human-readable node / property
-syntax.  The saver always writes ASCII FBX 7.4.
+syntax.  The `save` method always writes ASCII FBX 7.4, while
+`save_binary` writes a binary FBX 7.4 file (magic + version 7400 +
+32-bit node offsets).
 
 ### Transforms
 
