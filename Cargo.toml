@@ -11,6 +11,7 @@ members  = [
     "crates/solid-mdl",
     "crates/solid-usd",
     "crates/solid-unreal",
+    "crates/solid-roundtrip-tests",
     "examples/fbx-to-obj",
     "examples/unreal-to-fbx",
 ]

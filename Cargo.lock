@@ -359,6 +359,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "solid-roundtrip-tests"
+version = "0.1.0"
+dependencies = [
+ "glam",
+ "solid-fbx",
+ "solid-gltf",
+ "solid-mdl",
+ "solid-obj",
+ "solid-ply",
+ "solid-rs",
+ "solid-stl",
+ "solid-usd",
+ "solid-x",
+]
+
+[[package]]
 name = "solid-rs"
 version = "0.1.0"
 dependencies = [

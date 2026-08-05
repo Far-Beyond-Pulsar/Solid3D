@@ -1,0 +1,21 @@
+[package]
+name = "solid-roundtrip-tests"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Cross-format round-trip tests for SolidRS"
+
+[dependencies]
+solid-rs   = { workspace = true }
+solid-obj  = { path = "../solid-obj" }
+solid-fbx  = { path = "../solid-fbx" }
+solid-gltf = { path = "../solid-gltf" }
+solid-stl  = { path = "../solid-stl" }
+solid-ply  = { path = "../solid-ply" }
+solid-x    = { path = "../solid-x" }
+solid-mdl  = { path = "../solid-mdl" }
+solid-usd  = { path = "../solid-usd" }
+glam       = { workspace = true }
