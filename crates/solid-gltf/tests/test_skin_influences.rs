@@ -207,3 +207,68 @@ fn missing_inverse_binds_are_identity_and_broken_joint_tables_are_errors() {
     document["nodes"][3]["children"] = serde_json::json!([2]);
     assert!(load(&document).is_err());
 }
+
+#[test]
+fn normalized_integer_weights_and_byte_joints_use_all_sets() {
+    use base64::Engine;
+    for component in [5121, 5123] {
+        let mut document = fixture();
+        let uri = document["buffers"][0]["uri"].as_str().unwrap();
+        let mut bytes = base64::engine::general_purpose::STANDARD
+            .decode(uri.split_once(',').unwrap().1)
+            .unwrap();
+        for (set, joints, weights) in [
+            (0, [0u8, 1, 2, 3], [6u16, 6, 13, 13]),
+            (1, [4, 5, 6, 7], [19, 25, 32, 13]),
+            (2, [8, 0, 0, 0], [128, 0, 0, 0]),
+        ] {
+            for (semantic, data, kind) in [
+                ("JOINTS", joints.repeat(3), 5121),
+                (
+                    "WEIGHTS",
+                    weights
+                        .repeat(3)
+                        .into_iter()
+                        .flat_map(|weight| {
+                            if component == 5121 {
+                                vec![weight as u8]
+                            } else {
+                                (weight * 257).to_le_bytes().to_vec()
+                            }
+                        })
+                        .collect(),
+                    component,
+                ),
+            ] {
+                while !bytes.len().is_multiple_of(4) {
+                    bytes.push(0);
+                }
+                let start = bytes.len();
+                bytes.extend(data);
+                let view = document["bufferViews"].as_array().unwrap().len();
+                document["bufferViews"].as_array_mut().unwrap().push(serde_json::json!({"buffer":0,"byteOffset":start,"byteLength":bytes.len()-start}));
+                let accessor = document["meshes"][0]["primitives"][0]["attributes"]
+                    [format!("{semantic}_{set}")]
+                .as_u64()
+                .unwrap() as usize;
+                document["accessors"][accessor]["bufferView"] = serde_json::json!(view);
+                document["accessors"][accessor]["componentType"] = serde_json::json!(kind);
+                document["accessors"][accessor]["normalized"] =
+                    serde_json::json!(semantic == "WEIGHTS");
+            }
+        }
+        document["buffers"][0]["byteLength"] = serde_json::json!(bytes.len());
+        document["buffers"][0]["uri"] = serde_json::json!(format!(
+            "data:application/octet-stream;base64,{}",
+            base64::engine::general_purpose::STANDARD.encode(bytes)
+        ));
+        let scene = load(&document).unwrap();
+        for vertex in &scene.meshes[0].vertices {
+            let weights = vertex.skin_weights.as_ref().unwrap();
+            assert_eq!(weights.joints, [8, 6, 5, 4]);
+            for (weight, expected) in weights.weights.iter().zip([128.0, 32.0, 25.0, 19.0]) {
+                assert!((weight - expected / 204.0).abs() < 1e-6);
+            }
+        }
+    }
+}
