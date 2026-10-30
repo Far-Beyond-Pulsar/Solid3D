@@ -15,6 +15,8 @@ serde_json = { workspace = true }
 base64     = { workspace = true }
 glam       = { workspace = true }
 
+log = "0.4"
+
 [features]
 # Enable the configurator schema for this format (see solid-rs `configurator`).
 configurator = ["solid-rs/configurator"]

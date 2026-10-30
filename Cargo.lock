@@ -367,6 +367,7 @@ version = "0.1.0"
 dependencies = [
  "base64",
  "glam",
+ "log",
  "serde",
  "serde_json",
  "solid-rs",

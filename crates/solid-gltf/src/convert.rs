@@ -4,7 +4,7 @@ use crate::buffer;
 use crate::document::*;
 use glam::{Mat4, Quat, Vec2, Vec3, Vec4};
 use solid_rs::builder::SceneBuilder;
-use solid_rs::geometry::{Primitive, SkinWeights, Transform, Vertex};
+use solid_rs::geometry::{Primitive, Transform, Vertex};
 use solid_rs::scene::{
     AlphaMode, Animation, AnimationChannel, AnimationTarget, Camera, DirectionalLight, Image,
     ImageSource, Interpolation, Light, LightBase, Material, Mesh, MorphTarget, NodeId,
@@ -183,8 +183,23 @@ pub fn gltf_to_scene(
     }
 
     // --- Meshes ---
-    for gmesh in &root.meshes {
+    for (mesh_index, gmesh) in root.meshes.iter().enumerate() {
         let mut mesh = Mesh::new(gmesh.name.clone().unwrap_or_default());
+        let mut reduced_vertices = 0;
+        let joint_count = root
+            .nodes
+            .iter()
+            .filter(|node| node.mesh == Some(mesh_index))
+            .filter_map(|node| node.skin)
+            .map(|skin| {
+                root.skins
+                    .get(skin)
+                    .map(|skin| skin.joints.len())
+                    .ok_or_else(|| SolidError::parse("mesh node references an invalid skin"))
+            })
+            .collect::<Result<Vec<_>>>()?
+            .into_iter()
+            .min();
         for prim in &gmesh.primitives {
             let pos_acc = prim.attributes.get("POSITION").copied();
             let positions: Vec<Vec3> = if let Some(idx) = pos_acc {
@@ -244,20 +259,14 @@ pub fn gltf_to_scene(
                 vec![]
             };
 
-            let joints_data: Vec<[u16; 4]> = if let Some(&idx) = prim.attributes.get("JOINTS_0") {
-                buffer::read_u16_vec4(root, &buffers, idx)?
-            } else {
-                vec![]
-            };
-
-            let weights_data: Vec<[f32; 4]> = if let Some(&idx) = prim.attributes.get("WEIGHTS_0") {
-                let flat = buffer::read_f32(root, &buffers, idx)?;
-                flat.chunks_exact(4)
-                    .map(|c| [c[0], c[1], c[2], c[3]])
-                    .collect()
-            } else {
-                vec![]
-            };
+            let (skin_weights, reduced) = crate::skin_weights::read_skin_weights(
+                root,
+                &buffers,
+                prim,
+                positions.len(),
+                joint_count,
+            )?;
+            reduced_vertices += reduced;
 
             let n = positions.len();
             let vertices: Vec<Vertex> = (0..n)
@@ -277,12 +286,7 @@ pub fn gltf_to_scene(
                             v.uvs[ch] = Some(uvs[i]);
                         }
                     }
-                    if i < joints_data.len() && i < weights_data.len() {
-                        v.skin_weights = Some(SkinWeights {
-                            joints: joints_data[i],
-                            weights: weights_data[i],
-                        });
-                    }
+                    v.skin_weights = skin_weights.get(i).cloned();
                     v
                 })
                 .collect();
@@ -398,6 +402,9 @@ pub fn gltf_to_scene(
             mesh.morph_weights = gmesh.weights.clone();
         }
 
+        if reduced_vertices > 0 {
+            log::warn!("glTF mesh {mesh_index} '{}': discarded influences on {reduced_vertices} vertices; kept the strongest four joints and renormalized weights", mesh.name);
+        }
         b.push_mesh(mesh);
     }
 

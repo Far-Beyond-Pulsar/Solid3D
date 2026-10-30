@@ -434,29 +434,3 @@ pub fn read_u32(root: &GltfRoot, buffers: &[Vec<u8>], acc_idx: usize) -> Result<
     Ok(out)
 }
 
-/// Read u16 values (used for JOINTS_0).
-pub fn read_u16_vec4(
-    root: &GltfRoot,
-    buffers: &[Vec<u8>],
-    acc_idx: usize,
-) -> Result<Vec<[u16; 4]>> {
-    let acc = validate_accessor(root, acc_idx)?;
-    let (slice, stride) = get_slice(root, buffers, acc)?;
-    let comp_sz = component_size(acc.component_type);
-    check_stride_fits(acc_idx, acc.count, stride, 4 * comp_sz, slice.len())?;
-    let mut out = Vec::with_capacity(acc.count);
-    for i in 0..acc.count {
-        let base = i * stride;
-        let mut joints = [0u16; 4];
-        for c in 0..4 {
-            let off = base + c * comp_sz;
-            joints[c] = match acc.component_type {
-                5121 => slice[off] as u16,
-                5123 => u16::from_le_bytes(slice[off..off + 2].try_into().unwrap()),
-                _ => 0,
-            };
-        }
-        out.push(joints);
-    }
-    Ok(out)
-}
