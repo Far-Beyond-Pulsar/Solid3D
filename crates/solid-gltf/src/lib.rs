@@ -47,6 +47,7 @@ mod convert;
 mod document;
 pub mod loader;
 pub mod saver;
+mod skin_weights;
 
 pub use loader::GltfLoader;
 pub use saver::GltfSaver;

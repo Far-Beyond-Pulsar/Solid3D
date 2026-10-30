@@ -4,7 +4,7 @@ use crate::buffer;
 use crate::document::*;
 use glam::{Mat4, Quat, Vec2, Vec3, Vec4};
 use solid_rs::builder::SceneBuilder;
-use solid_rs::geometry::{Primitive, SkinWeights, Transform, Vertex};
+use solid_rs::geometry::{Primitive, Transform, Vertex};
 use solid_rs::scene::{
     AlphaMode, Animation, AnimationChannel, AnimationTarget, Camera, DirectionalLight, Image,
     ImageSource, Interpolation, Light, LightBase, Material, Mesh, MorphTarget, NodeId,
@@ -183,8 +183,23 @@ pub fn gltf_to_scene(
     }
 
     // --- Meshes ---
-    for gmesh in &root.meshes {
+    for (mesh_index, gmesh) in root.meshes.iter().enumerate() {
         let mut mesh = Mesh::new(gmesh.name.clone().unwrap_or_default());
+        let mut reduced_vertices = 0;
+        let joint_count = root
+            .nodes
+            .iter()
+            .filter(|node| node.mesh == Some(mesh_index))
+            .filter_map(|node| node.skin)
+            .map(|skin| {
+                root.skins
+                    .get(skin)
+                    .map(|skin| skin.joints.len())
+                    .ok_or_else(|| SolidError::parse("mesh node references an invalid skin"))
+            })
+            .collect::<Result<Vec<_>>>()?
+            .into_iter()
+            .min();
         for prim in &gmesh.primitives {
             let pos_acc = prim.attributes.get("POSITION").copied();
             let positions: Vec<Vec3> = if let Some(idx) = pos_acc {
@@ -244,20 +259,14 @@ pub fn gltf_to_scene(
                 vec![]
             };
 
-            let joints_data: Vec<[u16; 4]> = if let Some(&idx) = prim.attributes.get("JOINTS_0") {
-                buffer::read_u16_vec4(root, &buffers, idx)?
-            } else {
-                vec![]
-            };
-
-            let weights_data: Vec<[f32; 4]> = if let Some(&idx) = prim.attributes.get("WEIGHTS_0") {
-                let flat = buffer::read_f32(root, &buffers, idx)?;
-                flat.chunks_exact(4)
-                    .map(|c| [c[0], c[1], c[2], c[3]])
-                    .collect()
-            } else {
-                vec![]
-            };
+            let (skin_weights, reduced) = crate::skin_weights::read_skin_weights(
+                root,
+                &buffers,
+                prim,
+                positions.len(),
+                joint_count,
+            )?;
+            reduced_vertices += reduced;
 
             let n = positions.len();
             let vertices: Vec<Vertex> = (0..n)
@@ -277,12 +286,7 @@ pub fn gltf_to_scene(
                             v.uvs[ch] = Some(uvs[i]);
                         }
                     }
-                    if i < joints_data.len() && i < weights_data.len() {
-                        v.skin_weights = Some(SkinWeights {
-                            joints: joints_data[i],
-                            weights: weights_data[i],
-                        });
-                    }
+                    v.skin_weights = skin_weights.get(i).cloned();
                     v
                 })
                 .collect();
@@ -398,6 +402,9 @@ pub fn gltf_to_scene(
             mesh.morph_weights = gmesh.weights.clone();
         }
 
+        if reduced_vertices > 0 {
+            log::warn!("glTF mesh {mesh_index} '{}': discarded influences on {reduced_vertices} vertices; kept the strongest four joints and renormalized weights", mesh.name);
+        }
         b.push_mesh(mesh);
     }
 
@@ -431,17 +438,7 @@ pub fn gltf_to_scene(
     }
 
     // --- Nodes: BFS from scene roots, create hierarchy ---
-    let root_node_indices: Vec<usize> = if let Some(si) = root.scene {
-        if si < root.scenes.len() {
-            root.scenes[si].nodes.clone()
-        } else {
-            (0..root.nodes.len()).collect()
-        }
-    } else if !root.scenes.is_empty() {
-        root.scenes[0].nodes.clone()
-    } else {
-        (0..root.nodes.len()).collect()
-    };
+    let root_node_indices = source_roots(root)?;
 
     let mut queue: std::collections::VecDeque<(usize, Option<NodeId>)> =
         root_node_indices.iter().map(|&i| (i, None)).collect();
@@ -450,8 +447,10 @@ pub fn gltf_to_scene(
         std::collections::HashMap::new();
 
     while let Some((gi, parent)) = queue.pop_front() {
-        if gi >= root.nodes.len() {
-            continue;
+        if gltf_to_node_map.contains_key(&gi) {
+            return Err(SolidError::parse(
+                "cycle or repeated child in node hierarchy",
+            ));
         }
         let gn = &root.nodes[gi];
         let name = gn.name.clone().unwrap_or_else(|| format!("Node_{gi}"));
@@ -473,6 +472,10 @@ pub fn gltf_to_scene(
         }
     }
 
+    if gltf_to_node_map.len() != root.nodes.len() {
+        return Err(SolidError::parse("cycle in node hierarchy"));
+    }
+
     // --- Skins ---
     for gskin in &root.skins {
         let mut skin = Skin::new(gskin.name.clone().unwrap_or_default());
@@ -480,12 +483,28 @@ pub fn gltf_to_scene(
             .skeleton
             .and_then(|si| gltf_to_node_map.get(&si).copied());
         for &ji in &gskin.joints {
-            if let Some(&nid) = gltf_to_node_map.get(&ji) {
-                skin.joints.push(nid);
-            }
+            let nid = gltf_to_node_map.get(&ji).ok_or_else(|| {
+                SolidError::parse(format!("skin references missing joint node {ji}"))
+            })?;
+            skin.joints.push(*nid);
         }
         if let Some(ibm_idx) = gskin.inverse_bind_matrices {
+            let accessor = root
+                .accessors
+                .get(ibm_idx)
+                .ok_or_else(|| SolidError::parse("invalid inverse bind accessor"))?;
+            if accessor.type_ != "MAT4"
+                || accessor.component_type != 5126
+                || accessor.count < skin.joints.len()
+            {
+                return Err(SolidError::parse(
+                    "inverse bind accessor must contain a float MAT4 per joint",
+                ));
+            }
             let flat = buffer::read_f32(root, &buffers, ibm_idx)?;
+            if flat.iter().any(|value| !value.is_finite()) {
+                return Err(SolidError::parse("non-finite inverse bind matrix"));
+            }
             skin.inverse_bind_matrices = flat
                 .chunks_exact(16)
                 .map(|c| {
@@ -1387,6 +1406,41 @@ fn build_material_extensions(material: &Material) -> Option<GltfMaterialExtensio
         khr_materials_specular: specular,
         khr_materials_ior: ior,
     })
+}
+
+/// Source import includes all node trees, including skins in non-default scenes.
+/// Build each source node once so joint and animation references keep their identity.
+fn source_roots(root: &GltfRoot) -> Result<Vec<usize>> {
+    let mut parents = vec![None; root.nodes.len()];
+    for (parent, node) in root.nodes.iter().enumerate() {
+        for &child in &node.children {
+            let slot = parents
+                .get_mut(child)
+                .ok_or_else(|| SolidError::parse("invalid child node"))?;
+            if slot.replace(parent).is_some() {
+                return Err(SolidError::parse("node has multiple parents"));
+            }
+        }
+    }
+    let mut roots = Vec::new();
+    let mut included = vec![false; root.nodes.len()];
+    if let Some(scene) = root.scenes.get(root.scene.unwrap_or(0)) {
+        for &node in &scene.nodes {
+            if parents.get(node).is_none_or(|parent| parent.is_some()) {
+                return Err(SolidError::parse("invalid scene root node"));
+            }
+            if !included[node] {
+                included[node] = true;
+                roots.push(node);
+            }
+        }
+    }
+    for (node, parent) in parents.iter().enumerate() {
+        if parent.is_none() && !included[node] {
+            roots.push(node);
+        }
+    }
+    Ok(roots)
 }
 
 #[cfg(test)]
