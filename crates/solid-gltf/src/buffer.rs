@@ -126,7 +126,13 @@ fn validate_accessor(root: &GltfRoot, acc_idx: usize) -> Result<&GltfAccessor> {
 
 /// Ensure the strided element range `count * stride` (plus one full element)
 /// fits inside `slice`. Returns the offset of the last element's first byte.
-fn check_stride_fits(acc_idx: usize, count: usize, stride: usize, comp_bytes: usize, slice_len: usize) -> Result<()> {
+fn check_stride_fits(
+    acc_idx: usize,
+    count: usize,
+    stride: usize,
+    comp_bytes: usize,
+    slice_len: usize,
+) -> Result<()> {
     if count == 0 {
         return Ok(());
     }
@@ -410,7 +416,13 @@ pub fn read_u32(root: &GltfRoot, buffers: &[Vec<u8>], acc_idx: usize) -> Result<
 
     let mut out = if acc.buffer_view.is_some() {
         let (slice, stride) = get_slice(root, buffers, acc)?;
-        check_stride_fits(acc_idx, acc.count, stride, component_size(acc.component_type), slice.len())?;
+        check_stride_fits(
+            acc_idx,
+            acc.count,
+            stride,
+            component_size(acc.component_type),
+            slice.len(),
+        )?;
         let mut out = Vec::with_capacity(acc.count);
         for i in 0..acc.count {
             let off = i * stride;
@@ -433,4 +445,3 @@ pub fn read_u32(root: &GltfRoot, buffers: &[Vec<u8>], acc_idx: usize) -> Result<
 
     Ok(out)
 }
-

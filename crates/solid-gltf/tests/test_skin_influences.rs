@@ -20,7 +20,7 @@ fn all_sets_are_ranked_before_normalization_and_ties_use_joint_index() {
     let mesh = &scene.meshes[0];
     assert_eq!(mesh.vertices.len(), 6);
     assert_eq!(mesh.primitives.len(), 2);
-    for primitive in mesh.vertices.chunks_exact(3) {
+    for primitive in mesh.vertices.as_chunks::<3>().0 {
         let vertex = primitive[0].skin_weights.as_ref().unwrap();
         assert_eq!(vertex.joints, [8, 6, 5, 4]);
         for (actual, expected) in vertex.weights.iter().zip([0.625, 0.15625, 0.125, 0.09375]) {
@@ -174,4 +174,36 @@ fn invalid_and_duplicate_weights_are_cleaned_before_selection() {
     let duplicated = vertices[2].skin_weights.as_ref().unwrap();
     assert_eq!(duplicated.joints, [0, 7, 1, 0]);
     assert!((duplicated.weights[0] - 0.7).abs() < 1e-6);
+}
+
+#[test]
+fn non_default_scenes_keep_joint_palettes_and_shared_nodes_are_loaded_once() {
+    let mut document = fixture();
+    document["scenes"] = serde_json::json!([
+        {"nodes": [0, 2, 20, 21]}, {"nodes": [1, 2]}
+    ]);
+    let scene = load(&document).unwrap();
+    assert_eq!(scene.nodes.len(), 22);
+    assert_eq!(scene.skins[1].joints.len(), 9);
+    assert_eq!(scene.skins[0].joints[0], scene.skins[1].joints[8]);
+    assert!(scene.nodes.iter().any(|n| n.skin == Some(1)));
+}
+
+#[test]
+fn missing_inverse_binds_are_identity_and_broken_joint_tables_are_errors() {
+    let mut document = fixture();
+    document["skins"][1]
+        .as_object_mut()
+        .unwrap()
+        .remove("inverseBindMatrices");
+    let scene = load(&document).unwrap();
+    assert_eq!(scene.skins[1].inverse_bind_matrix(8), glam::Mat4::IDENTITY);
+    document["skins"][1]["joints"][0] = serde_json::json!(999);
+    assert!(load(&document)
+        .unwrap_err()
+        .to_string()
+        .contains("missing joint"));
+    let mut document = fixture();
+    document["nodes"][3]["children"] = serde_json::json!([2]);
+    assert!(load(&document).is_err());
 }
