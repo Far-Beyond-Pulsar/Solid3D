@@ -33,7 +33,10 @@ pub fn read<R: Read + Seek>(reader: R) -> Result<UsdzFile, SolidError> {
             let f = archive
                 .by_index(i)
                 .map_err(|e| SolidError::parse(format!("USDZ: invalid ZIP entry: {e}")))?;
-            let n = f.name().to_ascii_lowercase();
+            let n = f
+                .name()
+                .map_err(|e| SolidError::parse(format!("USDZ: invalid entry name: {e}")))?
+                .to_ascii_lowercase();
             if n.ends_with(".usda") || n.ends_with(".usdc") || n.ends_with(".usd") {
                 root = Some(i);
                 break;
@@ -47,7 +50,10 @@ pub fn read<R: Read + Seek>(reader: R) -> Result<UsdzFile, SolidError> {
         let mut entry = archive
             .by_index(root_index)
             .map_err(|e| SolidError::parse(format!("USDZ: cannot open root entry: {e}")))?;
-        let name = entry.name().to_ascii_lowercase();
+        let name = entry
+            .name()
+            .map_err(|e| SolidError::parse(format!("USDZ: invalid root entry name: {e}")))?
+            .to_ascii_lowercase();
         let mut buf = Vec::new();
         entry.read_to_end(&mut buf).map_err(SolidError::Io)?;
         (name, buf)
@@ -71,7 +77,10 @@ pub fn read<R: Read + Seek>(reader: R) -> Result<UsdzFile, SolidError> {
         let mut f = archive
             .by_index(i)
             .map_err(|e| SolidError::parse(format!("USDZ: cannot open entry {i}: {e}")))?;
-        let raw_name = f.name().to_string();
+        let raw_name = f
+            .name()
+            .map_err(|e| SolidError::parse(format!("USDZ: invalid entry name {i}: {e}")))?
+            .to_string();
         if raw_name.ends_with('/') {
             continue; // directory entry
         }
