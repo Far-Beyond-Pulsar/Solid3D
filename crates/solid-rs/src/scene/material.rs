@@ -28,11 +28,23 @@ impl TextureRef {
 }
 
 /// Affine 2-D transform applied to UV coordinates before sampling.
+///
+/// The texture is sampled at `offset + R(rotation) * (scale * uv)`, the
+/// order and meaning of glTF's `KHR_texture_transform`. UVs have their origin
+/// at the image's top-left with `v` pointing down, and
+///
+/// ```text
+/// R(θ) * (u, v) = ( cos θ * u + sin θ * v,
+///                  -sin θ * u + cos θ * v )
+/// ```
+///
+/// which rotates the UVs counter-clockwise as the image is viewed (the image
+/// itself appears rotated clockwise).
 #[derive(Debug, Clone, PartialEq)]
 pub struct TextureTransform {
     /// UV translation offset.
     pub offset: Vec2,
-    /// Rotation angle in radians.
+    /// Rotation angle in radians; see the type docs for its direction.
     pub rotation: f32,
     /// UV scale factors.
     pub scale: Vec2,

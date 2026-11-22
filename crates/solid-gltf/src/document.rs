@@ -141,6 +141,8 @@ pub struct GltfPbr {
 pub struct GltfTextureInfo {
     pub index: usize,
     pub tex_coord: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extensions: Option<GltfTextureInfoExtensions>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
@@ -149,6 +151,8 @@ pub struct GltfNormalTextureInfo {
     pub index: usize,
     pub tex_coord: Option<usize>,
     pub scale: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extensions: Option<GltfTextureInfoExtensions>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
@@ -157,6 +161,35 @@ pub struct GltfOcclusionTextureInfo {
     pub index: usize,
     pub tex_coord: Option<usize>,
     pub strength: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extensions: Option<GltfTextureInfoExtensions>,
+}
+
+/// Extensions a `textureInfo` (and its normal / occlusion variants) can carry.
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+#[serde(default)]
+pub struct GltfTextureInfoExtensions {
+    #[serde(
+        rename = "KHR_texture_transform",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub khr_texture_transform: Option<GltfTextureTransform>,
+}
+
+/// `KHR_texture_transform`: the texture is sampled at
+/// `T(offset) * R(rotation) * S(scale) * uv`, from UV set `tex_coord` when
+/// that is given (it overrides the owning `textureInfo.texCoord`).
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+#[serde(rename_all = "camelCase", default)]
+pub struct GltfTextureTransform {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub offset: Option<[f32; 2]>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rotation: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scale: Option<[f32; 2]>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tex_coord: Option<usize>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
