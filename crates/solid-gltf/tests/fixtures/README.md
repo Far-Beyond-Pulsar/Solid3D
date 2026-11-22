@@ -11,3 +11,12 @@ The two primitives share the attribute accessors and use separate materials.
 
 Khronos glTF Validator reports zero errors. Its warning about the unskinned node
 using a weighted mesh is intentional: that instance must import as static content.
+
+`texture_transform.gltf` is a hand-written one-triangle model whose single
+material lists `KHR_texture_transform` in `extensionsRequired`, the way Poly
+Haven exports trees. Its slots cover the extension's cases: base colour with
+offset and scale, metallic-roughness with a scale and a `texCoord` override to
+UV set 1 (so two slots on UV set 0 disagree), a 90 degree normal rotation, an
+occlusion slot without the extension, an emissive slot with an explicit
+identity transform, and a `KHR_materials_specular` texture with an offset. The
+buffer is embedded: positions, then `TEXCOORD_0`, then `TEXCOORD_1`.

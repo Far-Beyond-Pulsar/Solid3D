@@ -69,6 +69,7 @@ fn enforce_supported_extensions(root: &GltfRoot) -> Result<()> {
         "KHR_lights_punctual",
         "KHR_materials_specular",
         "KHR_materials_ior",
+        "KHR_texture_transform",
     ];
     let unsupported: Vec<&str> = root
         .extensions_required

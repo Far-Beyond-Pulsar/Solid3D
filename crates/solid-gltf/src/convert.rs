@@ -9,7 +9,7 @@ use solid_rs::scene::{
     AlphaMode, Animation, AnimationChannel, AnimationTarget, Camera, DirectionalLight, Image,
     ImageSource, Interpolation, Light, LightBase, Material, Mesh, MorphTarget, NodeId,
     OrthographicCamera, PerspectiveCamera, PointLight, Projection, Skin, SpotLight, Texture,
-    TextureRef,
+    TextureRef, TextureTransform,
 };
 use solid_rs::{Result, SolidError};
 use std::path::Path;
@@ -17,6 +17,7 @@ use std::path::Path;
 const DEFAULT_GLTF_SPECULAR_WEIGHT: f32 = 1.0;
 const DEFAULT_GLTF_IOR: f32 = 1.5;
 const GLTF_FLOAT_EPSILON: f32 = 1.0e-6;
+const KHR_TEXTURE_TRANSFORM: &str = "KHR_texture_transform";
 
 pub fn gltf_to_scene(
     root: &GltfRoot,
@@ -101,42 +102,42 @@ pub fn gltf_to_scene(
             m.metallic_factor = pbr.metallic_factor.unwrap_or(1.0);
             m.roughness_factor = pbr.roughness_factor.unwrap_or(1.0);
             if let Some(ti) = &pbr.base_color_texture {
-                m.base_color_texture = Some(TextureRef {
-                    texture_index: ti.index,
-                    uv_channel: ti.tex_coord.unwrap_or(0),
-                    transform: None,
-                });
+                m.base_color_texture = Some(import_texture_ref(
+                    ti.index,
+                    ti.tex_coord,
+                    ti.extensions.as_ref(),
+                ));
             }
             if let Some(ti) = &pbr.metallic_roughness_texture {
-                m.metallic_roughness_texture = Some(TextureRef {
-                    texture_index: ti.index,
-                    uv_channel: ti.tex_coord.unwrap_or(0),
-                    transform: None,
-                });
+                m.metallic_roughness_texture = Some(import_texture_ref(
+                    ti.index,
+                    ti.tex_coord,
+                    ti.extensions.as_ref(),
+                ));
             }
         }
         if let Some(nt) = &mat.normal_texture {
-            m.normal_texture = Some(TextureRef {
-                texture_index: nt.index,
-                uv_channel: nt.tex_coord.unwrap_or(0),
-                transform: None,
-            });
+            m.normal_texture = Some(import_texture_ref(
+                nt.index,
+                nt.tex_coord,
+                nt.extensions.as_ref(),
+            ));
             m.normal_scale = nt.scale.unwrap_or(1.0);
         }
         if let Some(ot) = &mat.occlusion_texture {
-            m.occlusion_texture = Some(TextureRef {
-                texture_index: ot.index,
-                uv_channel: ot.tex_coord.unwrap_or(0),
-                transform: None,
-            });
+            m.occlusion_texture = Some(import_texture_ref(
+                ot.index,
+                ot.tex_coord,
+                ot.extensions.as_ref(),
+            ));
             m.occlusion_strength = ot.strength.unwrap_or(1.0);
         }
         if let Some(et) = &mat.emissive_texture {
-            m.emissive_texture = Some(TextureRef {
-                texture_index: et.index,
-                uv_channel: et.tex_coord.unwrap_or(0),
-                transform: None,
-            });
+            m.emissive_texture = Some(import_texture_ref(
+                et.index,
+                et.tex_coord,
+                et.extensions.as_ref(),
+            ));
         }
         if let Some(ef) = mat.emissive_factor {
             m.emissive_factor = Vec3::from(ef);
@@ -149,21 +150,21 @@ pub fn gltf_to_scene(
                     m.specular_color = Vec3::from(color);
                 }
                 if let Some(texture) = &specular.specular_color_texture {
-                    m.specular_color_texture = Some(TextureRef {
-                        texture_index: texture.index,
-                        uv_channel: texture.tex_coord.unwrap_or(0),
-                        transform: None,
-                    });
+                    m.specular_color_texture = Some(import_texture_ref(
+                        texture.index,
+                        texture.tex_coord,
+                        texture.extensions.as_ref(),
+                    ));
                 }
                 if let Some(weight) = specular.specular_factor {
                     m.specular_weight = weight;
                 }
                 if let Some(texture) = &specular.specular_texture {
-                    m.specular_weight_texture = Some(TextureRef {
-                        texture_index: texture.index,
-                        uv_channel: texture.tex_coord.unwrap_or(0),
-                        transform: None,
-                    });
+                    m.specular_weight_texture = Some(import_texture_ref(
+                        texture.index,
+                        texture.tex_coord,
+                        texture.extensions.as_ref(),
+                    ));
                 }
             }
             if let Some(ior) = &ext.khr_materials_ior {
@@ -720,10 +721,19 @@ pub fn scene_to_gltf(scene: &solid_rs::scene::scene::Scene) -> Result<(GltfRoot,
     if scene.materials.iter().any(material_uses_ior_extension) {
         gltf.extensions_used.push("KHR_materials_ior".into());
     }
+    if scene
+        .materials
+        .iter()
+        .flat_map(material_texture_refs)
+        .any(|texture| export_texture_extensions(texture).is_some())
+    {
+        gltf.extensions_used.push(KHR_TEXTURE_TRANSFORM.into());
+    }
 
     for mat in &scene.materials {
         let base_color_texture = mat.base_color_texture.as_ref().map(|tr| GltfTextureInfo {
             index: tr.texture_index,
+            extensions: export_texture_extensions(tr),
             tex_coord: if tr.uv_channel > 0 {
                 Some(tr.uv_channel)
             } else {
@@ -735,6 +745,7 @@ pub fn scene_to_gltf(scene: &solid_rs::scene::scene::Scene) -> Result<(GltfRoot,
             .as_ref()
             .map(|tr| GltfTextureInfo {
                 index: tr.texture_index,
+                extensions: export_texture_extensions(tr),
                 tex_coord: if tr.uv_channel > 0 {
                     Some(tr.uv_channel)
                 } else {
@@ -743,6 +754,7 @@ pub fn scene_to_gltf(scene: &solid_rs::scene::scene::Scene) -> Result<(GltfRoot,
             });
         let normal_texture = mat.normal_texture.as_ref().map(|tr| GltfNormalTextureInfo {
             index: tr.texture_index,
+            extensions: export_texture_extensions(tr),
             tex_coord: if tr.uv_channel > 0 {
                 Some(tr.uv_channel)
             } else {
@@ -759,6 +771,7 @@ pub fn scene_to_gltf(scene: &solid_rs::scene::scene::Scene) -> Result<(GltfRoot,
             .as_ref()
             .map(|tr| GltfOcclusionTextureInfo {
                 index: tr.texture_index,
+                extensions: export_texture_extensions(tr),
                 tex_coord: if tr.uv_channel > 0 {
                     Some(tr.uv_channel)
                 } else {
@@ -772,6 +785,7 @@ pub fn scene_to_gltf(scene: &solid_rs::scene::scene::Scene) -> Result<(GltfRoot,
             });
         let emissive_texture = mat.emissive_texture.as_ref().map(|tr| GltfTextureInfo {
             index: tr.texture_index,
+            extensions: export_texture_extensions(tr),
             tex_coord: if tr.uv_channel > 0 {
                 Some(tr.uv_channel)
             } else {
@@ -1364,6 +1378,71 @@ pub fn scene_to_gltf(scene: &solid_rs::scene::scene::Scene) -> Result<(GltfRoot,
     Ok((gltf, bin))
 }
 
+/// The scene's reference to one glTF texture slot.
+///
+/// `KHR_texture_transform` is carried onto the slot itself: a texture
+/// reference holds its own transform and UV set, so every slot keeps its
+/// authored transform exactly, even when slots sharing one UV set disagree,
+/// and the vertex UVs stay as authored. The extension's `texCoord`, when
+/// given, overrides the slot's own.
+fn import_texture_ref(
+    texture_index: usize,
+    tex_coord: Option<usize>,
+    extensions: Option<&GltfTextureInfoExtensions>,
+) -> TextureRef {
+    let khr = extensions.and_then(|ext| ext.khr_texture_transform.as_ref());
+    TextureRef {
+        texture_index,
+        uv_channel: khr.and_then(|t| t.tex_coord).or(tex_coord).unwrap_or(0),
+        transform: khr.and_then(import_texture_transform),
+    }
+}
+
+/// The scene transform for a `KHR_texture_transform`, the extension's
+/// defaults filling absent fields; an identity transform is `None`.
+///
+/// glTF and the scene both put the UV origin at the image's top-left, so the
+/// values carry over unchanged; see [`TextureTransform`] for the meaning of
+/// `rotation`.
+fn import_texture_transform(t: &GltfTextureTransform) -> Option<TextureTransform> {
+    let transform = TextureTransform {
+        offset: Vec2::from(t.offset.unwrap_or([0.0, 0.0])),
+        rotation: t.rotation.unwrap_or(0.0),
+        scale: Vec2::from(t.scale.unwrap_or([1.0, 1.0])),
+    };
+    (transform != TextureTransform::default()).then_some(transform)
+}
+
+/// The `KHR_texture_transform` a scene texture reference saves with, if any.
+fn export_texture_extensions(texture: &TextureRef) -> Option<GltfTextureInfoExtensions> {
+    let t = texture.transform.as_ref()?;
+    if *t == TextureTransform::default() {
+        return None;
+    }
+    Some(GltfTextureInfoExtensions {
+        khr_texture_transform: Some(GltfTextureTransform {
+            offset: (t.offset != Vec2::ZERO).then_some([t.offset.x, t.offset.y]),
+            rotation: (t.rotation != 0.0).then_some(t.rotation),
+            scale: (t.scale != Vec2::ONE).then_some([t.scale.x, t.scale.y]),
+            tex_coord: None,
+        }),
+    })
+}
+
+fn material_texture_refs(material: &Material) -> impl Iterator<Item = &TextureRef> {
+    [
+        &material.base_color_texture,
+        &material.metallic_roughness_texture,
+        &material.normal_texture,
+        &material.occlusion_texture,
+        &material.emissive_texture,
+        &material.specular_color_texture,
+        &material.specular_weight_texture,
+    ]
+    .into_iter()
+    .flatten()
+}
+
 fn material_uses_specular_extension(material: &Material) -> bool {
     material.specular_color != Vec3::ONE
         || material.specular_color_texture.is_some()
@@ -1383,6 +1462,7 @@ fn build_material_extensions(material: &Material) -> Option<GltfMaterialExtensio
         specular_texture: material.specular_weight_texture.as_ref().map(|texture| {
             GltfTextureInfo {
                 index: texture.texture_index,
+                extensions: export_texture_extensions(texture),
                 tex_coord: (texture.uv_channel > 0).then_some(texture.uv_channel),
             }
         }),
@@ -1394,6 +1474,7 @@ fn build_material_extensions(material: &Material) -> Option<GltfMaterialExtensio
         specular_color_texture: material.specular_color_texture.as_ref().map(|texture| {
             GltfTextureInfo {
                 index: texture.texture_index,
+                extensions: export_texture_extensions(texture),
                 tex_coord: (texture.uv_channel > 0).then_some(texture.uv_channel),
             }
         }),
@@ -1479,11 +1560,13 @@ mod tests {
                         specular_texture: Some(GltfTextureInfo {
                             index: 0,
                             tex_coord: Some(1),
+                            extensions: None,
                         }),
                         specular_color_factor: Some([0.8, 0.7, 0.6]),
                         specular_color_texture: Some(GltfTextureInfo {
                             index: 1,
                             tex_coord: Some(2),
+                            extensions: None,
                         }),
                     }),
                     khr_materials_ior: Some(GltfMaterialsIor { ior: Some(1.33) }),
